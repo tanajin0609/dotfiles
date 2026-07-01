@@ -1,0 +1,15 @@
+# 既定: .claude/ 配下はすべて除外
+.claude/*
+.claude/**/*
+
+# 明示許可: 共有対象のみ
+!.claude/commands/
+!.claude/commands/**
+!.claude/skills/
+!.claude/skills/**
+!.claude/CLAUDE.md
+
+# その他: 一時ファイル・ログ
+*.log
+*.tmp
+.DS_Store
