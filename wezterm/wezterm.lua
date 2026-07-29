@@ -19,20 +19,20 @@ config.show_new_tab_button_in_tab_bar = false
 -- レトロ式タブバーにする（fancy 式の「×」閉じるボタンを無くす）
 config.use_fancy_tab_bar = false
 
--- 起動時に使用するシェル（未指定だと Windows では cmd.exe になる）
--- ※ default_domain を WSL にしたため、これはローカルドメイン（launch_menu の PowerShell 等）用
-config.default_prog = { 'powershell.exe' }
-
 -- WSL ドメインを明示定義する（起動ディレクトリは WSL ディストロの既定ホームに任せる）
 config.wsl_domains = {
   {
-    name = 'WSL:Ubuntu-24.04',
-    distribution = 'Ubuntu-24.04',
+    name = 'WSL:Ubuntu-26.04',
+    distribution = 'Ubuntu-26.04',
+    default_cwd = '~/projects',
   },
 }
+-- 起動時に使用するシェル（未指定だと Windows では cmd.exe になる）
+-- ※ default_domain を WSL にしたため、これはローカルドメイン（launch_menu の PowerShell 等）用
+config.default_prog = { 'WSL:Ubuntu-26.04' }
 
 -- 既定のドメインを WSL(Ubuntu-24.04) にする（新規ウィンドウ/タブが WSL 上で開く）
-config.default_domain = 'WSL:Ubuntu-24.04'
+config.default_domain = 'WSL:Ubuntu-26.04'
 
 config.window_frame = {
   inactive_titlebar_bg = "none",
