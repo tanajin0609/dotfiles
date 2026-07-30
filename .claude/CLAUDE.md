@@ -73,10 +73,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ## Additional Rules
 
 - Never execute `sudo` (or any command requiring elevated/interactive password auth) directly. Only propose the exact command for the user to run themselves — they will judge and execute it.
-- Prefer minimal diffs.
-- Avoid unnecessary refactors.
 - Preserve existing architecture unless explicitly requested.
-- Do not modify unrelated files.
 - Ask before introducing new dependencies.
 - Do not change public API behavior unless required by the task.
 - Always explain verification steps after implementation.
