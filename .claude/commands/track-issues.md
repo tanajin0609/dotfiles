@@ -8,7 +8,7 @@ description: |
 
 # /track-issues — 問題リアルタイム記録スキル
 
-冒頭で `~/.claude/skills/doc-rules/SKILL.md` を Read し、ドキュメント横断ルールを確認してから実行する。
+冒頭で `/home/igpf-2500009/.claude/local/doc-rules/RULES.md` が存在すれば Read し、ドキュメント横断ルールを確認してから実行する（存在しない環境では無視して続行する）。
 
 作業中に発生したバグ・問題を `issue.md` に段階的に記録するスキル。
 発生時は「事象」のみ、原因判明時に「原因」、解決時に「修正内容」を追記していく。

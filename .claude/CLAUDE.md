@@ -69,6 +69,19 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Batch uncertainty into one round trip: finish the self-audit, then return with "root cause + minimal fix" together. Avoid drip-feeding diagnostic questions.
 - For one-shot/throwaway scripts, build in self-diagnosing output (dump the candidate rows, print match counts, warn loudly on zero matches) so a single run reveals the cause and round trips drop to zero.
 
+## 6. Keep Business Domain Out of Shared Config
+
+**`/home/igpf-2500009/.claude/{CLAUDE.md, commands, skills}` is a symlink into a shared dotfiles repo. Anything written there gets pushed.**
+
+When writing or editing a skill, slash command, or CLAUDE.md section:
+
+- Never write customer/project/product/repository names, table or column names, API field names, hostnames, endpoints, environment names, or internal org nouns.
+- Test: replace the proper noun with `<placeholder>`. If the text still carries its value, keep it in the shared file with the placeholder. If the proper noun *was* the information, move it out.
+- Move it to `/home/igpf-2500009/.claude/local/<area>/RULES.md` (outside the symlinked dirs, git-ignored) or the target project's own `.claude/`. Leave only an optional reference behind: read it if it exists, continue silently if it doesn't.
+- Before committing: `grep -rniEf /home/igpf-2500009/.claude/local/ngwords.txt .claude/`
+
+Full rule: the dotfiles README section「共有する範囲 — 業務ドメインを混入させない」.
+
 ---
 ## Additional Rules
 

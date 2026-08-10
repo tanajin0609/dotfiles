@@ -8,7 +8,7 @@ description: |
 
 # /to-html — Markdown → HTML（designer 一本化）
 
-冒頭で `~/.claude/skills/doc-rules/SKILL.md` を Read し、ドキュメント横断ルールを確認してから実行する。
+冒頭で `/home/igpf-2500009/.claude/local/doc-rules/RULES.md` が存在すれば Read し、ドキュメント横断ルールを確認してから実行する（存在しない環境では無視して続行する）。
 
 現セッションの Claude が md を直接 Read → HTML を Write する。Python 決定的レンダラ（旧 auto モード）は廃止。図表・カード・Hero を含むインフォグラフィック相当の HTML を毎回作る。
 

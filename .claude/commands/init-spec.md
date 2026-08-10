@@ -29,6 +29,7 @@ description: |
 3. **テンプレートコピー**
    - `/home/igpf-2500009/projects/_templates/dev/` の内容を対象ディレクトリにコピーする:
      ```bash
+     mkdir -p <target>/docs
      cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/specs   <target>/docs/specs
      cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/tasks   <target>/docs/tasks
      cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/shared  <target>/docs/shared

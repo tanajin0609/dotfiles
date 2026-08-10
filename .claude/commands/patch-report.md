@@ -8,7 +8,7 @@ description: |
 
 # /patch-report — 実装完了レポート生成
 
-冒頭で `~/.claude/skills/doc-rules/SKILL.md` を Read し、ドキュメント横断ルールを確認してから実行する。
+冒頭で `/home/igpf-2500009/.claude/local/doc-rules/RULES.md` が存在すれば Read し、ドキュメント横断ルールを確認してから実行する（存在しない環境では無視して続行する）。
 
 このコマンドを実行すると、今回の実装内容をもとに `report/` フォルダに `.md` レポートを生成します。
 
