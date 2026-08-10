@@ -1,10 +1,10 @@
 ---
 name: init-change
 description: |
-  docs/changes/<連番>-<日付>-<change-name>/ の雛形（proposal.md, design.md, tasks.md, specs/）を
-  _templates/dev/docs/changes/<change-name>/ からコピーして作成する。
-  ディレクトリ名は通し番号と作成日を付与し、採番順＝時系列として一覧できるようにする。
-  /init-change, 変更ディレクトリ初期化
+  既存の SDD サブプロジェクト内に、変更1件ぶんのディレクトリ
+  docs/changes/<連番>-<日付>-<change-name>/ を作り、proposal.md・design.md・tasks.md・specs/
+  の雛形を用意する。新しい改修・機能追加に着手する直前、実装より先に提案と設計を
+  書き起こす段階で使う。連番と作成日は自動付与するため、採番順がそのまま時系列になる。
 ---
 
 # /init-change — 変更ディレクトリ初期化

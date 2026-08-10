@@ -1,9 +1,11 @@
 ---
 name: init-spec
 description: |
-  サブプロジェクトの初期ディレクトリ構成（docs/specs, docs/tasks, docs/changes, docs/shared, src, tests）を
-  _templates/dev/ からコピーして作成する。
-  /init-spec, spec初期化, dev構成初期化
+  サブプロジェクトに SDD の初期ディレクトリ構成（docs/specs, docs/tasks, docs/changes,
+  docs/shared, src, tests）を _templates/dev/ からコピーして作成する。
+  新しいサブプロジェクトを立ち上げるとき、既存ディレクトリを SDD 構成に載せ替えるとき、
+  あるいは変更作業を始めようとして docs/specs/ がまだ無いと分かったときに使う。
+  Ops（運用）中心のサブプロジェクトはこちらではなく /init-ops-work を使う。
 ---
 
 # /init-spec — devテンプレート初期化

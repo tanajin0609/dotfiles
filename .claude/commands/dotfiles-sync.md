@@ -1,10 +1,10 @@
 ---
 name: dotfiles-sync
 description: |
-  現在の環境の ~/.claude（直接編集した内容）をdotfilesリポジトリ（Claude Codeの
-  commands/skills/CLAUDE.md を管理）に同期する。ローカルの変更をコミット・push
-  するかユーザーに確認し、その後リモートの最新変更を取り込み、symlink未設置なら設置する。
-  /dotfiles-sync, dotfiles同期, dotfiles更新, skill同期
+  現在の環境の ~/.claude 配下（commands / skills / CLAUDE.md）への直接編集を dotfiles
+  リポジトリに取り込み、リモートの最新を pull し、symlink が未設置なら設置する。
+  スキルやスラッシュコマンドを追加・修正した後、別マシンと設定を揃えたいとき、
+  symlink が切れて設定が読まれなくなったときに使う。commit と push は必ず確認を取る。
 ---
 
 # /dotfiles-sync — dotfiles と ~/.claude の同期
@@ -43,7 +43,7 @@ git diff -- .claude/commands .claude/skills .claude/CLAUDE.md
 
 1. 変更内容を要約してユーザーに提示する
 2. 適切なコミットメッセージ案を提示する
-3. **push はもちろん、commit も必ずユーザーの確認を取ってから実行する**（無断でcommit/pushしない）
+3. push はもちろん commit も、必ずユーザーの確認を取ってから実行する。このリポジトリは公開リモートに push されるため、業務ドメインが混入した変更を無断で確定させると取り消しが効かない（CLAUDE.md「業務ドメインを混入させない」参照）
 4. 承認が得られたら `git add .claude/commands .claude/skills .claude/CLAUDE.md && git commit -m "<メッセージ>"`、
    その後 push するかを改めて確認してから `git push` する
 

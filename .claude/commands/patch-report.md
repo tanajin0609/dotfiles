@@ -1,9 +1,10 @@
 ---
 name: patch-report
 description: |
-  実装完了後のレポートを .md 形式で生成するスキル。
-  plan.md と変更ファイルを読んで report/patch-report-YYYYMMDD.md を作成する。
-  /patch-report, 実装レポート, 改修レポート, 作業完了レポート
+  実装が一段落した時点で、plan.md と実際に変更したファイルを読んで
+  report/patch-report-YYYYMMDD.md を書き出す。改修や依頼対応を終えて成果を関係者に
+  報告したいとき、何をなぜ変えたかを引き継ぎ用に残したいときに使う。
+  issue.md に未解決 Issue があれば「課題・リスク」として自動で取り込む。
 ---
 
 # /patch-report — 実装完了レポート生成
