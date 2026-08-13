@@ -27,7 +27,20 @@ dotfiles リポジトリと、現在の環境の `~/.claude` を同期する。
 
 見つからない場合はユーザーにパスを確認する（推測で新規作成しない）。
 
-### Step 2: ローカル変更の確認とコミット提案
+### Step 2: 索引の再生成
+
+skill / command の一覧を README.md にまとめている（「利用可能な skill / command 一覧」節）。
+コミット前に必ず再生成し、frontmatter の追加・変更を索引へ反映する。
+
+```bash
+cd <dotfilesディレクトリ>
+python3 scripts/gen_skill_index.py
+```
+
+このスクリプトは README.md 内の `SKILL_INDEX:START`〜`END` マーカー間だけを書き換える。
+手で編集した節ではないので、diff に索引部分の変更が出ても内容の妥当性チェックは不要。
+
+### Step 3: ローカル変更の確認とコミット提案
 
 通常のスキル/コマンド更新は `~/.claude` を直接編集するだけでよい
 （symlink 経由で dotfiles リポジトリ本体を編集していることになるため、
@@ -35,8 +48,8 @@ dotfiles を意識する必要はない）。ここではその変更を dotfile
 取り込む。
 
 ```bash
-git status --short -- .claude/commands .claude/skills .claude/CLAUDE.md
-git diff -- .claude/commands .claude/skills .claude/CLAUDE.md
+git status --short -- .claude/commands .claude/skills .claude/CLAUDE.md README.md
+git diff -- .claude/commands .claude/skills .claude/CLAUDE.md README.md
 ```
 
 変更がある場合:
@@ -44,12 +57,12 @@ git diff -- .claude/commands .claude/skills .claude/CLAUDE.md
 1. 変更内容を要約してユーザーに提示する
 2. 適切なコミットメッセージ案を提示する
 3. push はもちろん commit も、必ずユーザーの確認を取ってから実行する。このリポジトリは公開リモートに push されるため、業務ドメインが混入した変更を無断で確定させると取り消しが効かない（CLAUDE.md「業務ドメインを混入させない」参照）
-4. 承認が得られたら `git add .claude/commands .claude/skills .claude/CLAUDE.md && git commit -m "<メッセージ>"`、
+4. 承認が得られたら `git add .claude/commands .claude/skills .claude/CLAUDE.md README.md && git commit -m "<メッセージ>"`、
    その後 push するかを改めて確認してから `git push` する
 
 変更がなければ「差分なし」と報告して次に進む。
 
-### Step 3: リモートの最新を取り込む
+### Step 4: リモートの最新を取り込む
 
 ```bash
 cd <dotfilesディレクトリ>
@@ -58,10 +71,10 @@ git status -sb   # ahead/behind を確認
 ```
 
 - リモートより遅れている（ahead 0, behind > 0）場合のみ `git pull --ff-only` する
-- Step 2 で未コミットの変更を先に commit/push 済みのため、pull 時の衝突を避けやすい
+- Step 3 で未コミットの変更を先に commit/push 済みのため、pull 時の衝突を避けやすい
 - fast-forward できない場合（分岐している）は自動解決せず、ユーザーに報告して指示を仰ぐ
 
-### Step 4: symlink を(再)設置する
+### Step 5: symlink を(再)設置する
 
 OS を判定し、対応するインストーラーを実行する。
 
@@ -71,11 +84,12 @@ OS を判定し、対応するインストーラーを実行する。
 
 実行結果（`linked` / `skip` / `backup` のログ）をそのままユーザーに提示する。
 
-### Step 5: 結果報告
+### Step 6: 結果報告
 
 以下を簡潔にまとめて報告する。
 
 - リポジトリの場所
+- 索引の再生成結果（変更件数）
 - コミット/pushの有無
 - pull の有無と内容
 - symlink の状態（新規作成 / 既にリンク済み / バックアップ発生）
