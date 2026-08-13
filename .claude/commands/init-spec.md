@@ -2,7 +2,7 @@
 name: init-spec
 description: |
   サブプロジェクトに SDD の初期ディレクトリ構成（docs/specs, docs/tasks, docs/changes,
-  docs/shared, src, tests）を _templates/dev/ からコピーして作成する。
+  docs/refs, src, tests）を _templates/dev/ からコピーして作成する。
   新しいサブプロジェクトを立ち上げるとき、既存ディレクトリを SDD 構成に載せ替えるとき、
   あるいは変更作業を始めようとして docs/specs/ がまだ無いと分かったときに使う。
   Ops（運用）中心のサブプロジェクトはこちらではなく /init-ops-work を使う。
@@ -10,7 +10,7 @@ description: |
 
 # /init-spec — devテンプレート初期化
 
-トップレベル `CLAUDE.md` が前提とする SDD 構成（`docs/specs/`・`docs/tasks/`・`docs/changes/`・`docs/shared/`・`src/`・`tests/`）を、
+トップレベル `CLAUDE.md` が前提とする SDD 構成（`docs/specs/`・`docs/tasks/`・`docs/changes/`・`docs/refs/`・`src/`・`tests/`）を、
 新規または既存のサブプロジェクトに初期化する。詳細ルールは `self-work/directry-rules/directry-rules.md` の4章を参照。
 
 ## 引数
@@ -25,7 +25,7 @@ description: |
    - 対象ディレクトリが存在しない場合は、作成してよいかユーザーに確認する。
 
 2. **重複チェック**
-   - 対象ディレクトリに既に `docs/specs/`・`docs/tasks/`・`docs/changes/`・`docs/shared/`・`src/`・`tests/` のいずれかが存在する場合は、
+   - 対象ディレクトリに既に `docs/specs/`・`docs/tasks/`・`docs/changes/`・`docs/refs/`・`src/`・`tests/` のいずれかが存在する場合は、
      上書きせずユーザーに確認する（既存ファイルは保持し、無いものだけ追加する）。
 
 3. **テンプレートコピー**
@@ -34,14 +34,14 @@ description: |
      mkdir -p <target>/docs
      cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/specs   <target>/docs/specs
      cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/tasks   <target>/docs/tasks
-     cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/shared  <target>/docs/shared
+     cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/refs    <target>/docs/refs
      cp -Rn /home/igpf-2500009/projects/_templates/dev/src          <target>/src
      cp -Rn /home/igpf-2500009/projects/_templates/dev/tests        <target>/tests
      mkdir -p <target>/docs/changes
      ```
    - `docs/changes/<change-name>/` はプレースホルダーのため**コピーしない**。`docs/changes/` 自体は空ディレクトリとして作成する。
      実際の変更ディレクトリは `/init-change` で作成する。
-   - `docs/shared/` は関係者との資料共有用ディレクトリ（空）。
+   - `docs/refs/` は関係者との資料共有用ディレクトリ（空）。
 
 4. **バージョンファイルの作成**
    - `docs/specs/VERSION` が無ければ作成する（`/init-change` がバージョン算出時に参照する。
@@ -58,3 +58,6 @@ description: |
 - 既存ファイルは上書きしない（`docs/specs/VERSION` が既に存在する場合も上書きしない）。
 - `docs/changes/` は空ディレクトリのまま作成し、`<change-name>` の雛形はコピーしない。
 - 指示にない設定ファイルやREADME等は作成しない。
+- 既存のディレクトリ構成を変更（リネーム等）する場合は、変更前のディレクトリ名で `grep -rn` を実行し、
+  ヒットした全ファイル（`.md` だけでなく `.drawio` 等のテキスト内埋め込みも含む）のリンクを更新してから完了とする
+  （`self-work/directry-rules/directry-rules.md` 4章参照）。
