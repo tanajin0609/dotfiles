@@ -62,16 +62,23 @@ description: |
      cp -R /home/igpf-2500009/projects/_templates/dev/docs/changes/\<change-name\>/. docs/changes/<version>-<change-name>-<日付>/
      ```
    - コピーしたファイル内のプレースホルダー文字列 `<change-name>` を、実際の change-name（バージョン・日付は含めない）に置換する
-     （`proposal.md`・`tasks.md` の見出しに含まれる）。
+     （`proposal.md`・`tasks.md`・`specs/README.md` の見出しに含まれる）。
+   - `specs/README.md` 内の `<dir>` を、実際の変更ディレクトリ名（`<version>-<change-name>-<日付>`）に置換する。
 
 5. **完了報告**
    - 作成したパス（`docs/changes/<version>-<change-name>-<日付>/proposal.md` など）と、
      暫定バージョンである旨・確定タイミング（差分確定時に見直す）をユーザーに報告する。
+   - `specs/README.md` に「今回触る予定の大本spec・節」を記入する工程が残っている旨も伝える
+     （着手時＝予定、完了時＝diffで確定の2段。詳細は `directry-rules.md` 4.2）。
 
 ## 注意事項
 
-- `docs/specs/`（正式spec）はここでは変更しない。正式反映は `/archive` で行う。
-- `docs/changes/<version>-<change-name>-<日付>/specs/`（delta spec）は空ディレクトリのまま作成する（中身は `/apply` 工程で生成する）。
+- `docs/specs/`（正式spec）は `/init-change` の時点では変更しない。実装フェーズで直接更新し、
+  その差分を `specs/` に unified diff で残す（`directry-rules.md` 4.2）。
+- `specs/`（delta spec）は `README.md`（索引と生成手順の雛形）付きで作成する。
+  2026-08-17 改定以前は「空ディレクトリのまま作成し、中身は `/apply` 工程で生成する」としていたが、
+  `/apply` が未実装のため delta spec が一件も書かれない状態を招いたので撤回した。
+  **未実装コマンドに責務を預けない**（`directry-rules.md` 4.2）。
 - バージョン確定時にディレクトリ名（バージョン部分）が変わる場合は、他ドキュメントからの
   相対リンク・パス参照を全文検索して更新する。番号を含む識別子は変更コストが高いため、
   リネームは慎重に行う。

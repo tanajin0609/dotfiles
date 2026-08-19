@@ -13,6 +13,8 @@ Before implementing:
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
+- Never state a guess as a fact. Mark it clearly as a guess, proposal, or question (e.g. "this might be...", "does this match your understanding?").
+- If you don't know something, say so plainly. Silence about unknowns is worse than the unknown itself — unresolved gaps compound unnoticed until they surface as bigger problems.
 
 ## 2. Simplicity First
 
@@ -86,6 +88,7 @@ Full rule: the dotfiles README section「共有する範囲 — 業務ドメイ�
 ## Additional Rules
 
 - Never execute `sudo` (or any command requiring elevated/interactive password auth) directly. Only propose the exact command for the user to run themselves — they will judge and execute it.
+- When summarizing another file's content into a transient working doc (e.g. a plan/todo/coordination note) so the reader can act without opening it, limit each entry to conclusion + open question + source path — don't copy in diagrams or alternative-comparison tables. This does NOT apply to instructions that route someone (or a subagent) to material they must read anyway, nor to permanent spec/reference documents where full context belongs.
 - Preserve existing architecture unless explicitly requested.
 - Ask before introducing new dependencies.
 - Do not change public API behavior unless required by the task.
