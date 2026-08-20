@@ -9,6 +9,16 @@
 !.claude/skills/**
 !.claude/CLAUDE.md
 
+# 業務ドメインは共有しない: 許可リストより後に再除外して構造的に防ぐ
+# 業務用の指示は symlink 対象外の ~/.claude/local/ に置く（README「業務ドメインを混入させない」参照）
+.claude/local/
+.claude/commands/local/
+.claude/skills/**/local/
+
+# 他人の skill（分類2）は管理対象外。skills CLI 等の管理に任せる
+# 実体は残したまま、このリポジトリでは追跡しない
+.claude/skills/frontend-design/
+
 # その他: 一時ファイル・ログ
 *.log
 *.tmp

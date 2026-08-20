@@ -24,6 +24,8 @@ M.keys = {
   
   -- 新規タブで開く
   { key = 'w', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = WSL, cwd = WSL_CWD } },
+  -- WSL を /mnt/c/Users/IGPF-2500009 ディレクトリで開く
+  { key = 'h', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = WSL, cwd = '/mnt/c/Users/IGPF-2500009' } },
   { key = 'p', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = LOCAL, args = { 'powershell.exe' }, cwd = PS_CWD } },
   -- Git Bash を新規タブで開く
   { key = 'g', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = LOCAL, args = GIT_BASH, cwd = PS_CWD } },
