@@ -1,5 +1,5 @@
 ---
-name: today-todo
+name: todo-import
 description: |
   各プロジェクトの docs/tasks/todo.md に残っている未完了タスクを、対話や分類なしで機械的に
   projects/today-todo/YYYY-MM-DD.md へ列挙する。
@@ -7,7 +7,15 @@ description: |
   横断の残タスク一覧をターミナル表示するだけの check-todos とは異なり、ファイルを生成する。
 ---
 
-# today-todo — 今日のタスク下書き生成
+# todo-import — 今日のタスク下書き生成
+
+## Step 0: 外部ソースの取り込み（前処理 skill があれば）
+
+`/home/igpf-2500009/projects/.claude/skills/` に `todo-source-` で始まる名前の skill があれば、
+Step 1 の前にそれを実行する。外部（チケット管理ツール等）にあるタスクを `docs/tasks/todo.md` へ
+反映させてから集約するためのフック。複数あればすべて実行する。
+
+無ければ何もせず Step 1 に進む（この skill 単体でも成立する）。
 
 ## Step 1: todo.md を列挙し、未完了項目を抽出する
 

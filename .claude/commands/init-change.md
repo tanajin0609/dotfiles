@@ -10,7 +10,7 @@ description: |
 # /init-change — 変更ディレクトリ初期化
 
 `docs/changes/<version>-<type>-<短い説明>-<日付>/` を新規作成し、`proposal.md`・`design.md`・`tasks.md`・`specs/`（delta spec用）の雛形を用意する。
-`/explore` → `/propose` の前段、または `/propose` を使わず手動で変更作業を始める際に使う。
+`/explore` → `/todo-propose` の前段、または `/todo-propose` を使わず手動で変更作業を始める際に使う。
 詳細ルールは `self-work/directry-rules/directry-rules.md` の1章・4章（特に4.1）を参照。
 バージョン増分の判断は `semver` skill を使う。
 
