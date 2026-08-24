@@ -2,7 +2,7 @@
 name: init-ops-work
 description: |
   仕様駆動（SDD）ではなく運用（Ops）作業が中心のサブプロジェクトで、依頼1件ぶんの
-  作業ディレクトリ order-yyyymmdd/（order.md, plan.md, src/, share-doc/）を
+  作業ディレクトリ order-yyyymmdd/（order.md, plan.md, src/, refs/, tasks/）を
   _templates/ops/ からコピーして作成する。運用・調査・データ修正の依頼を受けて着手するとき、
   既存の ops サブプロジェクトに次の依頼が来たときに使う。
   仕様書を伴う開発案件はこちらではなく /init-spec を使う。
@@ -10,7 +10,7 @@ description: |
 
 # /init-ops-work — opsテンプレート初期化
 
-仕様駆動（SDD）ではなく運用（Ops）作業が中心のサブプロジェクト向けに、`order.md`・`plan.md`・`src/`・`share-doc/` の軽量構成を初期化する。
+仕様駆動（SDD）ではなく運用（Ops）作業が中心のサブプロジェクト向けに、`order.md`・`plan.md`・`src/`・`refs/`・`tasks/` の軽量構成を初期化する。
 直置きするとファイル・フォルダが散らかるため、依頼（order）単位で `order-yyyymmdd/` サブディレクトリを作り、その配下に構成する。
 詳細ルールは `self-work/directry-rules/directry-rules.md` の5章を参照。
 
@@ -26,7 +26,7 @@ description: |
 5. 承認後、`src/` に実装を行う（2で見つかった既存バッチファイルがあれば、それをベースにする）。スクリプトの実体は `order-yyyymmdd/src/`（ops-work側）に置き、対象リポジトリの作業用ディレクトリに直接新規作成・保存しない。2で見つけた既存ファイルは参考実装として読むだけで、置き場所ではない。対象リポジトリ側は手順7で本番実行時に scp する一時的なコピー先に過ぎず、そこを原本にすると依頼と成果物の対応が追えなくなる。
 6. データを作成・更新する場合は、監査のための作業起因（いつ・何の対応で発生したか）をレコード側に残す。後から「このデータは何の依頼で変わったのか」を人が追えることが、運用作業の説明責任そのものになる。対象カラム・文言形式・DRYRUN での確認方法は案件ごとに異なるため、「業務ドメイン参照」で読み込んだルールに従う。
 7. 手動作業（本番サーバーへのscp、rails runner実行、DRYRUN確認、本実行など）が発生する場合は、その手順を `instruction.md` に書く（`_templates/ops/instruction.md` をコピーして使う）。
-8. 関係者と共有する資料は `share-doc/` に置く。
+8. 関係者と共有する資料は `refs/` に置く。
 9. ユーザーが明示的に「完了」と伝えたら、下記「todo.md管理とアーカイブ化」の完了時の手順を実行する。
 
 ## todo.md管理とアーカイブ化
@@ -40,7 +40,7 @@ description: |
   2. `order-yyyymmdd/` を `archives/order-yyyymmdd/` へ `mv` する。
   3. `todo.md` の該当行を `## 進行中` から `## 完了（archives/へ移動済み）` に移し、`- [x]` に変更し、リンク先を `archives/order-yyyymmdd/order.md` に更新する。
   4. 移動先パスをユーザーに報告する。
-- 「完了」の判定はユーザーの明示的な発言のみによる。本実行完了やshare-doc共有をもってClaude側が自動的に完了とみなし、確認なしでarchives/へ移動することはしない。
+- 「完了」の判定はユーザーの明示的な発言のみによる。本実行完了やrefs共有をもってClaude側が自動的に完了とみなし、確認なしでarchives/へ移動することはしない。
 
 ## 業務ドメイン参照
 
@@ -67,7 +67,7 @@ description: |
    - 同日中に複数の依頼が来た場合は `order-yyyymmdd/` が既に存在するため、上書きせずユーザーに確認する（連番付与などの対応を相談する）。
 
 3. **重複チェック**
-   - `order-yyyymmdd/` 配下に既に `order.md`・`plan.md`・`src/`・`share-doc/` のいずれかが存在する場合は、
+   - `order-yyyymmdd/` 配下に既に `order.md`・`plan.md`・`src/`・`refs/`・`tasks/` のいずれかが存在する場合は、
      上書きせずユーザーに確認する（既存ファイルは保持し、無いものだけ追加する）。
 
 4. **テンプレートコピー**
@@ -78,7 +78,8 @@ description: |
      cp -n  /home/igpf-2500009/projects/_templates/ops/order.md       "$ORDER_DIR/order.md"
      cp -n  /home/igpf-2500009/projects/_templates/ops/plan.md        "$ORDER_DIR/plan.md"
      cp -Rn /home/igpf-2500009/projects/_templates/ops/src            "$ORDER_DIR/src"
-     cp -Rn /home/igpf-2500009/projects/_templates/ops/share-doc      "$ORDER_DIR/share-doc"
+     cp -Rn /home/igpf-2500009/projects/_templates/ops/refs           "$ORDER_DIR/refs"
+     cp -Rn /home/igpf-2500009/projects/_templates/ops/tasks          "$ORDER_DIR/tasks"
      ```
    - `instruction.md`（`_templates/ops/instruction.md`）は手動作業が発生する依頼でのみ、実装フェーズで `order-yyyymmdd/` 直下にコピーして使う（`order.md`・`plan.md`と同じ階層。このタイミングでは無条件にはコピーしない）。
 
@@ -93,7 +94,7 @@ description: |
 
 - `docs/specs/` は作成しない（1章のコアルール1「仕様書が唯一の正解」の適用対象外）。
 - 既存ファイルは上書きしない。
-- `order.md`・`src/`・`share-doc/` はサブプロジェクト直下ではなく、必ず `order-yyyymmdd/` 配下に作る（直置き禁止）。
+- `order.md`・`src/`・`refs/`・`tasks/` はサブプロジェクト直下ではなく、必ず `order-yyyymmdd/` 配下に作る（直置き禁止）。
 - 既存のディレクトリ名を変更（リネーム等）する場合は、変更前のディレクトリ名で `grep -rn` を実行し、
   ヒットした全ファイル（`.md` だけでなく `.drawio` 等のテキスト内埋め込みも含む）のリンクを更新してから完了とする
   （`self-work/directry-rules/directry-rules.md` 4章参照）。

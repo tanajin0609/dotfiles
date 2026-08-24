@@ -2,7 +2,7 @@
 name: todo-import
 description: |
   各プロジェクトの docs/tasks/todo.md に残っている未完了タスクを、対話や分類なしで機械的に
-  projects/today-todo/YYYY-MM-DD.md へ列挙する。
+  projects/today-todo/todo-YYYY-MM-DD.md へ列挙する。
   一日の始まりに「今日やることは？」「今日のタスクは？」と聞かれたときに使う。
   横断の残タスク一覧をターミナル表示するだけの check-todos とは異なり、ファイルを生成する。
 ---
@@ -38,7 +38,7 @@ find /home/igpf-2500009/projects -maxdepth 4 -path "*/docs/tasks/todo.md"
 
 ## Step 2: 今日の下書きファイルの有無を確認する
 
-実行時のシステム日付を `YYYY-MM-DD` として、`/home/igpf-2500009/projects/today-todo/YYYY-MM-DD.md`
+実行時のシステム日付を `YYYY-MM-DD` として、`/home/igpf-2500009/projects/today-todo/todo-YYYY-MM-DD.md`
 が既に存在するか確認する。
 
 - 存在する場合: Read で読み込み、以降はこの内容を土台に更新する（上書きしない）。
@@ -64,7 +64,7 @@ todo.md にある新規項目を追記する。既存の記述・ユーザーが
 ## Step 4: 書き込む
 
 `/home/igpf-2500009/projects/today-todo/` が無ければ作成し、
-`/home/igpf-2500009/projects/today-todo/YYYY-MM-DD.md` に書き込む。書き込んだファイルパスを
+`/home/igpf-2500009/projects/today-todo/todo-YYYY-MM-DD.md` に書き込む。書き込んだファイルパスを
 ユーザーに伝える。
 
 ---
