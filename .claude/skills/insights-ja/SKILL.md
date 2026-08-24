@@ -1,5 +1,6 @@
 ---
 name: insights-ja
+model: sonnet
 description: |
   `/insights` が生成した英語の利用状況レポート（HTML）を、構成を保ったまま日本語の
   Markdown に翻訳して所定のディレクトリへ保存する。`/insights` を実行した直後に

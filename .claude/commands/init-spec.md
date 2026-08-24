@@ -1,5 +1,6 @@
 ---
 name: init-spec
+model: haiku
 description: |
   サブプロジェクトに SDD の初期ディレクトリ構成（docs/specs, docs/tasks, docs/changes,
   docs/refs, src, tests）を _templates/dev/ からコピーして作成する。

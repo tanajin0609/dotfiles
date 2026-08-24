@@ -1,5 +1,6 @@
 ---
 name: to-html
+model: sonnet
 description: |
   Markdown を、現セッションの Claude が直接読んで Hero・メトリクスカード・図表・コールアウト・TOC を
   備えたインフォグラフィック志向の HTML（同ディレクトリの `<basename>.html`）に変換する。

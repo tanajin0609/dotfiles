@@ -1,5 +1,6 @@
 ---
 name: todo-import
+model: haiku
 description: |
   各プロジェクトの docs/tasks/todo.md に残っている未完了タスクを、対話や分類なしで機械的に
   projects/today-todo/todo-YYYY-MM-DD.md へ列挙する。

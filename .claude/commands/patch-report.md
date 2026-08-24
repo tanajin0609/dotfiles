@@ -1,5 +1,6 @@
 ---
 name: patch-report
+model: sonnet
 description: |
   実装が一段落した時点で、plan.md と実際に変更したファイルを読んで
   report/patch-report-YYYYMMDD.md を書き出す。改修や依頼対応を終えて成果を関係者に

@@ -1,5 +1,6 @@
 ---
 name: check-todos
+model: haiku
 description: |
   各プロジェクトの docs/tasks/todo.md に残っている未完了タスク（`- [ ]` 項目）を横断的に
   洗い出し、プロジェクトごとに要約してターミナルに表示する。日次で「今どのプロジェクトに

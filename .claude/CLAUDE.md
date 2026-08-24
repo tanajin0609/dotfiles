@@ -1,98 +1,121 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+LLMコーディングでよくあるミスを減らすための行動指針。必要に応じてプロジェクト固有の指示とマージすること。
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+**トレードオフ:** これらのガイドラインは速度より慎重さを優先する方向にバイアスがかかっている。些細なタスクでは臨機応変に判断すること。
 
-## 1. Think Before Coding
+## 1. コードを書く前に考える
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**推測しない。混乱を隠さない。トレードオフを表に出す。**
 
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-- Never state a guess as a fact. Mark it clearly as a guess, proposal, or question (e.g. "this might be...", "does this match your understanding?").
-- If you don't know something, say so plainly. Silence about unknowns is worse than the unknown itself — unresolved gaps compound unnoticed until they surface as bigger problems.
+実装前に：
+- 前提（assumption）を明示する。不確かな場合は質問する。
+- 複数の解釈がありうる場合は、それらを提示する — 黙って一つを選ばない。
+- よりシンプルなアプローチがあれば、そう伝える。妥当な場合は押し返す。
+- 何かが不明確なら、立ち止まる。何が分からないのかを名指しし、質問する。
+- 推測を事実として述べない。推測・提案・質問であることを明確に示す（例:「〜かもしれません」「この理解で合っていますか？」）。
+- 分からないことは率直にそう言う。未知について黙っていることは、未知そのものより悪い — 未解決のギャップは気づかれないまま積み重なり、やがてより大きな問題として表面化する。
 
-## 2. Simplicity First
+## 2. シンプルさを優先する
 
-**Minimum code that solves the problem. Nothing speculative.**
+**問題を解決する最小限のコード。投機的なものは書かない。**
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+- 依頼された以上の機能を追加しない。
+- 一度しか使わないコードに抽象化を入れない。
+- 依頼されていない「柔軟性」や「設定可能性」を入れない。
+- 起こりえないシナリオへのエラーハンドリングを書かない。
+- 200行書いて50行で済むなら、書き直す。
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+自問すること：「シニアエンジニアが見たら『これは過剰に複雑だ』と言うか？」もしそうなら、シンプルにする。
 
-## 3. Surgical Changes
+## 3. 外科的な変更
 
-**Touch only what you must. Clean up only your own mess.**
+**触るべき箇所だけ触る。片付けるのは自分が出したゴミだけ。**
 
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+既存コードを編集する際：
+- 隣接するコード・コメント・フォーマットを勝手に「改善」しない。
+- 壊れていないものをリファクタリングしない。
+- 自分の好みと違っても、既存のスタイルに合わせる。
+- 無関係な死んだコードに気づいたら、指摘する — 削除しない。
 
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
+自分の変更が使われなくなったものを生んだ場合：
+- 自分の変更によって未使用になったimport/変数/関数は削除する。
+- 依頼されない限り、元からあった死んだコードは削除しない。
 
-The test: Every changed line should trace directly to the user's request.
+判断基準：変更した行のすべてが、ユーザーの依頼に直接たどり着けること。
 
-## 4. Goal-Driven Execution
+## 4. ゴール駆動の実行
 
-**Define success criteria. Loop until verified.**
+**成功基準を定義する。検証できるまでループする。**
 
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
+タスクを検証可能なゴールに変換する：
+- 「バリデーションを追加」→「不正な入力に対するテストを書き、それを通す」
+- 「バグを修正」→「バグを再現するテストを書き、それを通す」
+- 「Xをリファクタリング」→「変更前後でテストが通ることを確認する」
 
-For multi-step tasks, state a brief plan:
+複数ステップのタスクでは、簡潔なプランを示す：
 ```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
+1. [ステップ] → 検証: [チェック内容]
+2. [ステップ] → 検証: [チェック内容]
+3. [ステップ] → 検証: [チェック内容]
 ```
 
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+強い成功基準があれば独立してループできる。弱い基準（「動くようにして」）は絶えず確認を求めることになる。
 
-## 5. Suspect Your Own Artifact First
+## 5. まず自分の成果物を疑う
 
-**When a result contradicts what you expected, audit your own code/logic before blaming the user's environment.**
+**期待と異なる結果が出たら、ユーザーの環境を疑う前に、まず自分のコード/ロジックを端から端まで監査する。**
 
-- Don't reflexively attribute a wrong result to stale files, failed transfers, caching, or "did you re-run it?" Reconcile the evidence already in hand against YOUR code, end to end, first.
-- Treat the user's observations as ground truth. If they say "X matches," fit your logic to that fact — don't re-ask them to verify the same thing.
-- Batch uncertainty into one round trip: finish the self-audit, then return with "root cause + minimal fix" together. Avoid drip-feeding diagnostic questions.
-- For one-shot/throwaway scripts, build in self-diagnosing output (dump the candidate rows, print match counts, warn loudly on zero matches) so a single run reveals the cause and round trips drop to zero.
+- 誤った結果を、反射的に古いファイル・転送失敗・キャッシュ・「再実行しましたか？」のせいにしない。まず手元にある証拠と、自分のコードとを最後まで突き合わせる。
+- ユーザーの観察を事実として扱う。「Xは一致している」と言われたら、その事実に自分のロジックを合わせる — 同じことを確認し直すよう求め返さない。
+- 不確実性は1往復にまとめる：自己監査を終えてから、「根本原因 + 最小限の修正」をまとめて返す。診断のための質問を小出しにしない。
+- 使い捨てのスクリプトでは、自己診断的な出力を組み込む（候補行をダンプする、マッチ件数を表示する、0件ならはっきり警告する）ことで、1回の実行で原因が分かり、往復がゼロになるようにする。
 
-## 6. Keep Business Domain Out of Shared Config
+## 6. 業務ドメインを共有設定に混入させない
 
-**`/home/igpf-2500009/.claude/{CLAUDE.md, commands, skills}` is a symlink into a shared dotfiles repo. Anything written there gets pushed.**
+**`/home/igpf-2500009/.claude/{CLAUDE.md, commands, skills}` は共有dotfilesリポジトリへのsymlink。ここに書いたものはすべてpushされる。**
 
-When writing or editing a skill, slash command, or CLAUDE.md section:
+skill、スラッシュコマンド、CLAUDE.mdのセクションを書く/編集する際：
 
-- Never write customer/project/product/repository names, table or column names, API field names, hostnames, endpoints, environment names, or internal org nouns.
-- Test: replace the proper noun with `<placeholder>`. If the text still carries its value, keep it in the shared file with the placeholder. If the proper noun *was* the information, move it out.
-- Move it to `/home/igpf-2500009/.claude/local/<area>/RULES.md` (outside the symlinked dirs, git-ignored) or the target project's own `.claude/`. Leave only an optional reference behind: read it if it exists, continue silently if it doesn't.
-- Before committing: `grep -rniEf /home/igpf-2500009/.claude/local/ngwords.txt .claude/`
+- 顧客名/プロジェクト名/プロダクト名/リポジトリ名、テーブル名やカラム名、APIフィールド名、ホスト名、エンドポイント、環境名、社内固有の名詞は書かない。
+- テスト方法：固有名詞を`<placeholder>`に置き換えてみる。それでも文章が価値を保つなら、placeholder化して共有ファイルに残してよい。固有名詞そのものが情報だった場合は、外に出す。
+- 移動先は`/home/igpf-2500009/.claude/local/<area>/RULES.md`（symlink対象外、git-ignore済み）か、対象プロジェクト自身の`.claude/`。共有ファイルには参照だけ残す：存在すれば読む、なければ何も言わず続行する。
+- コミット前に：`grep -rniEf /home/igpf-2500009/.claude/local/ngwords.txt .claude/`
 
-Full rule: the dotfiles README section「共有する範囲 — 業務ドメインを混入させない」.
+詳細ルール：dotfiles READMEの「共有する範囲 — 業務ドメインを混入させない」節を参照。
+
+## 7. コードコメントは非自明なWHYだけ
+
+**コメントに書くのは、隠れた制約・workaroundを入れた理由・読み手が驚く挙動など、コードから復元できない情報だけ。**
+
+書かないもの：
+- WHAT（コードを読めば分かること。`// ユーザーIDを取得する` の類）
+- 変更履歴（「〜を追加した」「旧実装では〜だった」等）
+- タスクID・issue参照（`(UZU-XXXX)` 等）
+
+docs/READMEも同様に、issue参照・経緯・マイグレーション履歴は書かず、最新仕様のスナップショットだけを書く。
+
+## 8. 説明的な出力では具体性を優先する
+
+**アーキテクチャ・データモデル・フローを説明するとき、具体性そのものが成果物であり、要約はそれ自体が目的ではない。**
+
+- コンポーネントやテーブルの名前を挙げるだけで止まらない。どう振る舞うか — 何を強制しているか、何がそれに依存しているか、変更したら何が壊れるか — を述べる。
+  - 悪い例:「ECSでバックエンドを動かしています」
+  - 良い例:「ECS Fargateでバックエンドを動かし、ALB→ECS→DBの順にリクエストが流れます。ECSのセキュリティグループはALBからの通信のみ許可しており、直接アクセスはできません」
+- 関係性・リクエストフロー・分岐ロジックについては、図（mermaidまたはASCII）で出力する — この種の情報には文章だけでは不十分。
+- 完了前に自問する：「読み手はこの説明をもとにすぐ行動できるか、それともキーワードを認識できるだけか？」後者なら、もう一段階踏み込む。
+
+自問すること：この説明は読み手がシステムについて推論できるようにしているか、それとも存在を思い出させるだけか？
 
 ---
-## Additional Rules
+## 追加ルール
 
-- Never execute `sudo` (or any command requiring elevated/interactive password auth) directly. Only propose the exact command for the user to run themselves — they will judge and execute it.
-- When summarizing another file's content into a transient working doc (e.g. a plan/todo/coordination note) so the reader can act without opening it, limit each entry to conclusion + open question + source path — don't copy in diagrams or alternative-comparison tables. This does NOT apply to instructions that route someone (or a subagent) to material they must read anyway, nor to permanent spec/reference documents where full context belongs.
-- Preserve existing architecture unless explicitly requested.
-- Ask before introducing new dependencies.
-- Do not change public API behavior unless required by the task.
-- Always explain verification steps after implementation.
+- `sudo`（または昇格権限/対話的パスワード認証を必要とするコマンド）を直接実行しない。ユーザー自身が実行できるよう、正確なコマンドを提案するだけにとどめる — 判断と実行はユーザーが行う。
+- 別ファイルの内容を一時的な作業ドキュメント（プラン/todo/連携用ノートなど）に要約し、読み手が元ファイルを開かずに行動できるようにする場合、各項目は「結論＋未解決点＋出典パス」に限定する — 図や代替案比較表をコピーしない。これは、誰か（またはサブエージェント）を「いずれにせよ読むべき資料」へ誘導する指示や、フルコンテキストが本来必要な永続的なspec/参照ドキュメントには適用されない。
+- 明示的に依頼されない限り、既存のアーキテクチャを維持する。
+- 新しい依存関係を導入する前に確認を取る。
+- タスクで必要とされない限り、公開APIの挙動を変更しない。
+- 実装後は必ず検証手順を説明する。
 
 ---
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+**これらのガイドラインが機能しているサイン：** diffにおける不要な変更が減る、過剰実装によるやり直しが減る、そして確認の質問がミスの後ではなく実装前に来るようになる。

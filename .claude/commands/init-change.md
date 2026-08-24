@@ -1,5 +1,6 @@
 ---
 name: init-change
+model: haiku
 description: |
   既存の SDD サブプロジェクト内に、変更1件ぶんのディレクトリ
   docs/changes/<version>-<type>-<短い説明>-<日付>/ を作り、proposal.md・design.md・tasks.md・specs/
@@ -33,8 +34,8 @@ description: |
      `feat`→MINOR、`fix`→PATCH、`docs`/`chore`/`refactor`等その他→PATCH、
      末尾`!`または本文`BREAKING CHANGE:`→MAJOR）。判断に迷う場合はユーザーに確認する。
   3. 現在値に増分を適用した値を採用する（例: 現在 `0.1.0` で `feat` → `0.2.0`）。
-     このバージョンは**暫定値**であり、実際の差分が確定した時点（`/archive` 相当、
-     現状未実装のため人間が判断）で見直される前提であることをユーザーに伝える。
+     このバージョンは**暫定値**であり、実際の差分が確定した時点（`/archive` 実行時。ただし
+     バージョン確定自体は `/archive` のスコープ外のため人間が判断する）で見直される前提であることをユーザーに伝える。
   4. ディレクトリ名では `v` を先頭に付ける（`v0.2.0`）。`docs/specs/VERSION` 自体には `v` を付けない
      （例: `0.2.0`）。
 - **作成日**: コマンド実行日を `YYYYMMDD` 形式で末尾に付与する。

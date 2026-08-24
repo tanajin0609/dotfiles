@@ -1,5 +1,6 @@
 ---
 name: track-issues
+model: sonnet
 description: |
   作業中に見つかったバグ・想定外の挙動を issue.md に発生時点で記録し、原因が判明した時点・
   解決した時点で同じ Issue に追記していく。デバッグや障害調査を伴う作業を始めるとき、

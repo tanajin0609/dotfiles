@@ -1,5 +1,6 @@
 ---
 name: init-ops-work
+model: sonnet
 description: |
   仕様駆動（SDD）ではなく運用（Ops）作業が中心のサブプロジェクトで、依頼1件ぶんの
   作業ディレクトリ order-yyyymmdd/（order.md, plan.md, src/, refs/, tasks/）を

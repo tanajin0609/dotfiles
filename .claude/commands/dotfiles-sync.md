@@ -1,5 +1,6 @@
 ---
 name: dotfiles-sync
+model: sonnet
 description: |
   現在の環境の ~/.claude 配下（commands / skills / CLAUDE.md）への直接編集を dotfiles
   リポジトリに取り込み、リモートの最新を pull し、symlink が未設置なら設置する。
