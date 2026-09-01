@@ -2,7 +2,7 @@
 name: archive
 description: |
   dev系サブプロジェクト（docs/specs/ あり）の docs/changes/<change-name>/ を対象に、実装・
-  ドキュメント管理（tasks.md・specs/README.md・proposal.md）が完了しているかを検証したうえで
+  ドキュメント管理（tasks.md・specs/README.md・decisions.md・proposal.md）が完了しているかを検証したうえで
   docs/changes/archives/ へ移動する。directry-rules.md 1章で「未実装コマンド」とされていた
   /archive の実装。完了の最終判断は常にユーザーが行い、コマンドは事実確認と移動作業だけを担う。
   「このchangeをアーカイブして」「完了したものをまとめてアーカイブして」と言われたときに使う。
@@ -35,8 +35,9 @@ Step1のチェックだけを実行し、結果を一覧表示して停止する
    明記されている行はギャップとして数えない。
 2. `specs/README.md`（存在すれば）: 差分一覧の状態列がすべて「確定」になっているか、または
    「大本specは変更なし」等の明記があるか（「予定」のまま残っていないか）。
-3. `proposal.md`・`design.md`: 「ユーザー確認待ち」「承認待ち」「未定」等、判断待ちの記述が
-   残っていないか。
+3. `decisions.md`（存在すれば）: 論点表の「決定」列に「未決定」等の判断待ちが残っていないか、
+   承認状況が未チェックのままになっていないか。無ければ `proposal.md`・`design.md` に
+   「ユーザー確認待ち」「承認待ち」「未定」等、判断待ちの記述が残っていないか。
 4. 記述されている実装対象ファイル（`src/`配下など）が実際に存在するか、ざっと確認する
    （深追いはしない）。
 5. `docs/tasks/todo.md` に対応する `- [ ]` 項目があるか確認する（`directry-rules.md` 4.3）。

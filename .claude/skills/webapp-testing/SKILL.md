@@ -88,6 +88,7 @@ with sync_playwright() as p:
 - Always close the browser when done
 - Use descriptive selectors: `text=`, `role=`, CSS selectors, or IDs
 - Add appropriate waits: `page.wait_for_selector()` or `page.wait_for_timeout()`
+- **Screenshots are scratch files, not deliverables**: save every `page.screenshot(path=...)` (and MCP screenshot tool calls) with an absolute path under `/tmp` or the job's own tmp directory — never a bare relative filename, and never anywhere under the project/repo tree you're testing. A relative path resolves against whatever the current working directory happens to be, which litters the project root. If a screenshot needs to be kept as evidence, copy it deliberately afterward to wherever the project keeps shared reference material.
 
 ## Reference Files
 

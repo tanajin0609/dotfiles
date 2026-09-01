@@ -1,0 +1,43 @@
+{
+  "skill_name": "code-review-checklist",
+  "evals": [
+    {
+      "id": 1,
+      "name": "overengineering-no-tests",
+      "prompt": "このPRのdiffをレビューしてください。残高が1000円を下回ったら通知を送るだけの機能です。diffは evals/files/eval1_overengineering.diff にあります。指摘をお願いします。",
+      "expected_output": "たった1種類の閾値通知にしか使われないのに、汎用的なStrategy+Factoryパターンで実装されているオーバーエンジニアリングを指摘する。テストが一切追加されていないことも指摘する。ReportFindingsで報告する。",
+      "files": ["evals/files/eval1_overengineering.diff"],
+      "expectations": [
+        "単一用途にもかかわらずStrategy/Factoryパターンで汎用化されているオーバーエンジニアリングを指摘している",
+        "テストが追加されていないことを指摘している",
+        "指摘がfile/summary/failure_scenario相当の具体性で構造化されている（何がどう壊れうるかまで書いている）"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "what-vs-why-comments",
+      "prompt": "src/http/retry.py に新しくリトライ処理を追加しました（diff: evals/files/eval2_comments_style.diff）。レビューしてもらえますか？",
+      "expected_output": "「ループでリトライする」「リクエストを送る」等のコードを読めばわかるWHATコメントを指摘しつつ、429の待機理由を説明しているコメントは良い実践として言及する。fetch_with_retry_v2が単なる薄いラッパーで存在理由が不明な点(設計/複雑性)を指摘する。'max_retries = 3'のスペース不一致はNit:として区別する。テストが無いことにも触れる。",
+      "files": ["evals/files/eval2_comments_style.diff"],
+      "expectations": [
+        "WHATに留まるコメント（ループでリトライする/リクエストを送る等）を指摘している",
+        "429コメントについて、WHYを説明する良いコメントとして触れている（少なくとも問題視していない）",
+        "fetch_with_retry_v2が薄いラッパーで存在理由が不明な点を指摘している",
+        "'max_retries = 3'のスペース不一致をNit相当の些細な指摘として区別し、必須修正扱いにしていない",
+        "テストが追加されていないことを指摘している"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "concurrency-race-condition",
+      "prompt": "複数スレッドから使うレート制限クラスを追加しました。diffは evals/files/eval3_concurrency.diff です。マージして良さそうか見てもらえますか？",
+      "expected_output": "docstringで複数スレッド共有を明言しているにもかかわらずtry_acquire/releaseがロックなしのcheck-then-act(TOCTOU)になっており、同時実行下でmax_callsを超えてacquireできる競合状態を機能性/コンテキストの観点で指摘する。テスト欠如にも触れる。",
+      "files": ["evals/files/eval3_concurrency.diff"],
+      "expectations": [
+        "try_acquire/releaseがロックなしのcheck-then-act(TOCTOU)で、複数スレッドで競合状態になりうることを指摘している",
+        "docstringの「複数スレッドから安全に使える」という主張と実装が矛盾している点に言及している",
+        "テストが追加されていないことを指摘している"
+      ]
+    }
+  ]
+}

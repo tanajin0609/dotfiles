@@ -3,14 +3,14 @@ name: init-change
 model: haiku
 description: |
   既存の SDD サブプロジェクト内に、変更1件ぶんのディレクトリ
-  docs/changes/<version>-<type>-<短い説明>-<日付>/ を作り、proposal.md・design.md・tasks.md・specs/
+  docs/changes/<version>-<type>-<短い説明>-<日付>/ を作り、proposal.md・design.md・decisions.md・tasks.md・specs/
   の雛形を用意する。新しい改修・機能追加に着手する直前、実装より先に提案と設計を
   書き起こす段階で使う。バージョンは docs/specs/VERSION から算出し、日付は自動付与する。
 ---
 
 # /init-change — 変更ディレクトリ初期化
 
-`docs/changes/<version>-<type>-<短い説明>-<日付>/` を新規作成し、`proposal.md`・`design.md`・`tasks.md`・`specs/`（delta spec用）の雛形を用意する。
+`docs/changes/<version>-<type>-<短い説明>-<日付>/` を新規作成し、`proposal.md`・`design.md`・`decisions.md`・`tasks.md`・`specs/`（delta spec用）の雛形を用意する。
 `/explore` → `/todo-propose` の前段、または `/todo-propose` を使わず手動で変更作業を始める際に使う。
 詳細ルールは `self-work/directry-rules/directry-rules.md` の1章・4章（特に4.1）を参照。
 バージョン増分の判断は `semver` skill を使う。
@@ -58,12 +58,12 @@ description: |
 
 4. **テンプレートコピーとプレースホルダー置換**
    - `/home/igpf-2500009/projects/_templates/dev/docs/changes/<change-name>/` の
-     `proposal.md`・`design.md`・`tasks.md`・`specs/` を `docs/changes/<version>-<change-name>-<日付>/` にコピーする:
+     `proposal.md`・`design.md`・`decisions.md`・`tasks.md`・`specs/` を `docs/changes/<version>-<change-name>-<日付>/` にコピーする:
      ```bash
      cp -R /home/igpf-2500009/projects/_templates/dev/docs/changes/\<change-name\>/. docs/changes/<version>-<change-name>-<日付>/
      ```
    - コピーしたファイル内のプレースホルダー文字列 `<change-name>` を、実際の change-name（バージョン・日付は含めない）に置換する
-     （`proposal.md`・`tasks.md`・`specs/README.md` の見出しに含まれる）。
+     （`proposal.md`・`decisions.md`・`tasks.md`・`specs/README.md` の見出しに含まれる）。
    - `specs/README.md` 内の `<dir>` を、実際の変更ディレクトリ名（`<version>-<change-name>-<日付>`）に置換する。
 
 5. **完了報告**

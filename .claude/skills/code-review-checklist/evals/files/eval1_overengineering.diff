@@ -1,0 +1,50 @@
+diff --git a/src/notifications/balance_checker.py b/src/notifications/balance_checker.py
+new file mode 100644
+index 0000000..3a1c9e2
+--- /dev/null
++++ b/src/notifications/balance_checker.py
+@@ -0,0 +1,38 @@
++class NotificationStrategyBase:
++    def should_notify(self, value):
++        raise NotImplementedError
++
++
++class ThresholdNotificationStrategy(NotificationStrategyBase):
++    def __init__(self, threshold, operator="lt"):
++        self.threshold = threshold
++        self.operator = operator
++
++    def should_notify(self, value):
++        if self.operator == "lt":
++            return value < self.threshold
++        elif self.operator == "lte":
++            return value <= self.threshold
++        elif self.operator == "gt":
++            return value > self.threshold
++        elif self.operator == "gte":
++            return value >= self.threshold
++        elif self.operator == "eq":
++            return value == self.threshold
++        else:
++            raise ValueError(f"unknown operator: {self.operator}")
++
++
++class NotificationStrategyFactory:
++    _registry = {}
++
++    @classmethod
++    def register(cls, name, strategy_cls):
++        cls._registry[name] = strategy_cls
++
++    @classmethod
++    def create(cls, name, **kwargs):
++        return cls._registry[name](**kwargs)
++
++
++NotificationStrategyFactory.register("threshold", ThresholdNotificationStrategy)
++
++
++def check_balance_and_notify(balance, notifier):
++    strategy = NotificationStrategyFactory.create("threshold", threshold=1000, operator="lt")
++    if strategy.should_notify(balance):
++        notifier.send("残高が1000円を下回っています")

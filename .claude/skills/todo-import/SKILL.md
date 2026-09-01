@@ -23,7 +23,7 @@ Step 1 の前にそれを実行する。外部（チケット管理ツール等�
 `check-todos` skill の Step1・2 とまったく同じ手順を使う（重複実装しない）。
 
 ```bash
-find /home/igpf-2500009/projects -maxdepth 4 -path "*/docs/tasks/todo.md"
+find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
 ```
 
 見つかった todo.md をそれぞれ Read で読み、以下の基準で対象を絞る。
@@ -48,7 +48,19 @@ find /home/igpf-2500009/projects -maxdepth 4 -path "*/docs/tasks/todo.md"
 - 存在する場合: Read で読み込み、以降はこの内容を土台に更新する（上書きしない）。
 - 存在しない場合: 新規に組み立てる。
 
-## Step 3: 下書きを組み立てる
+## Step 3: 過去の todo-YYYY-MM-DD.md をアーカイブする（2026-08-26 追加）
+
+`/home/igpf-2500009/projects/today-todo/` 直下にある `todo-YYYY-MM-DD.md` のうち、実行時の
+システム日付（Step2で確認した今日の日付）と異なるものを、そのファイルの日付（`YYYY-MM-DD`→
+`yyyymmdd`表記）に対応する `/home/igpf-2500009/projects/today-todo/archives/<yyyymmdd>/`
+へ `mv` する（フォルダが無ければ作成する。既に同じ日付のフォルダがあれば新規作成しない）。
+
+- 対象は `todo-YYYY-MM-DD.md` のみ。`plan-*.md`・`proposal-*.md`・`work-log-*.md` は当日以降も
+  参照されることがあるため対象外（`self-work/document-rules/document-rules.md`「today-todo/ 配下の
+  アーカイブ運用」参照。これらのアーカイブは引き続きユーザーが明示指示したときの手動運用のまま）。
+- 移動した件数はStep6の作業ログに書き添える。0件でもよい（初回実行や前日分が既にアーカイブ済みの場合）。
+
+## Step 4: 下書きを組み立てる
 
 対話・絞り込み・分類はしない。Step1で抽出した未完了項目を、プロジェクトごとに見出しを分けて
 そのまま列挙する（プロジェクト選定も「外部確認/開発側/後回し」等の分類も行わない）。
@@ -67,13 +79,13 @@ find /home/igpf-2500009/projects -maxdepth 4 -path "*/docs/tasks/todo.md"
 Step2で既存ファイルを読み込んだ場合は、todo.md 側で完了扱いになった項目に `- [x]` を付け、
 todo.md にある新規項目を追記する。既存の記述・ユーザーが手で加えた行は消さない。
 
-## Step 4: 書き込む
+## Step 5: 書き込む
 
 `/home/igpf-2500009/projects/today-todo/` が無ければ作成し、
 `/home/igpf-2500009/projects/today-todo/todo-YYYY-MM-DD.md` に書き込む。書き込んだファイルパスを
 ユーザーに伝える。
 
-## Step 5: 作業ログに追記する
+## Step 6: 作業ログに追記する
 
 `/home/igpf-2500009/projects/today-todo/work-log-YYYY-MM-DD.md`（Step2と同じ日付）に実行内容を
 1エントリ追記する。無ければ新規作成し、あれば末尾に追記する（既存エントリは変更しない）。
@@ -84,6 +96,7 @@ todo.md にある新規項目を追記する。既存の記述・ユーザーが
 ```markdown
 ## HH:MM — /todo-import
 - 対象: todo.mdを持つプロジェクト{M}件
+- アーカイブ: todo-*.mdを{K}件 archives/<yyyymmdd>/へ移動
 - 出力: todo-YYYY-MM-DD.md（未完了{N}件、新規{n1}件・完了反映{n2}件）
 ```
 
@@ -95,5 +108,6 @@ todo.md にある新規項目を追記する。既存の記述・ユーザーが
 
 - `todo.md` の検出・抽出ルールは `check-todos` と同一。差分が生じたら両方を見直す。
 - 同日の再実行では既存ファイルを上書きせず、既存内容を土台に更新する。
-- `projects/today-todo/` 配下ファイルの自動アーカイブ・削除は行わない（`work-log-YYYY-MM-DD.md` も同様）。
+- `todo-YYYY-MM-DD.md` は実行のたびに前日以前の分を `archives/` へ自動移動する（Step3、2026-08-26追加）。
+  それ以外（`plan-*.md`・`proposal-*.md`・`work-log-*.md`）の自動アーカイブ・削除は行わない。
 - プロジェクト選定・優先順位付け・分類は行わない。ユーザーが生成後のファイルを自分で編集する前提。

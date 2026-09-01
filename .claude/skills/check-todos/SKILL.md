@@ -12,8 +12,11 @@ description: |
 ## Step 1: todo.md を列挙する
 
 ```bash
-find /home/igpf-2500009/projects -maxdepth 4 -path "*/docs/tasks/todo.md"
+find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
 ```
+
+`self-work/<サブプロジェクト>/docs/tasks/todo.md`（5階層）・`ops-work/<カテゴリ>/<テナント>/docs/tasks/todo.md`
+（6階層）を拾うため、直下プロジェクト（4階層）より深く探索する（2026-08-26変更）。
 
 見つかったファイルのパス一覧を把握する。0件でもエラー扱いにせず、
 「`docs/tasks/todo.md` を持つプロジェクトが見つかりませんでした」と伝えて終了する。
