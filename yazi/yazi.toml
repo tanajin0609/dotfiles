@@ -1,0 +1,39 @@
+# yazi 設定（Windows AppData 版 + .config 版をマージ）
+# yazi 26.x: セクション名は [mgr]（旧 [manager] からリネーム）
+[mgr]
+# プレビュー枠を広めに（AppData 版 [1,2,5] を採用）
+ratio = [1, 2, 5]
+
+[preview]
+  wrap = "yes"
+
+# --- opener（既定の opener にマージされる） ---
+[opener]
+# エディタ（nvim）
+edit = [
+  { run = 'nvim "$@"', block = true, for = "unix" },
+  { run = 'nvim %*', block = true, for = "windows" },
+]
+# .html を Windows の既定ブラウザで開く
+browser = [
+  { run = 'start "" "%1"', orphan = true, desc = "Open in browser", for = "windows" },
+]
+# .drawio を draw.io Desktop で開く
+drawio = [
+  { run = '"C:\Program Files\draw.io\draw.io.exe" "%1"', orphan = true, desc = "Open in draw.io", for = "windows" },
+]
+
+# --- 開くルール（既定ルールの前に差し込む = 優先される） ---
+[open]
+prepend_rules = [
+  { url = "*.html",   use = [ "browser" ] },
+  { url = "*.htm",    use = [ "browser" ] },
+  { url = "*.drawio", use = [ "drawio" ] },
+  { url = "*.dio",    use = [ "drawio" ] },
+]
+
+# --- プレビュー（Markdown を glow で） ---
+[plugin]
+prepend_previewers = [
+  { url = "*.md", run = "glow" },
+]
