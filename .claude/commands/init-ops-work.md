@@ -83,7 +83,9 @@ devテンプレートと同じ `docs/tasks/todo.md` に変更）。
      cp -Rn /home/igpf-2500009/projects/_templates/ops/src            "$ORDER_DIR/src"
      cp -Rn /home/igpf-2500009/projects/_templates/ops/refs           "$ORDER_DIR/refs"
      cp -Rn /home/igpf-2500009/projects/_templates/ops/tasks          "$ORDER_DIR/tasks"
+     find "$ORDER_DIR/src" "$ORDER_DIR/refs" "$ORDER_DIR/tasks" -name .gitkeep -delete
      ```
+   - `.gitkeep` はテンプレート側（dotfilesリポジトリ）で空ディレクトリを保持するためだけの目印なので、コピー後に削除する。
    - `instruction.md`（`_templates/ops/instruction.md`）は手動作業が発生する依頼でのみ、実装フェーズで `order-yyyymmdd/` 直下にコピーして使う（`order.md`・`plan.md`と同じ階層。このタイミングでは無条件にはコピーしない）。
 
 5. **todo.mdへの追記**

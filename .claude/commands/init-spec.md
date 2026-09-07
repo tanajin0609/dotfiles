@@ -39,7 +39,9 @@ description: |
      cp -Rn /home/igpf-2500009/projects/_templates/dev/src          <target>/src
      cp -Rn /home/igpf-2500009/projects/_templates/dev/tests        <target>/tests
      mkdir -p <target>/docs/changes
+     find <target>/docs/specs <target>/docs/tasks <target>/docs/refs <target>/src <target>/tests -name .gitkeep -delete
      ```
+   - `.gitkeep` はテンプレート側（dotfilesリポジトリ）で空ディレクトリを保持するためだけの目印なので、コピー後に削除する。
    - `docs/changes/<change-name>/` はプレースホルダーのため**コピーしない**。`docs/changes/` 自体は空ディレクトリとして作成する。
      実際の変更ディレクトリは `/init-change` で作成する。
    - `docs/refs/` は関係者との資料共有用ディレクトリ（空）。

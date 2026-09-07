@@ -2,12 +2,13 @@
 set -euo pipefail
 
 # dotfiles installer (WSL / Linux / macOS)
-# .claude/commands, .claude/skills, .claude/CLAUDE.md を
-# ~/.claude 以下へシンボリックリンクします。
+# .claude/commands, .claude/skills, .claude/CLAUDE.md を ~/.claude 以下へ、
+# templates/ を ~/projects/_templates へシンボリックリンクします。
 # 既存の実体ディレクトリ/ファイルがある場合は上書きせずタイムスタンプ付きで退避します。
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${HOME}/.claude"
+PROJECTS_DIR="${HOME}/projects"
 TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 
 link() {
@@ -36,5 +37,6 @@ link() {
 link "${DOTFILES_DIR}/.claude/commands" "${CLAUDE_DIR}/commands"
 link "${DOTFILES_DIR}/.claude/skills" "${CLAUDE_DIR}/skills"
 link "${DOTFILES_DIR}/.claude/CLAUDE.md" "${CLAUDE_DIR}/CLAUDE.md"
+link "${DOTFILES_DIR}/templates" "${PROJECTS_DIR}/_templates"
 
 echo "done."
