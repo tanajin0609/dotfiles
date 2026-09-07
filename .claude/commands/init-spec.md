@@ -17,7 +17,7 @@ description: |
 ## 引数
 
 `$ARGUMENTS` にサブプロジェクトのディレクトリ名（`/home/igpf-2500009/projects/` からの相対パス）を渡す。
-例: `/init-spec rpa-scenario`。省略時はカレントディレクトリを対象にする。
+例: `/init-spec <project-name>`。省略時はカレントディレクトリを対象にする。
 
 ## ワークフロー
 

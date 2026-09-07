@@ -56,7 +56,7 @@ devテンプレートと同じ `docs/tasks/todo.md` に変更）。
 ## 引数
 
 `$ARGUMENTS` にサブプロジェクトのディレクトリ名（`/home/igpf-2500009/projects/` からの相対パス）を渡す。
-例: `/init-ops-work rpa-scenario`。省略時はカレントディレクトリを対象にする。
+例: `/init-ops-work <project-name>`。省略時はカレントディレクトリを対象にする。
 
 ## ワークフロー
 

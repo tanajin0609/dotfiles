@@ -31,9 +31,9 @@ description: |
 
 ## 引数
 
-`$ARGUMENTS` の1トークン目に対象サブプロジェクト（`projects/` からの相対パス、例: `json-gui-editor`、
-`ops-work/fix-points/<tenant>`）、残りに依頼内容・変更内容の説明を渡す（単一対象モード）。
-例: `/todo-propose json-gui-editor feat-tree-dnd-reparent ツリーペインのD&Dによる親付け替え`
+`$ARGUMENTS` の1トークン目に対象サブプロジェクト（`projects/` からの相対パス、例: `<project-name>`、
+`ops-work/<sub-project>/<tenant>`）、残りに依頼内容・変更内容の説明を渡す（単一対象モード）。
+例: `/todo-propose <project-name> feat-tree-dnd-reparent ツリーペインのD&Dによる親付け替え`
 
 `$ARGUMENTS` が空の場合は下記の「today-todoバッチモード」で動作する。
 
