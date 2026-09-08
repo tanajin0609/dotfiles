@@ -30,7 +30,7 @@ description: |
 
 ## Step 0: 入力の存在確認
 
-対象日付の`/home/igpf-2500009/projects/today-todo/proposal-YYYY-MM-DD.md`が無ければ、
+対象日付の`$HOME/projects/today-todo/proposal-YYYY-MM-DD.md`が無ければ、
 `/todo-propose`（引数なし・バッチモード）の実行を提案して停止する（`/todo-import`・`/todo-propose`
 同様、勝手に生成しない）。
 
@@ -80,7 +80,7 @@ Step1のファイル競合マップ（並列実行グループ）ごとにAgent�
   新しい記録方式は作らない）
 - 対象サブプロジェクトが**ops系**の場合: 対応する`order-yyyymmdd/plan.md`の「承認状況」を確認する。
   未承認のまま実装に着手しない（チェックが埋まっていなければ実装せずスキップし、理由を報告する）。
-  業務ルールが`/home/igpf-2500009/.claude/local/ops-work/RULES.md`にあれば読んで従う（無ければ
+  業務ルールが`$HOME/.claude/local/ops-work/RULES.md`にあれば読んで従う（無ければ
   黙って続行）
 - **`docs/tasks/todo.md`（ops系は対応する`order-yyyymmdd/plan.md`も）への反映は、報告事項ではなく
   作業そのものの一部として明示的に指示する**（「完了したら報告して」ではなく「完了したら
@@ -153,7 +153,7 @@ Step1のファイル競合マップ（並列実行グループ）ごとにAgent�
 ## Step 5: 完了報告・work-logへの追記・停止
 
 - 実行したマイルストーンごとの結果（成功／一部失敗／スキップとその理由）を報告する
-- `/home/igpf-2500009/projects/today-todo/work-log-YYYY-MM-DD.md`（実行時のシステム日付。対象
+- `$HOME/projects/today-todo/work-log-YYYY-MM-DD.md`（実行時のシステム日付。対象
   proposalの日付とは限らない）に実行内容を1エントリ追記する（無ければ新規作成、あれば末尾に追記）
 
 ```markdown
@@ -177,7 +177,7 @@ Step1のファイル競合マップ（並列実行グループ）ごとにAgent�
   本コマンド独自の仕組みを増やさない）。
 - ops系サブプロジェクトで`plan.md`の承認状況が埋まっていないマイルストーンは実装しない。
 - 案件固有の業務ルールは本コマンドに書かない（`/todo-propose`と同じ方針。参照先は
-  `/home/igpf-2500009/.claude/local/ops-work/RULES.md`、無ければ黙って続行）。
+  `$HOME/.claude/local/ops-work/RULES.md`、無ければ黙って続行）。
 - マイルストーンの分解・優先順位付け・モデル/エフォートの提案は`/todo-propose`の責務であり、
   本コマンドはやり直さない（責務分割）。
 - Step4の`todo-checker`は判定専任で、`Write`・`Edit`を持たない（修正は行えない）。検証観点の

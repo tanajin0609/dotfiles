@@ -39,7 +39,7 @@ description: |
 
 ## today-todoバッチモード（引数なし）
 
-`/home/igpf-2500009/projects/today-todo/todo-YYYY-MM-DD.md`（実行時のシステム日付）を入力に、
+`$HOME/projects/today-todo/todo-YYYY-MM-DD.md`（実行時のシステム日付）を入力に、
 複数サブプロジェクトの未完了項目をまとめて処理する。`/todo-import` が生成する前提のファイル。
 
 ファイルが存在しなければ `/todo-import` の実行を提案して停止する（勝手に生成しない）。
@@ -138,7 +138,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 ### A. dev系の場合
 
 **A-1.** `docs/changes/` 配下に対応する変更ディレクトリが無ければ、
-`/home/igpf-2500009/.claude/commands/init-change.md` のワークフロー（change-name確認・重複チェック・
+`$HOME/.claude/commands/init-change.md` のワークフロー（change-name確認・重複チェック・
 バージョン算出・テンプレートコピー）に従って作成する。既にあれば流用する。
 
 **A-2.** 手順2の調査結果と依頼内容をもとに、以下を埋める。**見出しは変更しない。**
@@ -177,7 +177,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 ### B. ops系の場合
 
 **B-1.** 依頼に対応する `order-yyyymmdd/` が無ければ、
-`/home/igpf-2500009/.claude/commands/init-ops-work.md` のワークフロー（対象ディレクトリ決定・
+`$HOME/.claude/commands/init-ops-work.md` のワークフロー（対象ディレクトリ決定・
 依頼ディレクトリ決定・重複チェック・テンプレートコピー・todo.md追記）に従って作成する。
 既にあれば流用する。
 
@@ -198,7 +198,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 情報が足りない箇所は推測で埋めない。「リスク・確認事項」に質問として書き出す。
 
 業務ルール（履歴レコードの備考欄への記録方式など）が
-`/home/igpf-2500009/.claude/local/ops-work/RULES.md` にあれば読んで従う。無ければ黙って続行する。
+`$HOME/.claude/local/ops-work/RULES.md` にあれば読んで従う。無ければ黙って続行する。
 
 **B-4.** `todo.md`（サブプロジェクト直下）への追記は `/init-ops-work` の手順内で行われる前提。
 未追記なら本手順で追記する。
@@ -207,7 +207,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 
 対象項目の記述（today-todoバッチモードでは todo-YYYY-MM-DD.md の行、単一対象モードでは
 `$ARGUMENTS`）に `<!-- notion:<page_id> -->` があれば、A-2/A-3（dev系）または B-3（ops系）で
-提案書を書き終えた直後に、`/home/igpf-2500009/projects/.claude/skills/` 配下の `todo-source-`
+提案書を書き終えた直後に、`$HOME/projects/.claude/skills/` 配下の `todo-source-`
 skill（今回の対象なら `todo-source-notion`）が定義する書き戻し手順に従い、提案書を Notion
 チケットへ転記する。マーカーが無ければこの手順は行わない（Notion起源でないタスクにはこの
 概念が無い）。書き戻し先の具体的なコマンド・プロパティ名は当該skill側に持たせ、本コマンドには
@@ -268,7 +268,7 @@ skill（今回の対象なら `todo-source-notion`）が定義する書き戻し
 
 ### 3-0. 作業ログへの追記（両モード共通・必須）
 
-`/home/igpf-2500009/projects/today-todo/work-log-YYYY-MM-DD.md`（実行時のシステム日付）に
+`$HOME/projects/today-todo/work-log-YYYY-MM-DD.md`（実行時のシステム日付）に
 実行内容を1エントリ追記する。無ければ新規作成し、あれば末尾に追記する（既存エントリは変更しない）。
 `todo-import` → `todo-propose` → `todo-execute` のワークフロー全体で「いつ何を実行したか」を
 積み上げる実行履歴であり、成果物のスナップショットである `proposal-YYYY-MM-DD.md` とは別物
@@ -287,7 +287,7 @@ skill（今回の対象なら `todo-source-notion`）が定義する書き戻し
 バッチモードでは成果物が複数サブプロジェクトに散るため、**報告と同じ内容を1ファイルに残す**。
 これを省略すると「どこに何が起票されたか」の入口が無くなる。
 
-- 出力先: `/home/igpf-2500009/projects/today-todo/proposal-YYYY-MM-DD.md`
+- 出力先: `$HOME/projects/today-todo/proposal-YYYY-MM-DD.md`
   - 日付は入力に使った `todo-YYYY-MM-DD.md` と同じ値（＝実行時のシステム日付）。
   - ファイル名は固定。実装を含む横断実行計画（`plan-YYYY-MM-DD.md`、本コマンドの対象外）とは
     prefixが違うので、ファイル名だけで種別が判別できる。
@@ -356,7 +356,7 @@ skill（今回の対象なら `todo-source-notion`）が定義する書き戻し
 - 承認は人間が行う。AIが自己判定して次工程（実装）に進まない。
 - dev系・ops系いずれも、既存資材の調査（手順2）を省略しない。
 - 案件固有の業務ルールは本コマンドに書かない。ops系の業務ルール参照先は
-  `/home/igpf-2500009/.claude/local/ops-work/RULES.md`（無ければ黙って続行）。
+  `$HOME/.claude/local/ops-work/RULES.md`（無ければ黙って続行）。
 - **提案そのもの**は対象サブプロジェクト内（`docs/changes/`・`order-yyyymmdd/`）に閉じる。
   横断して置くのはバッチモードのまとめ版（`today-todo/proposal-YYYY-MM-DD.md`、手順3-1）だけで、
   これは起票先への入口であって提案の実体ではない。

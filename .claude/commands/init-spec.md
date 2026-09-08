@@ -16,13 +16,13 @@ description: |
 
 ## 引数
 
-`$ARGUMENTS` にサブプロジェクトのディレクトリ名（`/home/igpf-2500009/projects/` からの相対パス）を渡す。
+`$ARGUMENTS` にサブプロジェクトのディレクトリ名（`$HOME/projects/` からの相対パス）を渡す。
 例: `/init-spec <project-name>`。省略時はカレントディレクトリを対象にする。
 
 ## ワークフロー
 
 1. **対象ディレクトリの決定**
-   - `$ARGUMENTS` が指定されていれば `/home/igpf-2500009/projects/<ARGUMENTS>` を対象にする。省略時はカレントディレクトリ。
+   - `$ARGUMENTS` が指定されていれば `$HOME/projects/<ARGUMENTS>` を対象にする。省略時はカレントディレクトリ。
    - 対象ディレクトリが存在しない場合は、作成してよいかユーザーに確認する。
 
 2. **重複チェック**
@@ -30,14 +30,14 @@ description: |
      上書きせずユーザーに確認する（既存ファイルは保持し、無いものだけ追加する）。
 
 3. **テンプレートコピー**
-   - `/home/igpf-2500009/projects/_templates/dev/` の内容を対象ディレクトリにコピーする:
+   - `$HOME/projects/_templates/dev/` の内容を対象ディレクトリにコピーする:
      ```bash
      mkdir -p <target>/docs
-     cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/specs   <target>/docs/specs
-     cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/tasks   <target>/docs/tasks
-     cp -Rn /home/igpf-2500009/projects/_templates/dev/docs/refs    <target>/docs/refs
-     cp -Rn /home/igpf-2500009/projects/_templates/dev/src          <target>/src
-     cp -Rn /home/igpf-2500009/projects/_templates/dev/tests        <target>/tests
+     cp -Rn $HOME/projects/_templates/dev/docs/specs   <target>/docs/specs
+     cp -Rn $HOME/projects/_templates/dev/docs/tasks   <target>/docs/tasks
+     cp -Rn $HOME/projects/_templates/dev/docs/refs    <target>/docs/refs
+     cp -Rn $HOME/projects/_templates/dev/src          <target>/src
+     cp -Rn $HOME/projects/_templates/dev/tests        <target>/tests
      mkdir -p <target>/docs/changes
      find <target>/docs/specs <target>/docs/tasks <target>/docs/refs <target>/src <target>/tests -name .gitkeep -delete
      ```

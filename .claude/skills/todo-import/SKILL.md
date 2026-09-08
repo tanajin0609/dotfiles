@@ -12,7 +12,7 @@ description: |
 
 ## Step 0: 外部ソースの取り込み（前処理 skill があれば）
 
-`/home/igpf-2500009/projects/.claude/skills/` に `todo-source-` で始まる名前の skill があれば、
+`$HOME/projects/.claude/skills/` に `todo-source-` で始まる名前の skill があれば、
 Step 1 の前にそれを実行する。外部（チケット管理ツール等）にあるタスクを `docs/tasks/todo.md` へ
 反映させてから集約するためのフック。複数あればすべて実行する。
 
@@ -23,7 +23,7 @@ Step 1 の前にそれを実行する。外部（チケット管理ツール等�
 `check-todos` skill の Step1・2 とまったく同じ手順を使う（重複実装しない）。
 
 ```bash
-find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
+find $HOME/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
 ```
 
 見つかった todo.md をそれぞれ Read で読み、以下の基準で対象を絞る。
@@ -42,7 +42,7 @@ find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
 
 ## Step 2: 今日の下書きファイルの有無を確認する
 
-実行時のシステム日付を `YYYY-MM-DD` として、`/home/igpf-2500009/projects/today-todo/todo-YYYY-MM-DD.md`
+実行時のシステム日付を `YYYY-MM-DD` として、`$HOME/projects/today-todo/todo-YYYY-MM-DD.md`
 が既に存在するか確認する。
 
 - 存在する場合: Read で読み込み、以降はこの内容を土台に更新する（上書きしない）。
@@ -50,9 +50,9 @@ find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
 
 ## Step 3: 過去の todo-YYYY-MM-DD.md をアーカイブする（2026-08-26 追加）
 
-`/home/igpf-2500009/projects/today-todo/` 直下にある `todo-YYYY-MM-DD.md` のうち、実行時の
+`$HOME/projects/today-todo/` 直下にある `todo-YYYY-MM-DD.md` のうち、実行時の
 システム日付（Step2で確認した今日の日付）と異なるものを、そのファイルの日付（`YYYY-MM-DD`→
-`yyyymmdd`表記）に対応する `/home/igpf-2500009/projects/today-todo/archives/<yyyymmdd>/`
+`yyyymmdd`表記）に対応する `$HOME/projects/today-todo/archives/<yyyymmdd>/`
 へ `mv` する（フォルダが無ければ作成する。既に同じ日付のフォルダがあれば新規作成しない）。
 
 - 対象は `todo-YYYY-MM-DD.md` のみ。`plan-*.md`・`proposal-*.md`・`work-log-*.md` は当日以降も
@@ -81,13 +81,13 @@ todo.md にある新規項目を追記する。既存の記述・ユーザーが
 
 ## Step 5: 書き込む
 
-`/home/igpf-2500009/projects/today-todo/` が無ければ作成し、
-`/home/igpf-2500009/projects/today-todo/todo-YYYY-MM-DD.md` に書き込む。書き込んだファイルパスを
+`$HOME/projects/today-todo/` が無ければ作成し、
+`$HOME/projects/today-todo/todo-YYYY-MM-DD.md` に書き込む。書き込んだファイルパスを
 ユーザーに伝える。
 
 ## Step 6: 作業ログに追記する
 
-`/home/igpf-2500009/projects/today-todo/work-log-YYYY-MM-DD.md`（Step2と同じ日付）に実行内容を
+`$HOME/projects/today-todo/work-log-YYYY-MM-DD.md`（Step2と同じ日付）に実行内容を
 1エントリ追記する。無ければ新規作成し、あれば末尾に追記する（既存エントリは変更しない）。
 `todo-import` → `todo-propose` → `todo-execute` と続く一連のワークフローで「いつ何を実行したか」を
 積み上げる実行履歴であり、成果物のスナップショットである `proposal-YYYY-MM-DD.md`・

@@ -13,7 +13,7 @@ description: |
 
 # blog-neta — 気づきのネタ化
 
-作業中の気づきを `/home/igpf-2500009/projects/tech-blog/neta/` に記録する。狙いは
+作業中の気づきを `$HOME/projects/tech-blog/neta/` に記録する。狙いは
 「あとで思い出せない生々しい経緯（何を勘違いしていたか、指摘を受けてどう見方が変わったか）」を
 その場で残すこと。record は一次記録であり、Zenn向けの記事に整えるのは `blog-article` の責務。
 
@@ -70,7 +70,7 @@ status: draft
 
 ## Step 4: 書き込み・報告
 
-`/home/igpf-2500009/projects/tech-blog/neta/` にファイルを作成し、作成したファイルパスをユーザーに伝える。
+`$HOME/projects/tech-blog/neta/` にファイルを作成し、作成したファイルパスをユーザーに伝える。
 
 ---
 

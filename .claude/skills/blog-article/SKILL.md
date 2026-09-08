@@ -10,8 +10,8 @@ description: |
 
 # blog-article — ネタから記事への昇華
 
-`/home/igpf-2500009/projects/tech-blog/neta/` から素材を選び、
-`/home/igpf-2500009/projects/tech-blog/article/` にZenn向け記事の下書きを作る。
+`$HOME/projects/tech-blog/neta/` から素材を選び、
+`$HOME/projects/tech-blog/article/` にZenn向け記事の下書きを作る。
 
 ## Step 1: ネタ一覧を提示し、対象を選んでもらう
 

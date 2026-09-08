@@ -12,8 +12,8 @@ description: |
 # insights-ja — 利用状況レポートの日本語化
 
 `/insights` の成果物は英語のHTMLで、生成場所は
-`/home/igpf-2500009/.claude/usage-data/` である。この skill はそれを日本語Markdownに
-翻訳して `/home/igpf-2500009/projects/self-work/insight-report/` に保存する。
+`$HOME/.claude/usage-data/` である。この skill はそれを日本語Markdownに
+翻訳して `$HOME/projects/self-work/insight-report/` に保存する。
 
 **この skill がやらないこと**: セッションの再分析・レポートの再生成。
 分析結果は `/insights` の出力（既存データ）をそのまま使い、数値も一切変えない。
@@ -46,7 +46,7 @@ description: |
 引数でパスが渡されていない場合、最新のレポートを対象にする。
 
 ```bash
-ls -t /home/igpf-2500009/.claude/usage-data/report-*.html | head -5
+ls -t $HOME/.claude/usage-data/report-*.html | head -5
 ```
 
 - `report-YYYY-MM-DD-HHMMSS.html` が実体。`report.html` は最新のコピーなので**対象外**
@@ -131,7 +131,7 @@ print(re.findall(r'<div class=\"stat-value\">([^<]*)</div>\s*<div class=\"stat-l
 
 対象期間: YYYY-MM-DD 〜 YYYY-MM-DD
 セッション数: N件（分析対象 M件） / メッセージ数: N件 / 稼働時間: Nh / コミット数: N
-原本: `/home/igpf-2500009/.claude/usage-data/report-YYYY-MM-DD-HHMMSS.html`（英語）
+原本: `$HOME/.claude/usage-data/report-YYYY-MM-DD-HHMMSS.html`（英語）
 
 ## 概況（At a Glance）
 
@@ -180,11 +180,11 @@ print(re.findall(r'<div class=\"stat-value\">([^<]*)</div>\s*<div class=\"stat-l
 
 ## Step 4: 保存する
 
-保存先ディレクトリは `/home/igpf-2500009/projects/self-work/insight-report/`。
+保存先ディレクトリは `$HOME/projects/self-work/insight-report/`。
 無ければ作成する。
 
 ```bash
-mkdir -p /home/igpf-2500009/projects/self-work/insight-report
+mkdir -p $HOME/projects/self-work/insight-report
 ```
 
 ファイル名は `insight-report-YYYY-MM-DD.md`。日付は**原本HTMLのファイル名の日付**を使う
@@ -193,7 +193,7 @@ mkdir -p /home/igpf-2500009/projects/self-work/insight-report
 - 同名ファイルが既に存在する場合は、**上書きせずユーザーに確認する**
   （同日に複数回 `/insights` を実行したケース。`insight-report-YYYY-MM-DD-2.md` にするか、
   上書きするかを尋ねる）。
-- 英語の原本HTMLはコピーしない（`/home/igpf-2500009/.claude/usage-data/` にあるものを
+- 英語の原本HTMLはコピーしない（`$HOME/.claude/usage-data/` にあるものを
   参照する前提。保存したMarkdownの冒頭に原本パスを明記しておく）。
 
 ## Step 5: 報告する

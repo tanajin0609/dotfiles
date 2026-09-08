@@ -50,18 +50,18 @@ devテンプレートと同じ `docs/tasks/todo.md` に変更）。
 このコマンド自体には案件固有のルール（システム名・テーブル名・カラム名・運用文言・接続先）を書かない。
 実行時に以下を確認し、**存在すれば読み込んで上のフローに上書き適用する。存在しなければ黙って続行する。**
 
-1. `/home/igpf-2500009/.claude/local/ops-work/RULES.md` — ops-work 全体に共通する業務ルール
+1. `$HOME/.claude/local/ops-work/RULES.md` — ops-work 全体に共通する業務ルール
 2. 対象リポジトリの `.claude/` 配下 — その案件だけのルール
 
 ## 引数
 
-`$ARGUMENTS` にサブプロジェクトのディレクトリ名（`/home/igpf-2500009/projects/` からの相対パス）を渡す。
+`$ARGUMENTS` にサブプロジェクトのディレクトリ名（`$HOME/projects/` からの相対パス）を渡す。
 例: `/init-ops-work <project-name>`。省略時はカレントディレクトリを対象にする。
 
 ## ワークフロー
 
 1. **対象ディレクトリの決定**
-   - `$ARGUMENTS` が指定されていれば `/home/igpf-2500009/projects/<ARGUMENTS>` を対象にする。省略時はカレントディレクトリ。
+   - `$ARGUMENTS` が指定されていれば `$HOME/projects/<ARGUMENTS>` を対象にする。省略時はカレントディレクトリ。
    - 対象ディレクトリが存在しない場合は、作成してよいかユーザーに確認する。
    - 対象に既に `docs/specs/`（devテンプレート）が存在する場合、混在させてよいかユーザーに確認する。
 
@@ -74,15 +74,15 @@ devテンプレートと同じ `docs/tasks/todo.md` に変更）。
      上書きせずユーザーに確認する（既存ファイルは保持し、無いものだけ追加する）。
 
 4. **テンプレートコピー**
-   - `/home/igpf-2500009/projects/_templates/ops/` の内容を `order-yyyymmdd/` 配下にコピーする:
+   - `$HOME/projects/_templates/ops/` の内容を `order-yyyymmdd/` 配下にコピーする:
      ```bash
      ORDER_DIR="<target>/order-$(date +%Y%m%d)"
      mkdir -p "$ORDER_DIR"
-     cp -n  /home/igpf-2500009/projects/_templates/ops/order.md       "$ORDER_DIR/order.md"
-     cp -n  /home/igpf-2500009/projects/_templates/ops/plan.md        "$ORDER_DIR/plan.md"
-     cp -Rn /home/igpf-2500009/projects/_templates/ops/src            "$ORDER_DIR/src"
-     cp -Rn /home/igpf-2500009/projects/_templates/ops/refs           "$ORDER_DIR/refs"
-     cp -Rn /home/igpf-2500009/projects/_templates/ops/tasks          "$ORDER_DIR/tasks"
+     cp -n  $HOME/projects/_templates/ops/order.md       "$ORDER_DIR/order.md"
+     cp -n  $HOME/projects/_templates/ops/plan.md        "$ORDER_DIR/plan.md"
+     cp -Rn $HOME/projects/_templates/ops/src            "$ORDER_DIR/src"
+     cp -Rn $HOME/projects/_templates/ops/refs           "$ORDER_DIR/refs"
+     cp -Rn $HOME/projects/_templates/ops/tasks          "$ORDER_DIR/tasks"
      find "$ORDER_DIR/src" "$ORDER_DIR/refs" "$ORDER_DIR/tasks" -name .gitkeep -delete
      ```
    - `.gitkeep` はテンプレート側（dotfilesリポジトリ）で空ディレクトリを保持するためだけの目印なので、コピー後に削除する。

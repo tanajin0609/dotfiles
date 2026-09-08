@@ -12,7 +12,7 @@ description: |
 ## Step 1: todo.md を列挙する
 
 ```bash
-find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
+find $HOME/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
 ```
 
 `self-work/<サブプロジェクト>/docs/tasks/todo.md`（5階層）・`ops-work/<カテゴリ>/<テナント>/docs/tasks/todo.md`

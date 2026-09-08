@@ -57,10 +57,10 @@ description: |
    - 決定したバージョン（暫定値である旨）と根拠（現在値＋typeによる増分）をユーザーに提示する。
 
 4. **テンプレートコピーとプレースホルダー置換**
-   - `/home/igpf-2500009/projects/_templates/dev/docs/changes/<change-name>/` の
+   - `$HOME/projects/_templates/dev/docs/changes/<change-name>/` の
      `proposal.md`・`design.md`・`decisions.md`・`tasks.md`・`specs/` を `docs/changes/<version>-<change-name>-<日付>/` にコピーする:
      ```bash
-     cp -R /home/igpf-2500009/projects/_templates/dev/docs/changes/\<change-name\>/. docs/changes/<version>-<change-name>-<日付>/
+     cp -R $HOME/projects/_templates/dev/docs/changes/\<change-name\>/. docs/changes/<version>-<change-name>-<日付>/
      ```
    - コピーしたファイル内のプレースホルダー文字列 `<change-name>` を、実際の change-name（バージョン・日付は含めない）に置換する
      （`proposal.md`・`decisions.md`・`tasks.md`・`specs/README.md` の見出しに含まれる）。

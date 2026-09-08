@@ -10,7 +10,7 @@ description: |
 
 # /to-html — Markdown → HTML（テンプレート一本化）
 
-冒頭で `/home/igpf-2500009/.claude/local/doc-rules/RULES.md` が存在すれば Read し、ドキュメント横断ルールを確認してから実行する（存在しない環境では無視して続行する）。
+冒頭で `$HOME/.claude/local/doc-rules/RULES.md` が存在すれば Read し、ドキュメント横断ルールを確認してから実行する（存在しない環境では無視して続行する）。
 
 現セッションの Claude が md を直接 Read し、`${CLAUDE_SKILL_DIR}/assets/template.html` の `{{TITLE}}` / `{{BODY}}` を埋める形で HTML を Write する。`${CLAUDE_SKILL_DIR}` が展開されない環境では、このSKILL.mdがあるディレクトリに読み替える。
 
