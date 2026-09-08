@@ -2,16 +2,19 @@
 name: dotfiles-sync
 model: sonnet
 description: |
-  現在の環境の ~/.claude 配下（commands / skills / CLAUDE.md）への直接編集を dotfiles
-  リポジトリに取り込み、リモートの最新を pull し、symlink が未設置なら設置する。
-  スキルやスラッシュコマンドを追加・修正した後、別マシンと設定を揃えたいとき、
+  現在の環境の ~/.claude 配下（commands / skills / CLAUDE.md）と、install.sh がsymlinkする
+  ~/projects 配下（_templates、self-work/directry-rules、self-work/document-rules 等）への
+  直接編集を dotfiles リポジトリに取り込み、リモートの最新を pull し、symlink が未設置なら
+  設置する。スキルやスラッシュコマンドを追加・修正した後、別マシンと設定を揃えたいとき、
   symlink が切れて設定が読まれなくなったときに使う。commit と push は必ず確認を取る。
 ---
 
 # /dotfiles-sync — dotfiles と ~/.claude の同期
 
-`.claude/commands`, `.claude/skills`, `.claude/CLAUDE.md` を管理している
-dotfiles リポジトリと、現在の環境の `~/.claude` を同期する。
+`.claude/commands`, `.claude/skills`, `.claude/CLAUDE.md` と、`install.sh` がsymlinkする
+`~/projects` 配下の資材（`templates/` → `_templates`、`self-work/directry-rules`・
+`self-work/document-rules` 等）を管理している dotfiles リポジトリと、現在の環境を同期する。
+`install.sh` に symlink 行を追加したら、この節と Step 3 の対象パスにも追記すること。
 
 ## ワークフロー
 
@@ -43,22 +46,24 @@ python3 scripts/gen_skill_index.py
 
 ### Step 3: ローカル変更の確認とコミット提案
 
-通常のスキル/コマンド更新は `~/.claude` を直接編集するだけでよい
-（symlink 経由で dotfiles リポジトリ本体を編集していることになるため、
+通常のスキル/コマンド更新は `~/.claude` を、ディレクトリルール等の更新は
+`~/projects/self-work/directry-rules`・`~/projects/self-work/document-rules` を直接編集するだけでよい
+（いずれも symlink 経由で dotfiles リポジトリ本体を編集していることになるため、
 dotfiles を意識する必要はない）。ここではその変更を dotfiles リポジトリに
-取り込む。
+取り込む。対象パスは `install.sh` が symlink している一式（`.claude/commands`・`.claude/skills`・
+`.claude/CLAUDE.md`・`templates`・`self-work`）と `README.md`・`install.sh` 自体。
 
 ```bash
-git status --short -- .claude/commands .claude/skills .claude/CLAUDE.md README.md
-git diff -- .claude/commands .claude/skills .claude/CLAUDE.md README.md
+git status --short -- .claude/commands .claude/skills .claude/CLAUDE.md templates self-work install.sh README.md
+git diff -- .claude/commands .claude/skills .claude/CLAUDE.md templates self-work install.sh README.md
 ```
 
 変更がある場合:
 
 1. 変更内容を要約してユーザーに提示する
 2. 適切なコミットメッセージ案を提示する
-3. push はもちろん commit も、必ずユーザーの確認を取ってから実行する。このリポジトリは公開リモートに push されるため、業務ドメインが混入した変更を無断で確定させると取り消しが効かない（CLAUDE.md「業務ドメインを混入させない」参照）
-4. 承認が得られたら `git add .claude/commands .claude/skills .claude/CLAUDE.md README.md && git commit -m "<メッセージ>"`、
+3. push はもちろん commit も、必ずユーザーの確認を取ってから実行する。このリポジトリは公開リモートに push されるため、業務ドメインが混入した変更を無断で確定させると取り消しが効かない（CLAUDE.md「業務ドメインを混入させない」参照。`self-work`配下は特に業務ドメイン混入リスクが高いため、コミット前に必ず`grep -rniEf ~/.claude/local/ngwords.txt`を実行する）
+4. 承認が得られたら `git add .claude/commands .claude/skills .claude/CLAUDE.md templates self-work install.sh README.md && git commit -m "<メッセージ>"`、
    その後 push するかを改めて確認してから `git push` する
 
 変更がなければ「差分なし」と報告して次に進む。
