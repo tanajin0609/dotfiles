@@ -1,0 +1,948 @@
+# UI/UX チェックリスト（機械可読版）
+# 解説・NG/OK例の詳細は uiux-heuristics.md を参照。
+# このファイルは「何を見るか」の実行側。
+
+meta:
+  version: "2.0"
+  updated: "2026-09-08"
+  companion: uiux-heuristics.md
+
+# ---------------------------------------------------------------
+# 語彙定義
+# ---------------------------------------------------------------
+
+enums:
+  # requires: この項目を判定するために最低限必要な入力
+  requires:
+    code: HTML/CSS/JSなどの実装
+    screenshot: 画面のスクリーンショットまたはデザインカンプ
+    flow: 画面遷移図・フロー仕様
+    runtime: 実機または動作する環境
+
+  # auto: コード等から機械的に判定できるか
+  auto:
+    true: スクリプト/静的解析で判定可能
+    false: 人またはモデルの解釈が必要
+
+  # severity: 既定の深刻度。文脈により上下させてよい
+  severity:
+    high: タスクを完了できない／データを失う／法令リスク
+    medium: 完了できるが著しく手間・誤操作を誘発
+    low: 完了に支障はないが体験を損なう
+
+  # confidence: 出力時に必ず付与する
+  confidence:
+    confirmed: 入力から直接判定できた
+    inferred: 一般的にそうだが入力からは断定できない
+    needs_check: 判定に必要な入力が無い。質問として出す
+
+output_format: |
+  [深刻度] [確信度] [id] 対象箇所
+    問題: 何が起きているか
+    根拠: どの入力から判断したか
+    影響: ユーザーがどう困るか
+    改善案: 具体的な変更内容
+
+# ---------------------------------------------------------------
+# チェック項目
+# ---------------------------------------------------------------
+
+items:
+
+  # === アクセシビリティ / 知覚可能 =============================
+  - id: A11Y-P-01
+    category: accessibility
+    ref: WCAG 1.1.1
+    check: 画像に代替テキストがある
+    rule: 意味のある画像は alt を持ち、装飾画像は alt="" とする
+    requires: [code]
+    auto: true
+    severity: high
+
+  - id: A11Y-P-02
+    category: accessibility
+    ref: WCAG 1.4.3
+    check: テキストのコントラスト比が十分
+    rule: 通常テキスト 4.5:1 以上／18pt(または14pt太字)以上は 3:1 以上
+    requires: [code]
+    auto: true
+    severity: high
+
+  - id: A11Y-P-03
+    category: accessibility
+    ref: WCAG 1.4.11
+    check: UI部品・図形の境界のコントラストが十分
+    rule: ボタン枠・入力欄枠・グラフの線は 3:1 以上
+    requires: [code]
+    auto: true
+    severity: medium
+
+  - id: A11Y-P-04
+    category: accessibility
+    ref: WCAG 1.4.1
+    check: 色だけで情報を伝えていない
+    rule: エラー・必須・状態を色以外（アイコン/文言/形）でも示す
+    requires: [code, screenshot]
+    auto: false
+    severity: high
+
+  - id: A11Y-P-05
+    category: accessibility
+    ref: WCAG 1.4.10
+    check: 320px幅で横スクロールなく読める
+    rule: 400%ズーム相当でリフローする
+    requires: [runtime, code]
+    auto: false
+    severity: medium
+
+  - id: A11Y-P-06
+    category: accessibility
+    ref: WCAG 1.4.12
+    check: 行間・字間を変更しても崩れない
+    rule: 固定高さのコンテナにテキストを詰めていない
+    requires: [code]
+    auto: false
+    severity: low
+
+  - id: A11Y-P-07
+    category: accessibility
+    ref: WCAG 1.2.2
+    check: 動画に字幕がある
+    requires: [code, runtime]
+    auto: true
+    severity: medium
+
+  # === アクセシビリティ / 操作可能 =============================
+  - id: A11Y-O-01
+    category: accessibility
+    ref: WCAG 2.1.1
+    check: キーボードのみで全機能を操作できる
+    requires: [code, runtime]
+    auto: false
+    severity: high
+
+  - id: A11Y-O-02
+    category: accessibility
+    ref: WCAG 2.4.7
+    check: フォーカスリングが視認できる
+    rule: outline:none の置き去りが無い。代替の可視表現がある
+    requires: [code]
+    auto: true
+    severity: high
+
+  - id: A11Y-O-03
+    category: accessibility
+    ref: WCAG 2.4.3
+    check: フォーカス順序が視覚順序と一致する
+    rule: 正の tabindex を使っていない。CSSで視覚順だけ入れ替えていない
+    requires: [code]
+    auto: true
+    severity: medium
+
+  - id: A11Y-O-04
+    category: accessibility
+    ref: WCAG 2.1.2
+    check: 意図しないタブトラップが無い
+    rule: モーダル内のトラップは正しい実装。それ以外は不可
+    requires: [code, runtime]
+    auto: false
+    severity: high
+
+  - id: A11Y-O-05
+    category: accessibility
+    ref: WCAG 2.2.2
+    check: 自動再生・自動スライドを停止できる
+    requires: [code, runtime]
+    auto: false
+    severity: medium
+
+  - id: A11Y-O-06
+    category: accessibility
+    ref: WCAG 2.5.8
+    check: タップ領域のサイズが十分
+    rule: 最小 24x24 CSS px（WCAG 2.2 AA）。推奨は iOS 44x44pt / Android 48x48dp
+    requires: [code]
+    auto: true
+    severity: medium
+    note: WCAG 2.2で新設
+
+  - id: A11Y-O-07
+    category: accessibility
+    ref: WCAG 2.4.11
+    check: フォーカス中の要素が固定ヘッダー等で隠れない
+    requires: [runtime, code]
+    auto: false
+    severity: medium
+    note: WCAG 2.2で新設
+
+  - id: A11Y-O-08
+    category: accessibility
+    ref: WCAG 2.5.7
+    check: ドラッグ操作に単一ポインタの代替がある
+    rule: 並べ替えD&Dに「上へ／下へ」ボタン等を用意する
+    requires: [code, runtime]
+    auto: false
+    severity: medium
+    note: WCAG 2.2で新設
+
+  - id: A11Y-O-09
+    category: accessibility
+    ref: WCAG 2.3.3
+    check: prefers-reduced-motion を尊重している
+    requires: [code]
+    auto: true
+    severity: low
+
+  - id: A11Y-O-10
+    category: accessibility
+    ref: WCAG 2.4.1
+    check: スキップリンクがある
+    requires: [code]
+    auto: true
+    severity: low
+
+  # === アクセシビリティ / 理解可能 =============================
+  - id: A11Y-U-01
+    category: accessibility
+    ref: WCAG 3.1.1
+    check: html要素に lang が指定されている
+    requires: [code]
+    auto: true
+    severity: medium
+
+  - id: A11Y-U-02
+    category: accessibility
+    ref: WCAG 3.3.2
+    check: 全ての入力欄に label が紐付いている
+    rule: for/id、aria-label、aria-labelledby のいずれか
+    requires: [code]
+    auto: true
+    severity: high
+
+  - id: A11Y-U-03
+    category: accessibility
+    ref: WCAG 3.3.1 / 3.3.3
+    check: エラーが具体的で修正方法が分かる
+    requires: [code, screenshot]
+    auto: false
+    severity: high
+
+  - id: A11Y-U-04
+    category: accessibility
+    ref: WCAG 3.2.2
+    check: 予期せぬ文脈変化が無い
+    rule: セレクトを選んだだけで送信・遷移しない
+    requires: [code, runtime]
+    auto: false
+    severity: medium
+
+  - id: A11Y-U-05
+    category: accessibility
+    ref: WCAG 3.3.7
+    check: 同じ情報を再入力させない
+    rule: 配送先/請求先のコピー、前ステップの値の引き継ぎ
+    requires: [flow, code]
+    auto: false
+    severity: medium
+    note: WCAG 2.2で新設
+
+  - id: A11Y-U-06
+    category: accessibility
+    ref: WCAG 3.3.8
+    check: 認証で記憶やパズルを要求しない
+    rule: パスワードのペーストを禁止しない。認証コードの自動入力を妨げない
+    requires: [code]
+    auto: true
+    severity: high
+    note: WCAG 2.2で新設
+
+  - id: A11Y-U-07
+    category: accessibility
+    ref: WCAG 3.2.6
+    check: ヘルプの導線が全画面で同じ位置にある
+    requires: [screenshot, flow]
+    auto: false
+    severity: low
+    note: WCAG 2.2で新設
+
+  # === アクセシビリティ / 堅牢 =================================
+  - id: A11Y-R-01
+    category: accessibility
+    ref: WCAG 1.3.1
+    check: 見出しレベルが飛んでいない
+    rule: h1 -> h3 のスキップが無い。h1 は原則1つ
+    requires: [code]
+    auto: true
+    severity: medium
+
+  - id: A11Y-R-02
+    category: accessibility
+    ref: WCAG 4.1.2
+    check: セマンティックなHTMLを使っている
+    rule: div+onClick ではなく button/a。ランドマーク要素を使う
+    requires: [code]
+    auto: true
+    severity: high
+
+  - id: A11Y-R-03
+    category: accessibility
+    ref: WCAG 4.1.3
+    check: 動的な変更が支援技術に伝わる
+    rule: aria-live / role="status" / role="alert"
+    requires: [code]
+    auto: true
+    severity: medium
+
+  # === ニールセン10原則 ========================================
+  - id: NN-01
+    category: heuristic
+    ref: Nielsen 1
+    check: システムの状態が可視化されている
+    rule: 非同期処理にローディング表示、完了時にフィードバック、現在地表示
+    requires: [screenshot, runtime]
+    auto: false
+    severity: high
+
+  - id: NN-02
+    category: heuristic
+    ref: Nielsen 2
+    check: ユーザーの言葉で書かれている
+    rule: 内部用語・エラーコード・英語のまま出さない
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+
+  - id: NN-03
+    category: heuristic
+    ref: Nielsen 3
+    check: 取り消し・離脱の手段がある
+    rule: 戻る、キャンセル、モーダルを閉じる、破壊的操作のundo
+    requires: [screenshot, flow]
+    auto: false
+    severity: high
+
+  - id: NN-04
+    category: heuristic
+    ref: Nielsen 4
+    check: 配置と用語に一貫性がある
+    rule: 主要アクションの位置、同義語の混在（登録/申込/サインアップ）
+    requires: [screenshot, flow]
+    auto: false
+    severity: medium
+
+  - id: NN-05
+    category: heuristic
+    ref: Nielsen 5
+    check: そもそも誤入力できない設計になっている
+    rule: 自由入力を選択式に、危険操作に確認、入力形式を事前提示
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+
+  - id: NN-06
+    category: heuristic
+    ref: Nielsen 6
+    check: 記憶を要求していない
+    rule: 前画面の情報を確認画面で再掲する
+    requires: [flow, screenshot]
+    auto: false
+    severity: medium
+
+  - id: NN-07
+    category: heuristic
+    ref: Nielsen 7
+    check: 熟練者向けの効率化手段がある
+    rule: 一括操作、ショートカット、直近入力の再利用
+    requires: [screenshot, flow]
+    auto: false
+    severity: low
+
+  - id: NN-08
+    category: heuristic
+    ref: Nielsen 8
+    check: 情報量が絞られCTAが競合していない
+    rule: 同等の強さのプライマリボタンが複数並んでいない
+    requires: [screenshot, code]
+    auto: true
+    severity: medium
+
+  - id: NN-09
+    category: heuristic
+    ref: Nielsen 9
+    check: エラーに「何が・なぜ・どうすれば」が揃っている
+    requires: [screenshot, code]
+    auto: false
+    severity: high
+
+  - id: NN-10
+    category: heuristic
+    ref: Nielsen 10
+    check: ヘルプが文脈内にある
+    rule: 迷いやすい欄に補足。別サイトへ飛ばさない
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  # === シュナイダーマン 独自分 =================================
+  - id: SH-04
+    category: flow
+    ref: Shneiderman 4
+    check: 操作に完結感がある
+    rule: ステップ表示（1/3）と完了画面がある
+    requires: [flow]
+    auto: false
+    severity: medium
+
+  - id: SH-07
+    category: flow
+    ref: Shneiderman 7
+    check: 主導権がユーザーにある
+    rule: 予期せぬ自動遷移、勝手な設定変更、同意なしのデフォルトONが無い
+    requires: [flow, runtime]
+    auto: false
+    severity: high
+
+  # === ゲシュタルト / レイアウト ===============================
+  - id: GST-01
+    category: layout
+    ref: 近接
+    check: 余白でグルーピングできている
+    rule: 見出しと本文の間隔 < セクション間の間隔。ラベルは自分の入力欄に近い
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+
+  - id: GST-02
+    category: layout
+    ref: 類同
+    check: 同じ役割の要素が同じ見た目
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: GST-03
+    category: layout
+    ref: 連続
+    check: 揃えるべき要素が揃っている
+    rule: 左端・ベースラインのズレが無い
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  - id: GST-04
+    category: layout
+    ref: 図と地
+    check: モーダルと背景が分離して見える
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  - id: GST-05
+    category: layout
+    ref: Norman/シグニファイア
+    check: 押せる要素と単なる文字が区別できる
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  # === Laws of UX ==============================================
+  - id: LAW-HICK
+    category: cognition
+    ref: ヒックの法則
+    check: 選択肢が多すぎない
+    rule: 1階層あたりの項目を絞る。プランは3つ程度が目安
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: LAW-MILLER
+    category: cognition
+    ref: ミラーの法則
+    check: 情報がチャンク化されている
+    rule: 桁の多い数値は区切る。長い設問はグループ化する
+    requires: [screenshot]
+    auto: false
+    severity: low
+    note: 「7±2」「4±1」の数値は諸説あるため断定しない
+
+  - id: LAW-JAKOB
+    category: cognition
+    ref: ヤコブの法則
+    check: 一般的な慣習に従っている
+    rule: ロゴ左上でトップへ、カート右上、独自すぎるUIを避ける
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: LAW-PEAKEND
+    category: flow
+    ref: ピークエンドの法則
+    check: 完了時・失敗時の体験が設計されている
+    requires: [flow]
+    auto: false
+    severity: low
+
+  - id: LAW-TESLER
+    category: cognition
+    ref: テスラーの法則
+    check: 複雑さをシステム側が引き受けている
+    rule: 全角半角/ハイフンの吸収、住所の自動補完
+    requires: [code, runtime]
+    auto: false
+    severity: medium
+
+  # === UIの状態設計 ============================================
+  - id: STATE-EMPTY
+    category: ui_state
+    check: 空状態が設計されている
+    rule: 真っ白でなく、説明と次の行動を示す。初回／検索0件／片付け完了を区別する
+    requires: [screenshot, code]
+    auto: false
+    severity: high
+
+  - id: STATE-LOADING
+    category: ui_state
+    check: 読込中の表示がある
+    rule: スケルトン推奨。極短時間の処理では逆に出さない
+    requires: [code, runtime]
+    auto: false
+    severity: high
+
+  - id: STATE-ERROR
+    category: ui_state
+    check: エラー状態に再試行手段がある
+    rule: 部分エラーを全画面エラーにしない
+    requires: [code, runtime]
+    auto: false
+    severity: high
+
+  - id: STATE-PARTIAL
+    category: ui_state
+    check: 部分取得時に取れた分を先に見せている
+    requires: [code, runtime]
+    auto: false
+    severity: low
+
+  - id: STATE-OFFLINE
+    category: ui_state
+    check: 通信断・権限なしの状態で入力内容を失わない
+    requires: [code, runtime]
+    auto: false
+    severity: high
+
+  # === フォーム ================================================
+  - id: FORM-01
+    category: form
+    check: ラベルが常時可視である
+    rule: プレースホルダーをラベル代わりにしない
+    requires: [code, screenshot]
+    auto: true
+    severity: high
+
+  - id: FORM-02
+    category: form
+    check: モバイルで適切なキーボードが出る
+    rule: inputmode / type（numeric, email, tel）が設定されている
+    requires: [code]
+    auto: true
+    severity: medium
+
+  - id: FORM-03
+    category: form
+    check: autocomplete 属性が設定されている
+    rule: name, email, postal-code, cc-number 等
+    requires: [code]
+    auto: true
+    severity: medium
+
+  - id: FORM-04
+    category: form
+    check: 入力欄の幅が想定文字数と対応している
+    rule: 郵便番号欄と氏名欄が同じ幅になっていない
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  - id: FORM-05
+    category: form
+    check: バリデーションのタイミングが適切
+    rule: 入力中に赤字を出さない。blur時または送信時。修正中の解除は可
+    requires: [code, runtime]
+    auto: false
+    severity: medium
+
+  - id: FORM-06
+    category: form
+    check: 送信時に最初のエラー欄へフォーカスが移る
+    requires: [code]
+    auto: false
+    severity: medium
+
+  - id: FORM-07
+    category: form
+    check: 必須／任意の表示が適切
+    rule: 必須が多数なら任意側に印を付ける。記号だけに頼らない
+    requires: [screenshot, code]
+    auto: false
+    severity: low
+
+  - id: FORM-08
+    category: form
+    check: 二重送信を防いでいる
+    rule: 送信中は disabled かつ状態を表示
+    requires: [code]
+    auto: true
+    severity: high
+
+  - id: FORM-09
+    category: form
+    check: 送信失敗時に入力内容が保持される
+    requires: [code, runtime]
+    auto: false
+    severity: high
+
+  - id: FORM-10
+    category: form
+    check: 長いフォームに自動保存または離脱警告がある
+    requires: [code]
+    auto: false
+    severity: medium
+
+  # === マイクロコピー ==========================================
+  - id: COPY-01
+    category: copy
+    check: ボタンが動詞＋目的語になっている
+    rule: 「送信」「OK」ではなく「予約を確定する」
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+
+  - id: COPY-02
+    category: copy
+    check: ダイアログの選択肢が結果を明示している
+    rule: OK/キャンセルではなく「破棄する／編集に戻る」
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+
+  - id: COPY-03
+    category: copy
+    check: 二重否定になっていない
+    rule: 「通知を受け取らない ☐」を避ける
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+
+  - id: COPY-04
+    category: copy
+    check: 待ち時間の見込みが具体的
+    rule: 「しばらくお待ちください」より「1分ほどかかります」
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  # === ダークパターン ==========================================
+  - id: DARK-01
+    category: ethics
+    check: 同意・オプションがデフォルトONになっていない
+    requires: [screenshot, code]
+    auto: true
+    severity: high
+
+  - id: DARK-02
+    category: ethics
+    check: 解約・退会の導線が登録と同程度に容易
+    requires: [flow]
+    auto: false
+    severity: high
+
+  - id: DARK-03
+    category: ethics
+    check: 根拠のない緊急性・希少性を演出していない
+    rule: 実態のないカウントダウン、在庫表示は景表法リスク
+    requires: [screenshot, code]
+    auto: false
+    severity: high
+
+  - id: DARK-04
+    category: ethics
+    check: 断る選択肢を自虐的に書いていない
+    rule: confirmshaming（「いいえ、損をしてもいい」）
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: DARK-05
+    category: ethics
+    check: 視覚的な誘導で選択肢を隠していない
+    rule: 「同意しない」だけ薄いグレー、など
+    requires: [screenshot]
+    auto: false
+    severity: high
+
+  - id: DARK-06
+    category: ethics
+    check: 隠れコストが無い
+    rule: 最終画面で初めて手数料が出現しない
+    requires: [flow]
+    auto: false
+    severity: high
+
+  - id: DARK-07
+    category: ethics
+    check: しつこい再要求（ナグ）が無い
+    rule: 毎起動での評価依頼・通知許可の再要求
+    requires: [flow, runtime]
+    auto: false
+    severity: medium
+
+  # === モバイル固有 ============================================
+  - id: MOB-01
+    category: mobile
+    check: 主要操作がサムゾーン内にある
+    rule: 画面下部が押しやすい。破壊的操作は親指の自然位置に置かない
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: MOB-02
+    category: mobile
+    check: ソフトキーボードで入力欄・送信ボタンが隠れない
+    requires: [runtime]
+    auto: false
+    severity: high
+
+  - id: MOB-03
+    category: mobile
+    check: セーフエリアを回避している
+    rule: ノッチ、ホームインジケーター、Dynamic Island
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+
+  - id: MOB-04
+    category: mobile
+    check: OSのジェスチャーと競合していない
+    rule: 横スワイプのカルーセルと戻るスワイプ、プルトゥリフレッシュ
+    requires: [runtime]
+    auto: false
+    severity: medium
+
+  - id: MOB-05
+    category: mobile
+    check: hover 前提の情報表示になっていない
+    requires: [code]
+    auto: true
+    severity: medium
+
+  - id: MOB-06
+    category: mobile
+    check: 拡大縮小を禁止していない
+    rule: user-scalable=no / maximum-scale=1 を使わない
+    requires: [code]
+    auto: true
+    severity: medium
+
+  # === パフォーマンス / 体感速度 ===============================
+  - id: PERF-01
+    category: performance
+    ref: LCP
+    check: 主要コンテンツの表示が速い
+    threshold: 2.5秒以内
+    requires: [runtime]
+    auto: true
+    severity: medium
+
+  - id: PERF-02
+    category: performance
+    ref: INP
+    check: 操作への応答が速い
+    threshold: 200ms以内
+    requires: [runtime]
+    auto: true
+    severity: medium
+
+  - id: PERF-03
+    category: performance
+    ref: CLS
+    check: 読み込み中にレイアウトがずれない
+    threshold: 0.1未満
+    rule: 画像・iframe・広告枠に寸法指定がある
+    requires: [runtime, code]
+    auto: true
+    severity: high
+
+  - id: PERF-04
+    category: performance
+    ref: ドハティのしきい値
+    check: 待たせ方が設計されている
+    rule: 1秒未満は無表示／1-10秒はスケルトン・進捗／10秒超は完了予告と離脱可能に
+    requires: [runtime]
+    auto: false
+    severity: medium
+
+  - id: PERF-05
+    category: performance
+    check: 楽観的UIの失敗時の巻き戻しが設計されている
+    requires: [code]
+    auto: false
+    severity: medium
+
+  # === 情報アーキテクチャ ======================================
+  - id: IA-01
+    category: ia
+    check: 主要機能まで3タップ以内で到達できる
+    requires: [flow]
+    auto: false
+    severity: medium
+
+  - id: IA-02
+    category: ia
+    check: 現在地が分かる
+    rule: パンくず、タブのアクティブ表示
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: IA-03
+    category: ia
+    check: ナビのラベルがユーザーの語彙である
+    rule: 「ソリューション」より「料金」
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: IA-04
+    category: ia
+    check: 404・権限エラーからの復帰導線がある
+    requires: [flow]
+    auto: false
+    severity: medium
+
+  - id: IA-05
+    category: ia
+    check: URLが状態を反映している
+    rule: タブ・絞り込み条件を共有／ブックマークできる
+    requires: [code, runtime]
+    auto: false
+    severity: medium
+
+  - id: IA-06
+    category: ia
+    check: ブラウザバックで期待通りに戻る
+    rule: モーダルを開いた状態で戻ると全画面離脱、になっていない
+    requires: [runtime]
+    auto: false
+    severity: medium
+
+  # === オンボーディング / 権限 =================================
+  - id: ONB-01
+    category: onboarding
+    check: 権限要求の前に理由を説明している
+    rule: OSダイアログをいきなり出さない
+    requires: [flow]
+    auto: false
+    severity: high
+
+  - id: ONB-02
+    category: onboarding
+    check: 権限を拒否された後の代替手段がある
+    requires: [flow]
+    auto: false
+    severity: medium
+
+  - id: ONB-03
+    category: onboarding
+    check: チュートリアルをスキップできる
+    requires: [flow]
+    auto: false
+    severity: medium
+
+  - id: ONB-04
+    category: onboarding
+    check: 登録を後回しにできる
+    rule: ゲスト利用や、価値を見せてから登録を促す
+    requires: [flow]
+    auto: false
+    severity: medium
+
+  # === 多言語 / 可変長 =========================================
+  - id: I18N-01
+    category: i18n
+    check: 文字数が伸びてもレイアウトが崩れない
+    rule: 日本語→英独で1.3-2倍。ボタン・カードの固定幅/高さに注意
+    requires: [code, screenshot]
+    auto: false
+    severity: medium
+
+  - id: I18N-02
+    category: i18n
+    check: 日付・通貨・住所・氏名の形式がロケール依存で組まれている
+    requires: [code]
+    auto: false
+    severity: low
+
+  - id: I18N-03
+    category: i18n
+    check: 文字列を画像に焼き込んでいない
+    requires: [code]
+    auto: true
+    severity: medium
+
+  # === デザイントークン ========================================
+  - id: TOKEN-01
+    category: design_system
+    check: 色がパレット外の値になっていない
+    requires: [code]
+    auto: true
+    severity: low
+
+  - id: TOKEN-02
+    category: design_system
+    check: 余白が4pt/8ptスケールに乗っている
+    requires: [code]
+    auto: true
+    severity: low
+
+  - id: TOKEN-03
+    category: design_system
+    check: フォントサイズの種類が多すぎない
+    threshold: 1画面あたり4-5種類まで
+    requires: [code, screenshot]
+    auto: true
+    severity: low
+
+  - id: TOKEN-04
+    category: design_system
+    check: 角丸・影の値が統一されている
+    requires: [code]
+    auto: true
+    severity: low
+
+  - id: TOKEN-05
+    category: design_system
+    check: 同じ意味の色が別の役割に使われていない
+    rule: 成功と情報が同じ緑、など
+    requires: [code, screenshot]
+    auto: false
+    severity: low
+
+  # === 用語の一貫性 ============================================
+  - id: TERM-01
+    category: consistency
+    check: 同義語が混在していない
+    rule: 「登録／申込／サインアップ」「削除／破棄／取り消し」
+    requires: [code, screenshot]
+    auto: true
+    severity: medium
+
+# ---------------------------------------------------------------
+# レビュー運用のルール
+# ---------------------------------------------------------------
+
+review_rules:
+  - 判定に必要な入力が無い項目は指摘せず needs_check として質問形式で出す
+  - 低の指摘を大量に出すより、高を数件に絞る
+  - 良い点を1-2件挙げ、改善の方向を誤らせない
+  - 意図の断定を避ける（「意図的に騙している」ではなく「該当しうる」）
+  - 指摘には必ず id と原則名を添える
