@@ -3,7 +3,9 @@ set -euo pipefail
 
 # dotfiles installer (WSL / Linux / macOS)
 # .claude/commands, .claude/skills, .claude/CLAUDE.md を ~/.claude 以下へ、
-# templates/ を ~/projects/_templates へシンボリックリンクします。
+# templates/ を ~/projects/_templates へ、
+# self-work/directry-rules・self-work/document-rules を ~/projects/self-work 配下へ
+# シンボリックリンクします。
 # 既存の実体ディレクトリ/ファイルがある場合は上書きせずタイムスタンプ付きで退避します。
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,5 +40,7 @@ link "${DOTFILES_DIR}/.claude/commands" "${CLAUDE_DIR}/commands"
 link "${DOTFILES_DIR}/.claude/skills" "${CLAUDE_DIR}/skills"
 link "${DOTFILES_DIR}/.claude/CLAUDE.md" "${CLAUDE_DIR}/CLAUDE.md"
 link "${DOTFILES_DIR}/templates" "${PROJECTS_DIR}/_templates"
+link "${DOTFILES_DIR}/self-work/directry-rules" "${PROJECTS_DIR}/self-work/directry-rules"
+link "${DOTFILES_DIR}/self-work/document-rules" "${PROJECTS_DIR}/self-work/document-rules"
 
 echo "done."
