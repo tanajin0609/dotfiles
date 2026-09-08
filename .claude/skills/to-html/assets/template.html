@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+:root {
+  --bg:#fff; --fg:#14161a; --muted:#5c6470; --line:#e3e6ea; --card:#fbfcfd; --accent:#2f6feb;
+  --warn-bg:#fff6e5; --warn-line:#e8a33d; --danger-bg:#fdeeee; --danger-line:#d9534f;
+  --ok-bg:#eef8f1; --ok-line:#3fa564; --code-bg:#f3f5f7; --tag-bg:#eceff3;
+  --hero-a:#2f6feb; --hero-b:#6a4fd9;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#14161a; --fg:#e7eaee; --muted:#9aa4b2; --line:#2a2f37; --card:#1a1d23; --accent:#6ea3ff;
+    --warn-bg:#2e2618; --warn-line:#c9902f; --danger-bg:#2e1c1c; --danger-line:#cf6b67;
+    --ok-bg:#17281d; --ok-line:#4fa76d; --code-bg:#21252c; --tag-bg:#262b33;
+    --hero-a:#1d3f8f; --hero-b:#3d2c82;
+  }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); line-height:1.75; font-size:15px;
+  font-family:"Hiragino Sans","Noto Sans JP",-apple-system,BlinkMacSystemFont,sans-serif; }
+.wrap { max-width:1120px; margin:0 auto; padding:0 24px 80px; }
+
+/* Hero */
+.hero { background:linear-gradient(135deg,var(--hero-a),var(--hero-b)); color:#fff;
+  border-radius:0 0 20px 20px; padding:44px 32px 36px; margin:0 -24px 36px; }
+.hero .eyebrow { font-size:11px; letter-spacing:.18em; font-weight:700; opacity:.85; }
+.hero h1 { font-size:27px; margin:10px 0 14px; line-height:1.4; }
+.hero .lede { font-size:14.5px; opacity:.92; max-width:760px; }
+.hero .src { font-size:11.5px; opacity:.7; margin-top:14px; font-family:ui-monospace,Menlo,monospace; }
+
+/* 目次 */
+.toc { border:1px solid var(--line); border-radius:10px; background:var(--card); padding:16px 20px; margin-bottom:36px; }
+.toc .h { font-size:11px; letter-spacing:.14em; color:var(--muted); font-weight:700; margin-bottom:8px; }
+.toc ol { margin:0; padding-left:20px; }
+.toc li { font-size:13px; margin:3px 0; }
+.toc a { color:var(--fg); text-decoration:none; }
+.toc a:hover { color:var(--accent); }
+
+/* メトリクスカード */
+.metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin:0 0 36px; }
+.metric { border:1px solid var(--line); border-radius:10px; background:var(--card); padding:16px 18px; }
+.metric .num { font-size:27px; font-weight:800; font-variant-numeric:tabular-nums; }
+.metric .label { font-size:12px; color:var(--muted); margin-top:2px; }
+
+/* 節 */
+.section { margin-top:48px; }
+.section-head { border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:18px; }
+h2 { font-size:19px; margin:0; }
+h3 { font-size:15.5px; margin:22px 0 10px; }
+.lead { color:var(--muted); font-size:13.5px; margin:6px 0 0; }
+p { margin:0 0 14px; }
+
+/* コールアウト（[!NOTE]/[!WARN]/[!OK]/[!RISK]） */
+.callout { border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0;
+  padding:14px 18px; margin:0 0 18px; }
+.callout .h { font-weight:700; font-size:13px; margin-bottom:6px; }
+.callout.note { border-left-color:var(--accent); }
+.callout.warn { border-left-color:var(--warn-line); background:var(--warn-bg); }
+.callout.ok { border-left-color:var(--ok-line); background:var(--ok-bg); }
+.callout.risk { border-left-color:var(--danger-line); background:var(--danger-bg); }
+
+/* カード（重要セクションの強調） */
+.cards { display:grid; gap:14px; margin:0 0 18px; }
+.card { border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:0 8px 8px 0;
+  background:var(--card); padding:14px 18px; }
+.card-title { font-weight:700; font-size:14.5px; margin-bottom:6px; }
+
+/* 表 */
+table { width:100%; border-collapse:collapse; font-size:13px; margin:0 0 18px; }
+th, td { text-align:left; padding:9px 11px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:11.5px; color:var(--muted); letter-spacing:.06em; font-weight:700; }
+td.num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+/* コード */
+pre.code { background:var(--code-bg); border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  overflow-x:auto; font-family:ui-monospace,Menlo,monospace; font-size:12.5px; line-height:1.65; margin:0 0 18px; }
+code { background:var(--code-bg); border-radius:4px; padding:1px 5px;
+  font-family:ui-monospace,Menlo,monospace; font-size:.88em; }
+
+/* Chart.js 図表 */
+.chart-box { border:1px solid var(--line); border-radius:10px; background:var(--card); padding:16px; margin:0 0 18px; }
+.chart-box canvas { max-height:340px; }
+.figcap { color:var(--muted); font-size:12.5px; margin-top:8px; }
+
+/* SVG 構造図 */
+.svg-box { border:1px solid var(--line); border-radius:10px; background:var(--card); padding:16px; overflow-x:auto; margin:0 0 18px; }
+.svg-box svg { max-width:100%; height:auto; }
+
+@media (max-width:720px) {
+  .hero { margin:0 -24px 28px; padding:32px 20px 28px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ここに本文を書く。使えるパーツは上のCSSのコメントを参照 -->
+  {{BODY}}
+
+</div>
+
+<!-- 検証スクリプトがページ全体の高さを知るための出力。表示には影響しないので削除しない -->
+<script>
+  const reportHeight = () => {
+    document.body.dataset.pageHeight = String(document.documentElement.scrollHeight);
+  };
+  document.addEventListener('DOMContentLoaded', reportHeight);
+  window.reportPageHeight = reportHeight;
+</script>
+
+<!--
+  Chart.js を使う図が1つも無い場合は、以下の script 要素ごと削除する。
+  個々のグラフに new Chart(...) を書く必要は無い。canvas.chart 要素に
+  data-chart-type と data-chart-config（Chart.js の type / data / options 相当の JSON）を
+  持たせておけば、このスクリプトがまとめて初期化する。
+-->
+<script type="module">
+  import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4/+esm';
+  Chart.register(...registerables);
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color = dark ? '#9aa4b2' : '#5c6470';
+  Chart.defaults.borderColor = dark ? '#2a2f37' : '#e3e6ea';
+  const errors = [];
+  for (const node of document.querySelectorAll('canvas.chart')) {
+    try {
+      const config = JSON.parse(node.dataset.chartConfig);
+      config.type = node.dataset.chartType;
+      new Chart(node, config);
+    } catch (e) {
+      errors.push(String(e));
+    }
+  }
+  document.body.dataset.chartsReady = '1';
+  if (errors.length) document.body.dataset.chartErrors = JSON.stringify(errors);
+  window.reportPageHeight();
+</script>
+</body>
+</html>
