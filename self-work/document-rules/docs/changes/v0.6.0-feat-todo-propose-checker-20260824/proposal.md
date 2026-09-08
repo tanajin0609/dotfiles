@@ -9,14 +9,14 @@
 
 ## 背景
 
-`/home/igpf-2500009/.claude/commands/todo-execute.md` の Step4「最終レビュー（独立Checkerによる
+`$HOME/.claude/commands/todo-execute.md` の Step4「最終レビュー（独立Checkerによる
 敵対的検証）」では、実装した本人（Step2のサブエージェントやメインセッション自身）とは別の
 独立コンテキストで `todo-checker` エージェント（`~/.claude/agents/todo-checker.md`、`Write`・`Edit`
 を持たない判定専任）を起動し、成果物をゼロから再検証させている。この設計を採った理由は
 「実装者が自分の成果を採点すると、合格させたい方向に評価が甘くなりやすい」ため
 （`todo-execute.md` Step4本文）。
 
-`/home/igpf-2500009/.claude/commands/todo-propose.md` の
+`$HOME/.claude/commands/todo-propose.md` の
 「## today-todoバッチモードの最終レビュー（敵対的検証）」節（180〜198行目）は、同じ「敵対的検証」を
 謳いながら、検証の実施者が**メインセッション自身**のままになっている。バッチモードでは
 メインセッションが0-2で各サブプロジェクト向けサブエージェントを並列起動した張本人であり、
@@ -47,11 +47,11 @@
 
 ### 変更対象ファイル（想定・いずれも本提案の対象。実装フェーズで着手）
 
-- `/home/igpf-2500009/.claude/commands/todo-propose.md`
-  （dotfiles実体: `/mnt/c/Users/IGPF-2500009/dotfiles/.claude/commands/todo-propose.md` 相当。
+- `$HOME/.claude/commands/todo-propose.md`
+  （dotfiles実体: `$HOME/.claude/commands/todo-propose.md` 相当。
   実パスは実装時に確認する）— 「today-todoバッチモードの最終レビュー（敵対的検証）」節の書き換え
 - `~/.claude/agents/todo-propose-checker.md`（新規作成。dotfiles実体側に新設し、symlink経由で反映）
-- `/home/igpf-2500009/projects/self-work/document-rules/document-rules.md` —
+- `$HOME/projects/self-work/document-rules/document-rules.md` —
   Maker-Checker分離の経緯を反映するかどうかは要検討（下記「確認事項」参照。document-rules.mdは
   「ドキュメント種別（誰が・いつ・何のために書くか）」を扱うファイルであり、検証プロセスの
   設計そのものは扱っていないため、必須ではない可能性がある）

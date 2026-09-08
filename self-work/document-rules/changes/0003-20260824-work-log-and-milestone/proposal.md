@@ -53,9 +53,9 @@
 
 - `document-rules.md`: 種別一覧に`work-log-YYYY-MM-DD.md`の行を追加／専用節を新設／
   `proposal-YYYY-MM-DD.md`節に例外を追記／アーカイブ運用のglob・How to applyを改定
-- `/home/igpf-2500009/.claude/skills/todo-import/SKILL.md`: Step5「作業ログに追記する」を新設／
+- `$HOME/.claude/skills/todo-import/SKILL.md`: Step5「作業ログに追記する」を新設／
   注意事項に1行追記
-- `/home/igpf-2500009/.claude/commands/todo-propose.md`: 「3-0. 作業ログへの追記（両モード共通）」を
+- `$HOME/.claude/commands/todo-propose.md`: 「3-0. 作業ログへの追記（両モード共通）」を
   新設／「3-1. まとめ版の書き出し」に項目7と3-1aを追加
 
 ## 5. 未決事項: `/todo-execute`（本提案書のスコープ外）

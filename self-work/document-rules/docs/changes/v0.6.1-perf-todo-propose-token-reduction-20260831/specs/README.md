@@ -15,7 +15,7 @@
 ## 差分一覧
 
 本変更は大本specを変更しない（理由: 変更対象は`docs/specs/`配下のspec文書ではなく、
-`/mnt/c/Users/IGPF-2500009/dotfiles/.claude/commands/todo-propose.md`というコマンド定義
+`$HOME/.claude/commands/todo-propose.md`というコマンド定義
 自体のため。`document-rules`の`docs/specs/`はこの変更に伴い`/init-spec`で初期化したばかりで
 現時点では`VERSION`のみ。運用ルールをspec化する作業自体はスコープ外）。
 

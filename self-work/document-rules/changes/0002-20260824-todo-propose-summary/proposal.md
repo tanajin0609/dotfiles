@@ -53,7 +53,7 @@
 
 - `document-rules.md`: 種別一覧に1行追加／「誤解しやすい点」節の記述を改定／
   まとめ版の節を新設／How to apply を改定
-- `/home/igpf-2500009/.claude/commands/todo-propose.md`: frontmatter description に1行追加／
+- `$HOME/.claude/commands/todo-propose.md`: frontmatter description に1行追加／
   手順「3-1. まとめ版の書き出し（バッチモードのみ・必須）」を新設／注意事項の該当行を改定
 - `today-todo/proposal-2026-08-24.md`: 当日分を作成（`plan-2026-08-24-todo-propose.md` →
   `plan-2026-08-24-todo-proposal.md` → 最終的に `proposal-2026-08-24.md` へ改名）

@@ -6,7 +6,7 @@
 
 **本変更は大本specを変更しない（確定・2026-08-24ユーザー指示）**: 本変更の実質的な大本specは
 `document-rules.md`（このプロジェクトの大本spec相当。「ドキュメント種別・命名規則」を扱う別責務の
-メタ文書）ではなく、`/home/igpf-2500009/.claude/commands/todo-propose.md`自体
+メタ文書）ではなく、`$HOME/.claude/commands/todo-propose.md`自体
 （dotfilesリポジトリ管理下、`docs/specs/`配下ではない外部ファイル）である。`document-rules.md`は
 今回変更しないため、`self-work/document-rules`側のdelta spec機構（`specs/base/`にコピーして
 `diff -u`を生成する`projects/CLAUDE.md`標準ワークフロー5番）は適用しない。`todo-propose.md`・

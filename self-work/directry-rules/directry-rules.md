@@ -1,7 +1,7 @@
 # projects/ ドキュメントルール まとめ
 
 作成日: 2026-07-29
-対象: `/home/igpf-2500009/projects/` 配下のドキュメント運用ルールの現状（**ディレクトリ構成・バージョニング・
+対象: `$HOME/projects/` 配下のドキュメント運用ルールの現状（**ディレクトリ構成・バージョニング・
 配置場所**が中心）。各ドキュメント種別（`proposal.md`/`plan.md`/`today-todo/plan-YYYY-MM-DD.md`等）が
 「誰が・いつ・何のために書くか」は責務分離のため
 [`self-work/document-rules/document-rules.md`](../document-rules/document-rules.md) を参照（2026-08-21）。
@@ -283,10 +283,10 @@ Ops系サブプロジェクトは継続的に依頼（order）を受けて対応
 
 `instruction.md`（およびサブ手順書）に書く scp・ssh 等のローカルコマンドは、**すべて絶対パスで記載する**。カレントディレクトリに関わらずそのまま貼って実行できる形にする。
 
-- ops-work側の資材: `/home/igpf-2500009/projects/ops-work/<領域>/<tenant>/order-yyyymmdd/src/xxx`
+- ops-work側の資材: `$HOME/projects/ops-work/<領域>/<tenant>/order-yyyymmdd/src/xxx`
 - SSH鍵も絶対パス。**`~/` 記法は使わない。**
-- WSL bash と Windows cmd.exe の両方で実行しうる場合は、**両方のコマンドを併記する**。Windows側は `\\wsl.localhost\Ubuntu-26.04\home\igpf-2500009\projects\...` のUNCパスを使う。
-  - ただし**SSH秘密鍵だけはUNCパス不可**。Windows版OpenSSHの権限チェックで `UNPROTECTED PRIVATE KEY FILE!` となるため、鍵のみ Windows ローカルパス（例: `C:\Users\IGPF-2500009\work\pem\xxx.pem`、WSL側と同一の鍵）を参照する。
+- WSL bash と Windows cmd.exe の両方で実行しうる場合は、**両方のコマンドを併記する**。Windows側は `\\wsl.localhost\<ディストリ名>\home\<ユーザー名>\projects\...` のUNCパスを使う。
+  - ただし**SSH秘密鍵だけはUNCパス不可**。Windows版OpenSSHの権限チェックで `UNPROTECTED PRIVATE KEY FILE!` となるため、鍵のみ Windows ローカルパス（例: `C:\Users\<ユーザー名>\work\pem\xxx.pem`、WSL側と同一の鍵）を参照する。
 - 本番サーバー側のパスは、`cd /var/www/<app>/current/` を手順に明記した上で `tmp/xxx` の相対パスで書いてよい（`rails runner` のカレントディレクトリが `current/` であることが前提のため）。
 
 **改定の経緯（2026-08-20）:** 当初（2026-07-30）は「`projects/` 直下（リポジトリルート）で実行する前提の相対パス（例: `./ops-work/fix-points/<tenant>/order-yyyymmdd/src/xxx`）」としていた。<tenant-a> `order-20260730`・`order-20260731` がこの表記。しかし2026-08以降の実運用は絶対パスに移っており（`fix-points/<tenant-b>/order-20260805`・`order-20260818`、`fix-user-data/<tenant-b>/order-20260818`）、`~/` 記法も使わない方針になったため、**実運用側に合わせてルールを改定した**。過去分の相対パス表記は当時の経緯としてそのまま残す（遡って書き換えない）。
@@ -355,15 +355,15 @@ Ops系サブプロジェクトは継続的に依頼（order）を受けて対応
 
 ## 6. Claude Code 設定の3層分離（2026-08-05 追加）
 
-`/home/igpf-2500009/.claude/{CLAUDE.md, commands, skills}` は dotfiles リポジトリ
-（`/mnt/c/Users/IGPF-2500009/dotfiles`、GitHub の個人リポジトリ）への symlink であり、
+`$HOME/.claude/{CLAUDE.md, commands, skills}` は dotfiles リポジトリ
+（実体パスは環境依存。GitHub の個人リポジトリ）への symlink であり、
 そこに書いた内容は push した時点で履歴に残る。履歴からの除去は force-push を伴い高コストなので、
 **業務ドメインを含む指示は共有側に最初から置かない**。skill / command は次の3層に分ける。
 
 | 層 | 場所 | git | 置くもの |
 | --- | --- | --- | --- |
-| 汎用 | `/home/igpf-2500009/.claude/{commands,skills}` → dotfiles | 共有される | 手順・構造・ワークフロー。業務語ゼロ |
-| 業務横断 | `/home/igpf-2500009/.claude/local/` | 管理外（symlink 対象外） | 複数案件に共通する業務ルール |
+| 汎用 | `$HOME/.claude/{commands,skills}` → dotfiles | 共有される | 手順・構造・ワークフロー。業務語ゼロ |
+| 業務横断 | `$HOME/.claude/local/` | 管理外（symlink 対象外） | 複数案件に共通する業務ルール |
 | 案件固有 | 各案件リポジトリの `.claude/` | その案件の repo | その案件だけのルール |
 
 判定基準（固有名・業務データ構造・運用文言・接続先・組織固有名詞の5分類）と参照記法の詳細は、
@@ -372,10 +372,10 @@ dotfiles の README「共有する範囲 — 業務ドメインを混入させ�
 ### projects/ 側から見た運用
 
 - 4章の初期セットアップコマンド（`/init-spec`・`/init-change`・`/init-ops-work`）は**汎用層**にあるため、
-  案件固有の実装ルールを直接書かない。書きたくなったら `/home/igpf-2500009/.claude/local/<領域>/RULES.md` に置き、
+  案件固有の実装ルールを直接書かない。書きたくなったら `$HOME/.claude/local/<領域>/RULES.md` に置き、
   コマンド側は「業務ドメイン参照」節から任意参照する（あれば読む・なければ黙って続行）。
 - `/init-ops-work` の実装フェーズ業務ルール（スクリプトの置き場所、履歴レコードの備考欄への
-  作業起因の記録）は `/home/igpf-2500009/.claude/local/ops-work/RULES.md` に退避済み。コマンド本体には
+  作業起因の記録）は `$HOME/.claude/local/ops-work/RULES.md` に退避済み。コマンド本体には
   「監査のための作業起因をレコード側に残す」という汎用ルールだけが残っている。
 - 本ファイル（`self-work/directry-rules/directry-rules.md`）と `projects/` 配下は git 管理外のため、
   業務ドメインを書いてよい。ただしここの内容を dotfiles 側の skill に転記する場合は、
@@ -385,7 +385,7 @@ dotfiles の README「共有する範囲 — 業務ドメインを混入させ�
 ## 7. 提案書・作業計画書の自動作成（`/todo-propose`、2026-08-20 追加）
 
 1章のコアフロー「`/explore` → `/propose` → 人間レビュー」で「想定仕様・未実装」としていた
-`/propose` を実装した（`/home/igpf-2500009/.claude/commands/todo-propose.md`）。
+`/propose` を実装した（`$HOME/.claude/commands/todo-propose.md`）。
 命名規則の整理（7.1）に伴い、実装と同日に `/todo-propose` へ改称した。
 
 - 対象サブプロジェクトに `docs/specs/` があるか否かでdev系/ops系を自動判定し、
@@ -414,8 +414,8 @@ dotfiles の README「共有する範囲 — 業務ドメインを混入させ�
 | `/today-todo`（skill） | `/todo-import` | 各プロジェクトのtodo.mdを集約し、当日の下書きを生成する |
 | `/propose`（command） | `/todo-propose` | todoに挙がった依頼から提案書・作業計画書を書き起こす |
 
-- 対象は `/home/igpf-2500009/.claude/skills/today-todo/` → `todo-import/`（ディレクトリ名・`SKILL.md`の`name`・見出し）、
-  `/home/igpf-2500009/.claude/commands/propose.md` → `todo-propose.md`（ファイル名・`name`・見出し・本文中の自己参照）。
+- 対象は `$HOME/.claude/skills/today-todo/` → `todo-import/`（ディレクトリ名・`SKILL.md`の`name`・見出し）、
+  `$HOME/.claude/commands/propose.md` → `todo-propose.md`（ファイル名・`name`・見出し・本文中の自己参照）。
 - 出力先ディレクトリ `projects/today-todo/YYYY-MM-DD.md`（データの置き場所）は**リネーム対象外**。
   今回改称したのはコマンド名（呼び出し方）のみで、既存データの格納場所は変更しない。
   **追記（2026-08-21）**: ファイル名自体は別件でその後 `todo-YYYY-MM-DD.md`（`todo-`prefix付与）へ

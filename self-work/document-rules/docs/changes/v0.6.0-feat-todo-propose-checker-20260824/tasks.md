@@ -3,10 +3,10 @@
 - [x] `~/.claude/agents/todo-propose-checker.md`（dotfiles実体）を新規作成する
       （`design.md`「新規: `todo-propose-checker` エージェント定義」の内容に従う。
       `tools: Read, Grep, Glob, Bash`、`Write`・`Edit`は与えない）
-      → `/mnt/c/Users/IGPF-2500009/dotfiles/.claude/agents/todo-propose-checker.md` を作成した
+      → `$HOME/.claude/agents/todo-propose-checker.md` を作成した
 - [x] `todo-propose.md`の「## today-todoバッチモードの最終レビュー（敵対的検証）」節を
       `design.md`「呼び出し元の変更点」の内容に書き換える（見出しは変更しない）
-      → `/mnt/c/Users/IGPF-2500009/dotfiles/.claude/commands/todo-propose.md` の該当節を書き換えた
+      → `$HOME/.claude/commands/todo-propose.md` の該当節を書き換えた
 - [x] 要修正時の再起票フロー（design.md確認事項1）をユーザー指示により確定し、
       `todo-propose.md`本文に反映した（「要修正」となった特定のサブプロジェクトのみ再起動し、
       他のサブプロジェクトの結果は巻き込まない。2周で打ち切りユーザーに判断を仰ぐ）

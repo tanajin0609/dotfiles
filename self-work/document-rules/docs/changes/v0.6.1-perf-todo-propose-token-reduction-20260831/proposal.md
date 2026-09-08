@@ -9,7 +9,7 @@ input tokensが約6,121万（親38,578,191＋サブエージェント計22,630,2
 仮説を立てたが、同日中に新規セッションで実行した今回のケースでも同程度に重かったため、この
 仮説は棄却した。実測から、原因は`/todo-propose`バッチモードの構造そのものにあると判断した。
 
-具体的な要因（`/mnt/c/Users/IGPF-2500009/dotfiles/.claude/commands/todo-propose.md`の該当箇所）:
+具体的な要因（`$HOME/.claude/commands/todo-propose.md`の該当箇所）:
 
 1. L84-92: 各サブエージェントの詳細な調査結果・報告を親セッションに直接返させており、
    親セッションの会話履歴に全項目分の詳細が蓄積され続ける。
@@ -36,7 +36,7 @@ input tokensが約6,121万（親38,578,191＋サブエージェント計22,630,2
 
 ## 影響範囲
 
-- `/mnt/c/Users/IGPF-2500009/dotfiles/.claude/commands/todo-propose.md`
+- `$HOME/.claude/commands/todo-propose.md`
   （0-2〜0-4のサブエージェント指示・報告フォーマット、L195-230のChecker入力）
 - 影響を受ける成果物: バッチモードで生成される全サブプロジェクトの`proposal.md`/`design.md`/
   `tasks.md`/`order.md`/`plan.md`（見出し・書く内容自体は変更しない。書き込みタイミングが

@@ -50,7 +50,7 @@ delta spec記録方式（`docs/changes/<change-name>/specs/base/`への事前コ
 ## 5. 反映範囲
 
 - `document-rules.md`: `plan-YYYY-MM-DD.md`の行・専用節・How to applyを`/todo-execute`前提に更新
-- `/home/igpf-2500009/.claude/commands/todo-execute.md`: 新設
+- `$HOME/.claude/commands/todo-execute.md`: 新設
   （引数・Step0〜5・注意事項。`/todo-propose`と対をなす構成）
 - `changes/0003-20260824-work-log-and-milestone/proposal.md`の5章「未決事項」は本ファイルで解決済み
   （0003側は追記せず、本ファイルへのポインタとして残す）

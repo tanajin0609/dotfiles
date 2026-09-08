@@ -1,7 +1,7 @@
 # projects/ ドキュメント種別ルール まとめ
 
 作成日: 2026-08-21
-対象: `/home/igpf-2500009/projects/` 配下で使われるドキュメント種別（誰が・いつ・何のために書くか）
+対象: `$HOME/projects/` 配下で使われるドキュメント種別（誰が・いつ・何のために書くか）
 関連: ディレクトリ構成・バージョニング等の「どこに置くか」は
 [`self-work/directry-rules/directry-rules.md`](../directry-rules/directry-rules.md) を参照（責務分離、2026-08-21）。
 変更履歴: 個別の意思決定の経緯は`directry-rules.md`と同じ方式で
