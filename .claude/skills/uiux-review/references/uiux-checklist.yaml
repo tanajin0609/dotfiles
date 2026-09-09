@@ -3,28 +3,45 @@
 # このファイルは「何を見るか」の実行側。
 
 meta:
-  version: "2.0"
-  updated: "2026-09-08"
+  version: "2.1"
+  updated: "2026-09-09"
   companion: uiux-heuristics.md
+  id_convention: |
+    <PREFIX>-<NN> を原則とする。A11Y-* のみ POUR の4区分を挟んで <PREFIX>-<P|O|U|R>-<NN>。
+    LAW-* / STATE-* は既存の名前ベースidを維持（改番しない）。新規追加は連番。
+    narrative項目（idを持たない観点）は出力時に `[narrative: 原則名]` と書き、idと区別する。
+  wcag_level: |
+    ref の末尾の (A)/(AA)/(AAA) はWCAG適合レベル。
+    AAA項目はAA適合を目標とする案件では「違反」として報告しない（推奨として出す）。
 
 # ---------------------------------------------------------------
 # 語彙定義
 # ---------------------------------------------------------------
 
 enums:
-  # requires: この項目を判定するために最低限必要な入力
+  # requires: この項目を判定するために必要な入力
+  # 複数値は OR（いずれか1つでもあれば判定を試みる）。列挙順に意味は無い。
+  # 全値が揃っている場合のみ confidence: confirmed を使ってよい。一部しか無ければ最大 inferred。
+  #
+  # code は screenshot を部分的に代替する。レンダリングに依存しない静的な値
+  # （色・寸法・文言・DOM構造）がコードから読み取れるなら、requires に code が無い項目でも
+  # コードだけで判定してよい（確信度は inferred 以上）。
+  # 逆に代替できないのは、実際の見え方に依存する判断（視覚的階層、余白の見た目の効き、情報量の多寡）。
   requires:
     code: HTML/CSS/JSなどの実装
     screenshot: 画面のスクリーンショットまたはデザインカンプ
     flow: 画面遷移図・フロー仕様
     runtime: 実機または動作する環境
 
-  # auto: コード等から機械的に判定できるか
+  # auto: 将来のlintスクリプト用のメタデータ。
+  # モデルは確信度の根拠に使わない（confidence は requires の充足度だけで決める）。
   auto:
     true: スクリプト/静的解析で判定可能
     false: 人またはモデルの解釈が必要
 
-  # severity: 既定の深刻度。文脈により上下させてよい
+  # severity: 既定の深刻度。以下の条件でのみ1段上下させる（2段は不可）。
+  #   +1: 対象が決済・削除・認証・個人情報入力のいずれかを含むフロー上にある
+  #   -1: 対象が装飾要素、または管理者しか到達しない画面である
   severity:
     high: タスクを完了できない／データを失う／法令リスク
     medium: 完了できるが著しく手間・誤操作を誘発
@@ -32,16 +49,25 @@ enums:
 
   # confidence: 出力時に必ず付与する
   confidence:
-    confirmed: 入力から直接判定できた
-    inferred: 一般的にそうだが入力からは断定できない
-    needs_check: 判定に必要な入力が無い。質問として出す
+    confirmed: requires を全て満たし、入力から直接判定できた
+    inferred: 一般的にそうだが入力からは断定できない（requires が一部しか無い場合を含む）
+    needs_check: 判定に必要な入力が一つも無い。質問として出す
 
+# 出力時の日本語表記: high=高, medium=中, low=低 / confirmed=確定, inferred=推定, needs_check=要確認
 output_format: |
-  [深刻度] [確信度] [id] 対象箇所
+  [深刻度: 高/中/低] [確信度: 確定/推定/要確認] [id] 対象箇所
     問題: 何が起きているか
-    根拠: どの入力から判断したか
+    根拠: どの入力から判断したか（該当コード行 / スクショの箇所 / 原則名）
     影響: ユーザーがどう困るか
     改善案: 具体的な変更内容
+
+# 出力全体の構成（指摘1件の形だけでなく、全体の順序もこれに従う）
+output_structure: |
+  1. サマリ（3行以内。高が何件か、最優先の1件は何か）
+  2. 深刻度: 高 → 中 → 低 の順（category順・id順にはしない）
+  3. 要確認（別枠。質問形式）
+  4. 良い点（指摘が3件以上あるときのみ1〜2件。深刻度・確信度は付けない）
+  指摘が0件の場合は「指摘なし」と明記し、代わりに要確認を厚く出す。
 
 # ---------------------------------------------------------------
 # チェック項目
@@ -52,43 +78,49 @@ items:
   # === アクセシビリティ / 知覚可能 =============================
   - id: A11Y-P-01
     category: accessibility
-    ref: WCAG 1.1.1
+    ref: WCAG 1.1.1 (A)
     check: 画像に代替テキストがある
     rule: 意味のある画像は alt を持ち、装飾画像は alt="" とする
     requires: [code]
     auto: true
     severity: high
+    note: 装飾画像の alt="" 漏れだけの場合は読み上げノイズに留まるため low に落とす
 
   - id: A11Y-P-02
     category: accessibility
-    ref: WCAG 1.4.3
+    ref: WCAG 1.4.3 (AA)
     check: テキストのコントラスト比が十分
     rule: 通常テキスト 4.5:1 以上／18pt(または14pt太字)以上は 3:1 以上
     requires: [code]
-    auto: true
+    auto: false
     severity: high
+    note: >-
+      比を書くなら必ず実際に計算し、根拠に採用した前景色・背景色・文字サイズを併記する。
+      CSS変数・継承・opacity・グラデーション・画像背景が絡む場合は算出色が静的に決まらないため
+      inferred に落とすか、レンダリング結果を要求する。大きい文字の閾値は 3:1 であり 4.5:1 で判定しない
 
   - id: A11Y-P-03
     category: accessibility
-    ref: WCAG 1.4.11
+    ref: WCAG 1.4.11 (AA)
     check: UI部品・図形の境界のコントラストが十分
     rule: ボタン枠・入力欄枠・グラフの線は 3:1 以上
     requires: [code]
-    auto: true
+    auto: false
     severity: medium
+    note: テキストのコントラストとは別に必ず走査する。対象は部品の識別に必要な境界であり、純粋な装飾の罫線は対象外
 
   - id: A11Y-P-04
     category: accessibility
-    ref: WCAG 1.4.1
+    ref: WCAG 1.4.1 (A)
     check: 色だけで情報を伝えていない
-    rule: エラー・必須・状態を色以外（アイコン/文言/形）でも示す
+    rule: エラー・必須・状態を色以外（アイコン/文言/形）でも示す。記号のみ（* など）も凡例が無ければ不可
     requires: [code, screenshot]
     auto: false
     severity: high
 
   - id: A11Y-P-05
     category: accessibility
-    ref: WCAG 1.4.10
+    ref: WCAG 1.4.10 (AA)
     check: 320px幅で横スクロールなく読める
     rule: 400%ズーム相当でリフローする
     requires: [runtime, code]
@@ -97,7 +129,7 @@ items:
 
   - id: A11Y-P-06
     category: accessibility
-    ref: WCAG 1.4.12
+    ref: WCAG 1.4.12 (AA)
     check: 行間・字間を変更しても崩れない
     rule: 固定高さのコンテナにテキストを詰めていない
     requires: [code]
@@ -106,16 +138,25 @@ items:
 
   - id: A11Y-P-07
     category: accessibility
-    ref: WCAG 1.2.2
-    check: 動画に字幕がある
+    ref: WCAG 1.2.2 (A)
+    check: 収録済み動画に字幕がある
+    rule: 対象は音声を伴う収録済みメディア。音声の無い動画は字幕ではなく 1.2.1 の代替コンテンツが要件
     requires: [code, runtime]
-    auto: true
+    auto: false
+    severity: medium
+
+  - id: A11Y-P-08
+    category: accessibility
+    ref: WCAG 1.2.4 (AA)
+    check: ライブ配信に字幕がある
+    requires: [runtime, code]
+    auto: false
     severity: medium
 
   # === アクセシビリティ / 操作可能 =============================
   - id: A11Y-O-01
     category: accessibility
-    ref: WCAG 2.1.1
+    ref: WCAG 2.1.1 (A)
     check: キーボードのみで全機能を操作できる
     requires: [code, runtime]
     auto: false
@@ -123,34 +164,38 @@ items:
 
   - id: A11Y-O-02
     category: accessibility
-    ref: WCAG 2.4.7
+    ref: WCAG 2.4.7 (AA)
     check: フォーカスリングが視認できる
     rule: outline:none の置き去りが無い。代替の可視表現がある
     requires: [code]
     auto: true
     severity: high
+    note: >-
+      2.4.7 が求めるのは可視インジケータが存在することだけ。見やすさは別基準なので、
+      薄い/細いリングを指摘するなら ref に 1.4.11 (AA コントラスト) を、
+      サイズ・形状を問うなら 2.4.13 (AAA) を足す
 
   - id: A11Y-O-03
     category: accessibility
-    ref: WCAG 2.4.3
+    ref: WCAG 2.4.3 (A)
     check: フォーカス順序が視覚順序と一致する
-    rule: 正の tabindex を使っていない。CSSで視覚順だけ入れ替えていない
+    rule: 正の tabindex を使っていない。CSSで視覚順だけ入れ替えていない。tabindex="-1" は正当なので指摘しない
     requires: [code]
     auto: true
     severity: medium
 
   - id: A11Y-O-04
     category: accessibility
-    ref: WCAG 2.1.2
+    ref: WCAG 2.1.2 (A)
     check: 意図しないタブトラップが無い
-    rule: モーダル内のトラップは正しい実装。それ以外は不可
+    rule: モーダル内のトラップは正しい実装であり違反ではない。それ以外は不可
     requires: [code, runtime]
     auto: false
     severity: high
 
   - id: A11Y-O-05
     category: accessibility
-    ref: WCAG 2.2.2
+    ref: WCAG 2.2.2 (A)
     check: 自動再生・自動スライドを停止できる
     requires: [code, runtime]
     auto: false
@@ -158,18 +203,25 @@ items:
 
   - id: A11Y-O-06
     category: accessibility
-    ref: WCAG 2.5.8
+    ref: WCAG 2.5.8 (AA)
     check: タップ領域のサイズが十分
-    rule: 最小 24x24 CSS px（WCAG 2.2 AA）。推奨は iOS 44x44pt / Android 48x48dp
+    rule: >-
+      最小 24x24 CSS px。ただし例外があり、該当するものは指摘しない。
+      Inline（文中のリンクなど、非対象テキストの line-height でサイズが決まるもの）、
+      Spacing（24px未満でも、各ターゲットの中心に直径24 CSS pxの円を置いて他と交差しなければ適合）、
+      Equivalent（同等の機能が別の場所にある）、User agent control、Essential
     requires: [code]
-    auto: true
+    auto: false
     severity: medium
-    note: WCAG 2.2で新設
+    note: >-
+      WCAG 2.2で新設。寸法の基準は4系統が併存する。
+      WCAG AA = 24 CSS px / WCAG 2.5.5 (AAA) = 44 CSS px / Apple = 44pt / Material 3 = 48dp
 
   - id: A11Y-O-07
     category: accessibility
-    ref: WCAG 2.4.11
-    check: フォーカス中の要素が固定ヘッダー等で隠れない
+    ref: WCAG 2.4.11 (AA)
+    check: フォーカス中の要素が固定ヘッダー等で完全には隠れない
+    rule: AAでは部分的な重なりは許容される。全く隠れないことを求めるのは 2.4.12 (AAA)
     requires: [runtime, code]
     auto: false
     severity: medium
@@ -177,7 +229,7 @@ items:
 
   - id: A11Y-O-08
     category: accessibility
-    ref: WCAG 2.5.7
+    ref: WCAG 2.5.7 (AA)
     check: ドラッグ操作に単一ポインタの代替がある
     rule: 並べ替えD&Dに「上へ／下へ」ボタン等を用意する
     requires: [code, runtime]
@@ -187,24 +239,30 @@ items:
 
   - id: A11Y-O-09
     category: accessibility
-    ref: WCAG 2.3.3
+    ref: WCAG 2.3.3 (AAA)
     check: prefers-reduced-motion を尊重している
+    rule: >-
+      SC本文は「操作で起動するモーションアニメーションを無効化できる」。prefers-reduced-motion は達成方法(C39/SCR39)。
+      AAA なので AA 適合案件では「違反」ではなく推奨として出す。
+      自動開始するモーションは A レベルの 2.2.2 が担当する
     requires: [code]
     auto: true
     severity: low
+    note: 前庭障害のあるユーザーには健康影響があるため、大きな動きが主要導線上にある場合は medium に上げる
 
   - id: A11Y-O-10
     category: accessibility
-    ref: WCAG 2.4.1
-    check: スキップリンクがある
+    ref: WCAG 2.4.1 (A)
+    check: 繰り返しコンテンツを飛ばす手段がある
+    rule: スキップリンクは達成方法の一つ。ARIAランドマーク・見出し構造・iframeのtitleでも適合する
     requires: [code]
     auto: true
-    severity: low
+    severity: medium
 
   # === アクセシビリティ / 理解可能 =============================
   - id: A11Y-U-01
     category: accessibility
-    ref: WCAG 3.1.1
+    ref: WCAG 3.1.1 (A)
     check: html要素に lang が指定されている
     requires: [code]
     auto: true
@@ -212,24 +270,29 @@ items:
 
   - id: A11Y-U-02
     category: accessibility
-    ref: WCAG 3.3.2
-    check: 全ての入力欄に label が紐付いている
-    rule: for/id、aria-label、aria-labelledby のいずれか
+    ref: WCAG 1.3.1 (A) / 4.1.2 (A)
+    check: 全ての入力欄がアクセシブルな名前を持つ
+    rule: >-
+      for/id によるプログラム的な紐付けは 1.3.1、aria-label / aria-labelledby による代替名は 4.1.2。
+      3.3.2 はここではなく FORM-01（可視ラベルの提供）が担当する。
+      aria-label のみの実装は 4.1.2 を満たすが 3.3.2 は満たさないので、FORM-01 も併せて判定する
     requires: [code]
     auto: true
     severity: high
 
   - id: A11Y-U-03
     category: accessibility
-    ref: WCAG 3.3.1 / 3.3.3
+    ref: WCAG 3.3.1 (A) / 3.3.3 (AA)
     check: エラーが具体的で修正方法が分かる
+    rule: 3.3.1＝エラー箇所をテキストで示す。3.3.3＝修正の示唆を出す
     requires: [code, screenshot]
     auto: false
     severity: high
+    note: NN-09 と同じ事象を扱う。片方のみ出す
 
   - id: A11Y-U-04
     category: accessibility
-    ref: WCAG 3.2.2
+    ref: WCAG 3.2.2 (A)
     check: 予期せぬ文脈変化が無い
     rule: セレクトを選んだだけで送信・遷移しない
     requires: [code, runtime]
@@ -238,7 +301,7 @@ items:
 
   - id: A11Y-U-05
     category: accessibility
-    ref: WCAG 3.3.7
+    ref: WCAG 3.3.7 (A)
     check: 同じ情報を再入力させない
     rule: 配送先/請求先のコピー、前ステップの値の引き継ぎ
     requires: [flow, code]
@@ -248,36 +311,42 @@ items:
 
   - id: A11Y-U-06
     category: accessibility
-    ref: WCAG 3.3.8
+    ref: WCAG 3.3.8 (AA)
     check: 認証で記憶やパズルを要求しない
-    rule: パスワードのペーストを禁止しない。認証コードの自動入力を妨げない
+    rule: パスワードのペーストを禁止しない。認証コードの自動入力を妨げない（autocomplete="one-time-code" 等）
     requires: [code]
-    auto: true
+    auto: false
     severity: high
     note: WCAG 2.2で新設
 
   - id: A11Y-U-07
     category: accessibility
-    ref: WCAG 3.2.6
-    check: ヘルプの導線が全画面で同じ位置にある
+    ref: WCAG 3.2.6 (A)
+    check: ヘルプの導線が、他のコンテンツに対して常に同じ相対順序で現れる
+    rule: >-
+      要求は「同じ位置」ではなく「相対順序が同じ」。レスポンシブで表示位置が変わっても
+      順序が保たれていれば適合する。対象は問い合わせ先・問い合わせ手段・セルフヘルプ・自動応答の4種のみ
     requires: [screenshot, flow]
     auto: false
-    severity: low
+    severity: medium
     note: WCAG 2.2で新設
 
   # === アクセシビリティ / 堅牢 =================================
   - id: A11Y-R-01
     category: accessibility
-    ref: WCAG 1.3.1
+    ref: ベストプラクティス（WCAG適合基準ではない）
     check: 見出しレベルが飛んでいない
-    rule: h1 -> h3 のスキップが無い。h1 は原則1つ
+    rule: >-
+      WCAGは見出しレベルのスキップを禁止していない。1.3.1 は情報と関係性がプログラム的に判別可能かのみを問う。
+      「h1は1つだけ」もどの達成基準にも無い。支援技術の見出しジャンプを損なう問題として出し、WCAG違反とは書かない。
+      見出しが内容を説明しているかを問うなら別基準の 2.4.6 (AA) を使う
     requires: [code]
     auto: true
-    severity: medium
+    severity: low
 
   - id: A11Y-R-02
     category: accessibility
-    ref: WCAG 4.1.2
+    ref: WCAG 4.1.2 (A)
     check: セマンティックなHTMLを使っている
     rule: div+onClick ではなく button/a。ランドマーク要素を使う
     requires: [code]
@@ -286,7 +355,7 @@ items:
 
   - id: A11Y-R-03
     category: accessibility
-    ref: WCAG 4.1.3
+    ref: WCAG 4.1.3 (AA)
     check: 動的な変更が支援技術に伝わる
     rule: aria-live / role="status" / role="alert"
     requires: [code]
@@ -302,6 +371,7 @@ items:
     requires: [screenshot, runtime]
     auto: false
     severity: high
+    note: STATE-LOADING と同じ事象を扱う。片方のみ出す
 
   - id: NN-02
     category: heuristic
@@ -329,6 +399,7 @@ items:
     requires: [screenshot, flow]
     auto: false
     severity: medium
+    note: 用語の混在は TERM-01 と重複する。配置の一貫性はこちら、用語だけなら TERM-01 に寄せて片方のみ出す
 
   - id: NN-05
     category: heuristic
@@ -361,9 +432,12 @@ items:
     category: heuristic
     ref: Nielsen 8
     check: 情報量が絞られCTAが競合していない
-    rule: 同等の強さのプライマリボタンが複数並んでいない
+    rule: >-
+      同等の強さのプライマリボタンが複数並んでいない。
+      primary と secondary が視覚的に区別されていれば並んでいても問題ない。
+      片方がモーダル内など別文脈にある場合も競合ではない
     requires: [screenshot, code]
-    auto: true
+    auto: false
     severity: medium
 
   - id: NN-09
@@ -373,17 +447,20 @@ items:
     requires: [screenshot, code]
     auto: false
     severity: high
+    note: A11Y-U-03 と同じ事象を扱う。片方のみ出す
 
   - id: NN-10
     category: heuristic
     ref: Nielsen 10
     check: ヘルプが文脈内にある
-    rule: 迷いやすい欄に補足。別サイトへ飛ばさない
-    requires: [screenshot]
+    rule: 迷いやすい欄に補足。別サイトへ飛ばさない（href の向き先はコードから確認できる）
+    requires: [screenshot, code]
     auto: false
     severity: low
 
   # === シュナイダーマン 独自分 =================================
+  # SH-01/02/03/05/06/08 はニールセン10原則と重複するため NN-* に統合済み（欠番は意図的）。
+  # 番号はシュナイダーマン原典の通し番号に対応する。追加時も原典番号を使う。
   - id: SH-04
     category: flow
     ref: Shneiderman 4
@@ -401,8 +478,9 @@ items:
     requires: [flow, runtime]
     auto: false
     severity: high
+    note: デフォルトONは DARK-01 と重複する。片方のみ出す
 
-  # === ゲシュタルト / レイアウト ===============================
+  # === ゲシュタルト / レイアウト（GST-05 のみノーマンのシグニファイア）=========
   - id: GST-01
     category: layout
     ref: 近接
@@ -469,8 +547,8 @@ items:
     category: cognition
     ref: ヤコブの法則
     check: 一般的な慣習に従っている
-    rule: ロゴ左上でトップへ、カート右上、独自すぎるUIを避ける
-    requires: [screenshot]
+    rule: ロゴ左上でトップへ（ロゴが a でラップされているか）、カート右上、独自すぎるUIを避ける
+    requires: [screenshot, code]
     auto: false
     severity: medium
 
@@ -498,15 +576,16 @@ items:
     rule: 真っ白でなく、説明と次の行動を示す。初回／検索0件／片付け完了を区別する
     requires: [screenshot, code]
     auto: false
-    severity: high
+    severity: medium
 
   - id: STATE-LOADING
     category: ui_state
     check: 読込中の表示がある
-    rule: スケルトン推奨。極短時間の処理では逆に出さない
+    rule: スケルトン推奨。1秒未満の処理では逆に出さない
     requires: [code, runtime]
     auto: false
     severity: high
+    note: NN-01 と同じ事象を扱う。片方のみ出す
 
   - id: STATE-ERROR
     category: ui_state
@@ -533,10 +612,14 @@ items:
   # === フォーム ================================================
   - id: FORM-01
     category: form
+    ref: WCAG 3.3.2 (A)
     check: ラベルが常時可視である
-    rule: プレースホルダーをラベル代わりにしない
+    rule: >-
+      プレースホルダーをラベル代わりにしない。3.3.2 が要求するのは「全ユーザーに見える形でラベルまたは説明が提供されていること」で、
+      aria-label のみの実装はこれを満たさない（プログラム的な紐付けは A11Y-U-02 が担当）。
+      フローティングラベル（入力後もラベルが残る）は適合なので指摘しない
     requires: [code, screenshot]
-    auto: true
+    auto: false
     severity: high
 
   - id: FORM-02
@@ -558,8 +641,8 @@ items:
   - id: FORM-04
     category: form
     check: 入力欄の幅が想定文字数と対応している
-    rule: 郵便番号欄と氏名欄が同じ幅になっていない
-    requires: [screenshot]
+    rule: 郵便番号欄と氏名欄が同じ幅になっていない。width/size 指定がコードにあればコードだけで判定する
+    requires: [screenshot, code]
     auto: false
     severity: low
 
@@ -589,9 +672,12 @@ items:
   - id: FORM-08
     category: form
     check: 二重送信を防いでいる
-    rule: 送信中は disabled かつ状態を表示
+    rule: >-
+      送信中は disabled かつ状態を表示。「送信中に」という時間軸の条件が要点なので、
+      disabled={!isValid} のような入力妥当性による無効化は二重送信対策ではない。
+      送信中フラグによるガードがあれば aria-disabled のみでも実質的に適合
     requires: [code]
-    auto: true
+    auto: false
     severity: high
 
   - id: FORM-09
@@ -637,7 +723,7 @@ items:
     category: copy
     check: 待ち時間の見込みが具体的
     rule: 「しばらくお待ちください」より「1分ほどかかります」
-    requires: [screenshot]
+    requires: [screenshot, code]
     auto: false
     severity: low
 
@@ -645,13 +731,25 @@ items:
   - id: DARK-01
     category: ethics
     check: 同意・オプションがデフォルトONになっていない
+    rule: >-
+      対象は同意・課金・データ利用に関わる選択肢。
+      ユーザー自身の表示設定（ダークモード等）の初期値は対象外
     requires: [screenshot, code]
-    auto: true
+    auto: false
     severity: high
+    note: SH-07 と同じ事象を扱う。片方のみ出す
 
   - id: DARK-02
     category: ethics
     check: 解約・退会の導線が登録と同程度に容易
+    requires: [flow]
+    auto: false
+    severity: high
+
+  - id: DARK-08
+    category: ethics
+    check: 無料期間の終了と課金開始を事前に告知している
+    rule: 強制的な継続（無告知での自動課金）。DARK-02 の解約導線の容易さとは別の判定
     requires: [flow]
     auto: false
     severity: high
@@ -667,16 +765,16 @@ items:
   - id: DARK-04
     category: ethics
     check: 断る選択肢を自虐的に書いていない
-    rule: confirmshaming（「いいえ、損をしてもいい」）
-    requires: [screenshot]
+    rule: confirmshaming（「いいえ、損をしてもいい」）。文言はコードからも読める
+    requires: [screenshot, code]
     auto: false
     severity: medium
 
   - id: DARK-05
     category: ethics
     check: 視覚的な誘導で選択肢を隠していない
-    rule: 「同意しない」だけ薄いグレー、など
-    requires: [screenshot]
+    rule: 「同意しない」だけ薄いグレー、など。色・文字サイズがコードにあればコードだけで判定する
+    requires: [screenshot, code]
     auto: false
     severity: high
 
@@ -748,25 +846,27 @@ items:
     category: performance
     ref: LCP
     check: 主要コンテンツの表示が速い
-    threshold: 2.5秒以内
+    threshold: 2.5秒以下
     requires: [runtime]
-    auto: true
+    auto: false
     severity: medium
+    note: 実測値がない状態で速い/遅いを断定しない
 
   - id: PERF-02
     category: performance
     ref: INP
     check: 操作への応答が速い
-    threshold: 200ms以内
+    threshold: 200ms以下
     requires: [runtime]
-    auto: true
+    auto: false
     severity: medium
+    note: 2024-03-12にFIDを置換。実測値がない状態で速い/遅いを断定しない
 
   - id: PERF-03
     category: performance
     ref: CLS
     check: 読み込み中にレイアウトがずれない
-    threshold: 0.1未満
+    threshold: 0.1以下（0.1ちょうどは良好に含む）
     rule: 画像・iframe・広告枠に寸法指定がある
     requires: [runtime, code]
     auto: true
@@ -774,7 +874,7 @@ items:
 
   - id: PERF-04
     category: performance
-    ref: ドハティのしきい値
+    ref: Nielsen 応答時間の3限界
     check: 待たせ方が設計されている
     rule: 1秒未満は無表示／1-10秒はスケルトン・進捗／10秒超は完了予告と離脱可能に
     requires: [runtime]
@@ -808,7 +908,7 @@ items:
     category: ia
     check: ナビのラベルがユーザーの語彙である
     rule: 「ソリューション」より「料金」
-    requires: [screenshot]
+    requires: [screenshot, code]
     auto: false
     severity: medium
 
@@ -885,8 +985,12 @@ items:
   - id: I18N-03
     category: i18n
     check: 文字列を画像に焼き込んでいない
-    requires: [code]
-    auto: true
+    rule: >-
+      画像の中身は入力に画像そのものが無いと判定できない。
+      ファイル名やaltから文字入りバナーが疑われる場合は inferred で出す。
+      装飾扱いの alt="" でも、画像内に情報があるならここに該当する
+    requires: [code, screenshot]
+    auto: false
     severity: medium
 
   # === デザイントークン ========================================
@@ -909,7 +1013,7 @@ items:
     check: フォントサイズの種類が多すぎない
     threshold: 1画面あたり4-5種類まで
     requires: [code, screenshot]
-    auto: true
+    auto: false
     severity: low
 
   - id: TOKEN-04
@@ -927,22 +1031,43 @@ items:
     auto: false
     severity: low
 
+  # === プライバシー ============================================
+  - id: PRIV-01
+    category: privacy
+    check: 入力途中の個人情報をクライアントに残したままにしない
+    rule: 下書きの自動保存で localStorage 等に氏名・連絡先・本文を平文で置く場合、離脱・完了時に破棄する
+    requires: [code]
+    auto: false
+    severity: medium
+
+  - id: PRIV-02
+    category: privacy
+    check: 取得する情報の理由と範囲が要求時点で示されている
+    requires: [screenshot, flow]
+    auto: false
+    severity: medium
+
   # === 用語の一貫性 ============================================
   - id: TERM-01
     category: consistency
     check: 同義語が混在していない
-    rule: 「登録／申込／サインアップ」「削除／破棄／取り消し」
+    rule: 「登録／申込／サインアップ」「削除／破棄／取り消し」。title・見出し・ナビの間のずれも対象
     requires: [code, screenshot]
-    auto: true
+    auto: false
     severity: medium
+    note: NN-04 の用語部分と重複する。用語のみなら TERM-01 に寄せて片方のみ出す
 
 # ---------------------------------------------------------------
 # レビュー運用のルール
 # ---------------------------------------------------------------
 
 review_rules:
-  - 判定に必要な入力が無い項目は指摘せず needs_check として質問形式で出す
-  - 低の指摘を大量に出すより、高を数件に絞る
-  - 良い点を1-2件挙げ、改善の方向を誤らせない
+  - requires のいずれも手元に無い項目だけを needs_check とし、質問形式で別枠に出す
+  - requires を一部しか満たさない項目は判定を試み、確信度を inferred 以下に落とす
+  - 低の指摘を大量に出すより、高を数件に絞る（目安: 高3件・低は20件も出さない）
+  - note に「片方のみ出す」とある重複ペアは、同じ事象から2件出さない
+  - 良い点は指摘が3件以上あるときのみ1-2件挙げる。無ければ省略してよく、無理に捻り出さない
   - 意図の断定を避ける（「意図的に騙している」ではなく「該当しうる」）
-  - 指摘には必ず id と原則名を添える
+  - 指摘には必ず id を添える。ref を持つ項目は原則名も併記し、ref が無い項目に原則名を捏造しない
+  - AAA の達成基準は、AA 適合を目標とする案件では「違反」と書かず推奨として出す
+  - コントラスト比を書くときは実際に計算し、採用した前景色・背景色・文字サイズを併記する
