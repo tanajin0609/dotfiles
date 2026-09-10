@@ -2,20 +2,20 @@
 name: blog-article
 model: opus
 description: |
-  tech-blog/neta/ に溜まったネタから1件（または関連する複数件）を選び、Zenn向け記事として
-  tech-blog/article/ に下書きする。「記事化して」「ブログ記事にして」「ネタを記事にまとめて」
+  tech-blog-lib/neta/ に溜まったネタから1件（または関連する複数件）を選び、Zenn向け記事として
+  tech-blog-lib/article/ に下書きする。「記事化して」「ブログ記事にして」「ネタを記事にまとめて」
   と言われたときに使う。ネタの一次記録自体は別スキル（blog-neta）が担当し、本スキルは
   ネタを読者向けの記事構成に組み替え、社外に出せない固有名詞を一般化するところまでを担う。
 ---
 
 # blog-article — ネタから記事への昇華
 
-`$HOME/projects/tech-blog/neta/` から素材を選び、
-`$HOME/projects/tech-blog/article/` にZenn向け記事の下書きを作る。
+`$HOME/projects/tech-blog-lib/neta/` から素材を選び、
+`$HOME/projects/tech-blog-lib/article/` にZenn向け記事の下書きを作る。
 
 ## Step 1: ネタ一覧を提示し、対象を選んでもらう
 
-`tech-blog/neta/*.md` を列挙し、`status: draft` のものをタイトル・日付・tagsとともに一覧で見せる。
+`tech-blog-lib/neta/*.md` を列挙し、`status: draft` のものをタイトル・日付・tagsとともに一覧で見せる。
 どれを記事化するか（1件、または関連する複数件をまとめて1記事にするか）をユーザーに選んでもらう。
 候補を先回りして1つに絞らない。
 
@@ -37,7 +37,7 @@ description: |
 
 ## Step 4: 下書きを作成する
 
-既存記事（`tech-blog/article/*.md`）と同じ構成を踏襲する。
+既存記事（`tech-blog-lib/article/*.md`）と同じ構成を踏襲する。
 
 ```markdown
 ---
