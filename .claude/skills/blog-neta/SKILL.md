@@ -3,7 +3,7 @@ name: blog-neta
 model: sonnet
 description: |
   作業中に生まれた「思い込みを指摘されて訂正した」「多義語やレイヤーの取り違えで行き違った」
-  「仕様の前提を勘違いしていた」といった気づきを、tech-blog/neta/ にブログのネタとして記録する。
+  「仕様の前提を勘違いしていた」といった気づきを、tech-blog-lib/neta/ にブログのネタとして記録する。
   自動発動条件: ユーザーの指摘で自分の理解・報告内容が覆った、用語やアーキテクチャの解釈が
   途中でズレていたと判明した、といった出来事が起きたとき。
   明示発動条件: 「これネタになりそう」「ネタ化して」「今日の作業でネタになりそうな話ある？」
@@ -13,7 +13,7 @@ description: |
 
 # blog-neta — 気づきのネタ化
 
-作業中の気づきを `$HOME/projects/tech-blog/neta/` に記録する。狙いは
+作業中の気づきを `$HOME/projects/tech-blog-lib/neta/` に記録する。狙いは
 「あとで思い出せない生々しい経緯（何を勘違いしていたか、指摘を受けてどう見方が変わったか）」を
 その場で残すこと。record は一次記録であり、Zenn向けの記事に整えるのは `blog-article` の責務。
 
@@ -34,7 +34,7 @@ description: |
 
 ## Step 3: フォーマットに沿って書く
 
-既存ファイル（`tech-blog/neta/*.md`）と同じ構成を踏襲する。
+既存ファイル（`tech-blog-lib/neta/*.md`）と同じ構成を踏襲する。
 
 ```markdown
 ---
@@ -70,7 +70,7 @@ status: draft
 
 ## Step 4: 書き込み・報告
 
-`$HOME/projects/tech-blog/neta/` にファイルを作成し、作成したファイルパスをユーザーに伝える。
+`$HOME/projects/tech-blog-lib/neta/` にファイルを作成し、作成したファイルパスをユーザーに伝える。
 
 ---
 
