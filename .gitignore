@@ -7,6 +7,8 @@
 !.claude/commands/**
 !.claude/skills/
 !.claude/skills/**
+!.claude/agents/
+!.claude/agents/**
 !.claude/CLAUDE.md
 
 # 業務ドメインは共有しない: 許可リストより後に再除外して構造的に防ぐ
