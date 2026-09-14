@@ -21,17 +21,29 @@ PR一覧を見た別の人（あるいは後日の自分）には意味が伝わ
 
 ## worktree名・ブランチ名
 
-テンプレート: `<repo>/<type>-<slug>`
+`name`引数のテンプレート: `<type>-<slug>`
 
-- `<repo>`: 対象リポジトリ名（EnterWorktreeでは自動的にブランチ名のprefixになるため、
-  意識せず`<type>-<slug>`部分だけを`name`引数に渡してよい場合も多い。ツールの挙動に従う）
 - `<type>`: Conventional Commitsのtype（`feat`/`fix`/`chore`/`docs`/`refactor`/`test`等）
 - `<slug>`: 内容が一目で伝わる短い説明（英語、ハイフン区切り）。セッション内だけの
   呼び名（作業コードネーム、マイルストーンID、Notionのページ名の略称等）は避け、
   「何を変更するか」を直接書く
 
-EnterWorktreeツールの制約（`/`区切りの各セグメントは英数字・ドット・アンダースコア・
-ダッシュのみ、全体で64文字以内）を守ること。
+**EnterWorktreeは`name`に渡した値の前に`worktree-`を固定で前置してブランチ名にする**
+（`name`を`<type>-<slug>`にしても、実際のブランチ名は`worktree-<type>-<slug>`になる。
+`name`の値やリポジトリ名では変えられない、ツール自体の挙動）。この`worktree-`prefixの
+ままPRを作ると、事情を知らない読み手にブランチ一覧・PR一覧で意味が伝わらないため、
+**PR作成前に必ずリネームする**:
+
+```bash
+git branch -m <type>-<slug>
+git push -u origin <type>-<slug>
+```
+
+（すでに`worktree-...`のままoriginにpush済みの場合は、リネーム後のpushに続けて
+`git push origin --delete worktree-<type>-<slug>`で古いリモートブランチを消す）
+
+EnterWorktreeツールの制約（`name`は`/`区切りの各セグメントが英数字・ドット・
+アンダースコア・ダッシュのみ、全体で64文字以内）を守ること。
 
 **自己チェック**: 名付けたら「このブランチ名だけを見て、事情を知らないメンバーが
 変更内容を推測できるか？」を自問する。Noなら書き直す。
@@ -83,7 +95,7 @@ EnterWorktreeツールの制約（`/`区切りの各セグメントは英数字�
 
 ## PRのタイトル・本文
 
-- **タイトル**: worktree名の`<type>-<slug>`部分と一貫させる（例: worktreeが
+- **タイトル**: リネーム後のブランチ名`<type>-<slug>`と一貫させる（例: ブランチが
   `feat-input-validation`なら、タイトルは`feat: クライアント側の必須項目チェックを追加`
   のように対応させる）。70文字以内。
 - **本文**: SummaryとTest planの2セクション構成を基本とする（詳細な書式は
