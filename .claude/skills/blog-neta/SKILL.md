@@ -2,7 +2,7 @@
 name: blog-neta
 model: sonnet
 description: |
-  作業中に生まれた技術的な気づきを、tech-blog/neta/ にブログのネタとして記録する。対象は2種類。
+  作業中に生まれた技術的な気づきを、tech-blog-lib/neta/ にブログのネタとして記録する。対象は2種類。
   (1) AI訂正型: 「思い込みを指摘されて訂正した」「多義語やレイヤーの取り違えで行き違った」
   「仕様の前提を勘違いしていた」といった、AIの誤りがユーザーの指摘で覆った出来事。
   (2) ユーザー学び型: AIの誤りが起点でなくても、調査・説明を通じてユーザー自身の技術的な
@@ -17,7 +17,7 @@ description: |
 
 # blog-neta — 気づきのネタ化
 
-作業中の気づきを `$HOME/projects/tech-blog/neta/` に記録する。狙いは
+作業中の気づきを `$HOME/projects/tech-blog-lib/neta/` に記録する。狙いは
 「あとで思い出せない生々しい経緯」をその場で残すこと。record は一次記録であり、
 Zenn向けの記事に整えるのは `blog-article` の責務。
 
@@ -49,7 +49,7 @@ Zenn向けの記事に整えるのは `blog-article` の責務。
 
 ## Step 3: フォーマットに沿って書く
 
-既存ファイル（`tech-blog/neta/*.md`）と同じ構成を踏襲する。種別によってテンプレートが異なる。
+既存ファイル（`tech-blog-lib/neta/*.md`）と同じ構成を踏襲する。種別によってテンプレートが異なる。
 
 ### AI訂正型
 
@@ -119,7 +119,7 @@ type: user-learning
 
 ## Step 4: 書き込み・報告
 
-`$HOME/projects/tech-blog/neta/` にファイルを作成し、作成したファイルパスをユーザーに伝える。
+`$HOME/projects/tech-blog-lib/neta/` にファイルを作成し、作成したファイルパスをユーザーに伝える。
 
 ---
 
