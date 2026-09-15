@@ -6,13 +6,15 @@ description: |
   docs/changes/<version>-<type>-<短い説明>-<日付>/ を作り、proposal.md・design.md・decisions.md・tasks.md・specs/
   の雛形を用意する。新しい改修・機能追加に着手する直前、実装より先に提案と設計を
   書き起こす段階で使う。バージョンは docs/specs/VERSION から算出し、日付は自動付与する。
+  docs/tasks/todo.md への1行追記も必須ステップとして行う。
 ---
 
 # /init-change — 変更ディレクトリ初期化
 
 `docs/changes/<version>-<type>-<短い説明>-<日付>/` を新規作成し、`proposal.md`・`design.md`・`decisions.md`・`tasks.md`・`specs/`（delta spec用）の雛形を用意する。
 `/explore` → `/todo-propose` の前段、または `/todo-propose` を使わず手動で変更作業を始める際に使う。
-詳細ルールは `self-work/directry-rules/directry-rules.md` の1章・4章（特に4.1）を参照。
+どちらの経路でも `docs/tasks/todo.md` への追記は本コマンド内で必ず行う（省略不可。`directry-rules.md` 4.3・4.4）。
+詳細ルールは `self-work/directry-rules/directry-rules.md` の1章・4章（特に4.1・4.4）を参照。
 バージョン増分の判断は `semver` skill を使う。
 
 ## 引数
@@ -66,11 +68,24 @@ description: |
      （`proposal.md`・`decisions.md`・`tasks.md`・`specs/README.md` の見出しに含まれる）。
    - `specs/README.md` 内の `<dir>` を、実際の変更ディレクトリ名（`<version>-<change-name>-<日付>`）に置換する。
 
-5. **完了報告**
+5. **todo.mdへの追記（必須）**
+   - カレントディレクトリの `docs/tasks/todo.md` が無ければ、`mkdir -p docs/tasks` の上、
+     `$HOME/projects/_templates/dev/docs/tasks/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成する。
+   - `## 進行中` に以下の形式で1行追記する（同じ `<change-name>` の行が既に無いか確認してから）。
+     ```
+     - [ ] <change-name> → docs/changes/<version>-<change-name>-<日付>/proposal.md
+     ```
+   - `/todo-propose` 経由で本コマンドが呼ばれた場合（A-1経由）は、`/todo-propose` 側A-3が
+     この行のステータスを更新する前提とし、ここでは重複追記しない（既存行があれば流用）。
+   - 過去にこの追記が漏れ、変更が `todo.md` に一度も反映されないまま日次棚卸しから漏れた
+     事例がある（`directry-rules.md` 4.3・4.4）。手動作成・`/todo-propose`経由のどちらでも省略しない。
+
+6. **完了報告**
    - 作成したパス（`docs/changes/<version>-<change-name>-<日付>/proposal.md` など）と、
      暫定バージョンである旨・確定タイミング（差分確定時に見直す）をユーザーに報告する。
    - `specs/README.md` に「今回触る予定の大本spec・節」を記入する工程が残っている旨も伝える
      （着手時＝予定、完了時＝diffで確定の2段。詳細は `directry-rules.md` 4.2）。
+   - `docs/tasks/todo.md` に追記した行へのパスも報告に含める。
 
 ## 注意事項
 
@@ -86,3 +101,5 @@ description: |
 - 上記に限らず、既存のディレクトリ名を変更する場合は、変更前のディレクトリ名で `grep -rn` を実行し、
   ヒットした全ファイル（`.md` だけでなく `.drawio` 等のテキスト内埋め込みも含む）のリンクを更新してから完了とする
   （`self-work/directry-rules/directry-rules.md` 4章参照）。
+- 手順5（todo.mdへの追記）は省略不可。`docs/tasks/todo.md` に対応行が無いまま変更ディレクトリの
+  実装作業に着手しない（`directry-rules.md` 4.4）。

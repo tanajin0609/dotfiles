@@ -40,7 +40,9 @@ Step1のチェックだけを実行し、結果を一覧表示して停止する
    「ユーザー確認待ち」「承認待ち」「未定」等、判断待ちの記述が残っていないか。
 4. 記述されている実装対象ファイル（`src/`配下など）が実際に存在するか、ざっと確認する
    （深追いはしない）。
-5. `docs/tasks/todo.md` に対応する `- [ ]` 項目があるか確認する（`directry-rules.md` 4.3）。
+5. `docs/tasks/todo.md` に対応する `- [ ]` 項目があるか確認する（`directry-rules.md` 4.3・4.4）。
+   対応する項目が1件も無い場合は、それ自体をギャップとして扱う（`/init-change` の
+   todo.md追記漏れの可能性が高いため、静かに見過ごさない）。
 6. そのchangeが既存データを拒否しうる新しい制約（必須項目・型・形式チェック等のバリデーション）を
    追加している場合、`tasks.md`が挙げるテストが手作りの最小フィクスチャだけで完結していないか確認する。
    実データ（本番相当のサンプル群）が手元にあるなら、その制約を実データ全件に対して実行し、
@@ -65,8 +67,8 @@ Step1のチェックだけを実行し、結果を一覧表示して停止する
 1. `grep -rln "<change-name>" docs/` で外部参照を確認する。ヒットがあれば内容を提示し、
    `docs/changes/archives/<change-name>/...` への更新要否をユーザーに確認する。
 2. `mv docs/changes/<change-name> docs/changes/archives/<change-name>` を実行する。
-3. `docs/tasks/todo.md` に対応する `- [ ]` 項目があれば `- [x]` にし、リンク先を
-   `docs/changes/archives/<change-name>/...` に更新する。
+3. `docs/tasks/todo.md` に対応する行があれば `## 進行中` から `## 完了（archives/へ移動済み）` へ移し、
+   `- [x]` にしてリンク先を `docs/changes/archives/<change-name>/...` に更新する。
 
 ## Step 4: 完了報告
 

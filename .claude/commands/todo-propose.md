@@ -161,15 +161,17 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 `Grep`/`Read`で裏取りし、この文書一式だけで文脈を持たない別の担当者が実装に着手できるかを
 自問する。着手できないと判断した箇所があれば、埋めるのではなく`decisions.md`の論点に回す。
 
-**A-3.** `docs/tasks/todo.md` に以下の形式で1行追記する（未着手・承認待ちの残タスクとして
-反映するため。既存の運用メモの区分に合わせる場所が無ければ新設してよい）。
+**A-3.** `docs/tasks/todo.md` の `## 進行中` を確認する。A-1で `/init-change` が既に
+`- [ ] <change-name> → docs/changes/<version>-<change-name>-<日付>/proposal.md` を追記済みのはずなので、
+その行を以下の形式に更新する（重複追記しない）。行が無ければ（`/init-change` を経由せず
+直接ディレクトリが用意されていた等）ここで新規追記する。
 
 ```
 - [ ] <change-name> — 提案中・承認待ち → docs/changes/<version>-<change-name>-<日付>/proposal.md
 ```
 
 過去に提案が `todo.md` に一度も反映されず日次棚卸しから漏れた事例があるため
-（`directry-rules.md` 4.3）、この追記は省略しない。
+（`directry-rules.md` 4.3・4.4）、この確認・追記は省略しない。
 
 **A-4.** `docs/specs/`（大本spec）はこの時点では変更しない（Spec-First: 実装フェーズで直接更新し、
 差分は `specs/` にunified diffで残す。`directry-rules.md` 4.2）。
