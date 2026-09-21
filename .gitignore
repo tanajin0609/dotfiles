@@ -20,6 +20,7 @@
 # 他人の skill（分類2）は管理対象外。skills CLI 等の管理に任せる
 # 実体は残したまま、このリポジトリでは追跡しない
 .claude/skills/frontend-design/
+.claude/skills/synced/
 
 # その他: 一時ファイル・ログ
 *.log
