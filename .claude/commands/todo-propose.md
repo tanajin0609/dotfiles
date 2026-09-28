@@ -162,12 +162,12 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 自問する。着手できないと判断した箇所があれば、埋めるのではなく`decisions.md`の論点に回す。
 
 **A-3.** `docs/tasks/todo.md` の `## 進行中` を確認する。A-1で `/init-change` が既に
-`- [ ] <change-name> → docs/changes/<version>-<change-name>-<日付>/proposal.md` を追記済みのはずなので、
-その行を以下の形式に更新する（重複追記しない）。行が無ければ（`/init-change` を経由せず
+`todo-format` skill の書式で行を追記済みのはずなので、その行を以下の形式に更新する（重複追記しない。
+要約は埋めた proposal.md に合わせて見直す）。行が無ければ（`/init-change` を経由せず
 直接ディレクトリが用意されていた等）ここで新規追記する。
 
 ```
-- [ ] <change-name> — 提案中・承認待ち → docs/changes/<version>-<change-name>-<日付>/proposal.md
+- [ ] <何をするかの要約>（提案中・承認待ち） → [docs/changes/<version>-<change-name>-<日付>/proposal.md](../changes/<version>-<change-name>-<日付>/proposal.md)
 ```
 
 過去に提案が `todo.md` に一度も反映されず日次棚卸しから漏れた事例があるため

@@ -369,7 +369,7 @@ Ops系サブプロジェクトは継続的に依頼（order）を受けて対応
 
 `order-yyyymmdd/` を直置きするサブプロジェクト直下（`order-yyyymmdd/` と同じ階層）の `docs/tasks/todo.md` に、依頼の進行状況を管理する。粒度はサブプロジェクト単位（`ops-work/docs/tasks/todo.md`のような横断1ファイルや`ops-work/fix-points/docs/tasks/todo.md`のようなカテゴリ単位ではない。`ops-work/fix-points/<tenant-b>/docs/tasks/todo.md`のようにテナント/案件単位まで下りる）。
 
-- **依頼作成時**: `docs/tasks/todo.md` が無ければ `_templates/ops/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成し、`## 進行中` に `- [ ] order-yyyymmdd — 依頼概要 → order-yyyymmdd/order.md` を1行追記する（`/init-ops-work` ワークフロー手順5）。
+- **依頼作成時**: `docs/tasks/todo.md` が無ければ `_templates/ops/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成し、`## 進行中` に `- [ ] 依頼概要 → order-yyyymmdd/order.md` を1行追記する（書式は `todo-format` skill）（`/init-ops-work` ワークフロー手順5）。
 - **完了時**: ユーザーが明示的に「完了」と伝えたら、`order-yyyymmdd/` を `archives/order-yyyymmdd/` へ `mv` し、`docs/tasks/todo.md` の該当行を `## 完了（archives/へ移動済み）` へ移して `- [x]` にし、リンク先を更新する（`/init-ops-work` 依頼対応の標準フロー手順9）。
 
 **Why:** ops-workサブプロジェクトが依頼を継続的に受けていく中で、`order-yyyymmdd/`が増えるほど「今どの依頼が進行中か」が一覧できなくなっていた。todo.mdは`docs/tasks/todo.md`（1章・4章のdevテンプレート）に相当するops版の進行管理として新設した。archives/への移動は、完了済みの依頼を`order-yyyymmdd/`の一覧から分離し、進行中のものだけを見やすくするため。

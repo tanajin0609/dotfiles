@@ -6,8 +6,8 @@
 
 ## 進行中
 <!-- docs/changes/<version>-<change-name>-<日付>/ を作成したら1行追記する（/init-change 手順5） -->
-<!-- 形式: - [ ] #<連番> <change-name> → docs/changes/<version>-<change-name>-<日付>/proposal.md -->
+<!-- 形式（todo-format skill）: - [ ] #<連番> <何をするかの要約> → [docs/changes/<version>-<change-name>-<日付>/proposal.md](../changes/<version>-<change-name>-<日付>/proposal.md) -->
 
 ## 完了（archives/へ移動済み）
 <!-- /archive で docs/changes/<dir>/ を archives/ へ移したら、該当行をここへ移してチェックする -->
-<!-- 形式: - [x] #<連番> <change-name> → docs/changes/archives/<dir>/proposal.md -->
+<!-- 形式（todo-format skill）: - [x] #<連番> <何をするかの要約> → [docs/changes/archives/<dir>/proposal.md](../changes/archives/<dir>/proposal.md) -->

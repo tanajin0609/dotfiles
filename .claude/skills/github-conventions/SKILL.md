@@ -124,3 +124,18 @@ EnterWorktreeツールの制約（`name`は`/`区切りの各セグメントが�
 draft PRで作成するか最初からreadyにするか、マージ方式（squash/rebase/merge commit）
 はプロジェクトごとに慣習が違うため、ここでは断定しない。プロジェクトの
 `CONTRIBUTING.md`や過去のPR履歴を確認し、不明ならユーザーに確認する。
+
+## worktree分離ガードで空振りしないために
+
+EnterWorktree/WorktreeCreateやworktree分離中のセッションには、ハーネス側の制約がある。
+違反すると`tool_use_error`で弾かれるだけで状態は変わらないため、事前に避ける。
+
+- **EnterWorktree/WorktreeCreateは対象がgitリポジトリであることが前提**。cwdが
+  `~/projects`直下などgit管理外の場所だと「not in a git repository」で失敗する。
+  呼び出す前に対象サブプロジェクトのディレクトリへcdしておく。
+- **バックグラウンドセッションでは、Edit/Writeより前に必ずEnterWorktreeを呼ぶ**。
+  「hasn't isolated its changes yet」が出たら、その場でEnterWorktreeを呼んでから
+  同じ編集をやり直す（先に編集を試みて失敗してから気づく、を繰り返さない）。
+- **worktree分離中のセッションでは、共有チェックアウト側を対象にするコマンドは拒否される**。
+  `git -C <共有チェックアウトのパス>`や、worktree外へ`cd`してからのgit操作は失敗する。
+  git操作は常にEnterWorktreeで得たworktree内の作業ディレクトリを対象にする。

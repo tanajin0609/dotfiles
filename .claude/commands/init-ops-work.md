@@ -37,7 +37,7 @@ description: |
 devテンプレートと同じ `docs/tasks/todo.md` に変更）。
 
 - **依頼作成時**（手順1の前後、下記ワークフロー4）: サブプロジェクト直下に `docs/tasks/todo.md` が無ければ `_templates/ops/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成し、`## 進行中` に今回の `order-yyyymmdd` を1行追記する。
-  形式: `- [ ] order-yyyymmdd — <依頼概要> → order-yyyymmdd/order.md`
+  形式（`todo-format` skill）: `- [ ] <依頼概要> → order-yyyymmdd/order.md`
 - **完了時**（手順9）: ユーザーが明示的に「完了」と伝えたら以下を行う。
   1. サブプロジェクト直下に `archives/` が無ければ作成する。
   2. `order-yyyymmdd/` を `archives/order-yyyymmdd/` へ `mv` する。
@@ -91,7 +91,7 @@ devテンプレートと同じ `docs/tasks/todo.md` に変更）。
 5. **todo.mdへの追記**
    - 対象ディレクトリ（サブプロジェクト）直下に `docs/tasks/todo.md` が無ければ `mkdir -p docs/tasks` の上、
      `_templates/ops/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成する。
-   - `## 進行中` に `- [ ] order-yyyymmdd — <依頼概要> → order-yyyymmdd/order.md` を1行追記する（「todo.md管理とアーカイブ化」参照）。
+   - `## 進行中` に `- [ ] <依頼概要> → order-yyyymmdd/order.md` を1行追記する（書式は `todo-format` skill）（「todo.md管理とアーカイブ化」参照）。
 
 6. **完了報告**
    - 作成・更新したファイル・ディレクトリの一覧をユーザーに報告する。

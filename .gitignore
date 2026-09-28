@@ -26,3 +26,4 @@
 *.log
 *.tmp
 .DS_Store
+.claude/skills/synced/

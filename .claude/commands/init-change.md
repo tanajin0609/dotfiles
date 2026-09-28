@@ -71,9 +71,9 @@ description: |
 5. **todo.mdへの追記（必須）**
    - カレントディレクトリの `docs/tasks/todo.md` が無ければ、`mkdir -p docs/tasks` の上、
      `$HOME/projects/_templates/dev/docs/tasks/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成する。
-   - `## 進行中` に以下の形式で1行追記する（同じ `<change-name>` の行が既に無いか確認してから）。
+   - `## 進行中` に `todo-format` skill の書式で1行追記する（同じ変更ディレクトリへのリンクを持つ行が既に無いか確認してから）。
      ```
-     - [ ] <change-name> → docs/changes/<version>-<change-name>-<日付>/proposal.md
+     - [ ] <何をするかの要約> → [docs/changes/<version>-<change-name>-<日付>/proposal.md](../changes/<version>-<change-name>-<日付>/proposal.md)
      ```
    - `/todo-propose` 経由で本コマンドが呼ばれた場合（A-1経由）は、`/todo-propose` 側A-3が
      この行のステータスを更新する前提とし、ここでは重複追記しない（既存行があれば流用）。

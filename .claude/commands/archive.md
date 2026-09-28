@@ -68,7 +68,7 @@ Step1のチェックだけを実行し、結果を一覧表示して停止する
    `docs/changes/archives/<change-name>/...` への更新要否をユーザーに確認する。
 2. `mv docs/changes/<change-name> docs/changes/archives/<change-name>` を実行する。
 3. `docs/tasks/todo.md` に対応する行があれば `## 進行中` から `## 完了（archives/へ移動済み）` へ移し、
-   `- [x]` にしてリンク先を `docs/changes/archives/<change-name>/...` に更新する。
+   `- [x]` にしてリンク先を `docs/changes/archives/<change-name>/...` に更新する（要約は変えない。書式は `todo-format` skill）。
 
 ## Step 4: 完了報告
 
