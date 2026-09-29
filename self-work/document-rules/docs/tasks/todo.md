@@ -2,5 +2,6 @@
 
 - [ ] タスク細分化を行う
 - [ ] /todo-proposeバッチモードのトークン消費を構造から削減（提案中・承認待ち） → docs/changes/v0.6.1-perf-todo-propose-token-reduction-20260831/proposal.md
+- [ ] todo-management.md の後続作業（todo-import spec/skill への展開・警告の反映、todo-format の補足記述修正、delta spec 用の hook と /archive の拡張、テンプレート修正） → changes/0011-20260929-todo-management/proposal.md
 - [x] defer-loop-safeguards — 決定・反映済み → changes/0009-20260902-defer-loop-safeguards/proposal.md
 - [x] self-runner — 決定・導入しない → changes/0010-20260902-self-runner/proposal.md

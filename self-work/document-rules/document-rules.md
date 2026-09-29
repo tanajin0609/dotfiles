@@ -21,6 +21,7 @@
 [`changes/0008-20260902-defer-format/proposal.md`](./changes/0008-20260902-defer-format/proposal.md)。
 2026-09-02にdefer運用の安全装置（Checker打ち切り時の自動defer化・defer回数上限）を追加:
 [`changes/0009-20260902-defer-loop-safeguards/proposal.md`](./changes/0009-20260902-defer-loop-safeguards/proposal.md)。
+todo.md・change の tasks.md・today-todo の役割分担と情報の流れは [`todo-management.md`](./todo-management.md) を参照（2026-09-29新設）。
 
 ---
 
