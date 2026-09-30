@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -eu
+# readlink -f: ~/.local/bin からの symlink 経由でも dotfiles 内の実体を指すため
+here="$(dirname "$(readlink -f "$0")")"
+# server.js は __dirname を実パス解決するため、既定値のままだと dotfiles 側を読み書きしてしまう
+mkdir -p "$HOME/projects/today-todo"
+VIEWER_TODO_DIR="$HOME/projects/today-todo" \
+VIEWER_DATA_DIR="$HOME/projects/today-todo/viewer/data" \
+  exec node "$here/../today-todo/viewer/server.js" "$@"
