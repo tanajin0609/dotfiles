@@ -1,0 +1,10 @@
+{
+  "projectId": "d6cb2dad-e6de-4741-8ff1-77f435f52151",
+  "pkg": "today-todo-viewer",
+  "globalName": "TodayTodoViewer",
+  "shape": "package",
+  "readmeHeader": ".design-sync/conventions.md",
+  "runtimeFontPrefixes": [
+    "yu gothic"
+  ]
+}
