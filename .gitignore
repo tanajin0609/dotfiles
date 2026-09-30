@@ -27,3 +27,7 @@
 *.tmp
 .DS_Store
 .claude/skills/synced/
+
+# today-todo viewer: 実行時データは端末ローカル（ラッパー経由なら ~/projects 側に書かれる）
+today-todo/viewer/data/
+today-todo/viewer/.playwright-mcp/

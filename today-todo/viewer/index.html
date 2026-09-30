@@ -1,0 +1,3999 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today Todo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%93%8B</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/marked@13/marked.min.js" integrity="sha384-YTBHtsL8yVTHcLakYNyrOfK3K+QQcXiECuaALJ+3j7Mo681Rtzadt8NR6WrZH+eQ" crossorigin="anonymous"></script>
+<script>
+  // 本体scriptより前に当てるのは、保存済みテーマが描画後に切り替わって一瞬ライトで光るのを避けるため。
+  const THEME_STORAGE_KEY = 'viewer:theme';
+  const THEME_NAMES = ['auto', 'light', 'dark'];
+  function loadThemePreference() {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    return THEME_NAMES.includes(saved) ? saved : 'auto';
+  }
+  document.documentElement.dataset.theme = loadThemePreference();
+</script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #f6f5f2;
+    --raised: #ffffff;
+    --line: rgba(0, 0, 0, .10);
+    --input-line: #808080;
+    --ink: #1a1a1a;
+    --ink-sub: #474747;
+    --ink-mute: #666666;
+    --ink-faint: #c4c4c4;
+    --accent: #1d4ed8;
+    --state-working: #1d4ed8;
+    --state-blocked: #be123c;
+    --state-done: #157038;
+    --track: rgba(0, 0, 0, .12);
+    --chip-bg: rgba(0, 0, 0, .05);
+    --btn-bg: #1a1a1a;
+    --btn-ink: #ffffff;
+    --overlay: rgba(20, 20, 20, .42);
+    --shadow: rgba(0, 0, 0, .22);
+    --col-sat: 62%;
+    --col-light: 46%;
+    --header-h: 56px;
+
+    --fs-xs: 12px;
+    --fs-sm: 13px;
+    --fs-md: 15px;
+    --fs-lg: 18px;
+    --fs-xl: 22px;
+    --font-sans: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic Medium", "Yu Gothic", Meiryo, system-ui, sans-serif;
+    --font-mono: ui-monospace, Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #15161a;
+    --surface: #1d1f24;
+    --raised: #25272d;
+    --line: rgba(255, 255, 255, .10);
+    --input-line: #80848d;
+    --ink: #e7e8ea;
+    --ink-sub: #c3c5ca;
+    --ink-mute: #a3a7ae;
+    --ink-faint: #4a4d54;
+    --accent: #7aa7ff;
+    --state-working: #7aa7ff;
+    --state-blocked: #fd8a9c;
+    --state-done: #4ade80;
+    --track: rgba(255, 255, 255, .14);
+    --chip-bg: rgba(255, 255, 255, .07);
+    --btn-bg: #e7e8ea;
+    --btn-ink: #15161a;
+    --overlay: rgba(0, 0, 0, .6);
+    --shadow: rgba(0, 0, 0, .5);
+    --col-sat: 58%;
+    --col-light: 64%;
+  }
+  /* [data-theme="dark"] と同じ値。CSSだけでは宣言を共有できないため二重に持つ。 */
+  @media (prefers-color-scheme: dark) {
+    [data-theme="auto"] {
+      color-scheme: dark;
+      --bg: #15161a;
+      --surface: #1d1f24;
+      --raised: #25272d;
+      --line: rgba(255, 255, 255, .10);
+      --input-line: #80848d;
+      --ink: #e7e8ea;
+      --ink-sub: #c3c5ca;
+      --ink-mute: #a3a7ae;
+      --ink-faint: #4a4d54;
+      --accent: #7aa7ff;
+      --state-working: #7aa7ff;
+      --state-blocked: #fd8a9c;
+      --state-done: #4ade80;
+      --track: rgba(255, 255, 255, .14);
+      --chip-bg: rgba(255, 255, 255, .07);
+      --btn-bg: #e7e8ea;
+      --btn-ink: #15161a;
+      --overlay: rgba(0, 0, 0, .6);
+      --shadow: rgba(0, 0, 0, .5);
+      --col-sat: 58%;
+      --col-light: 64%;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    margin: 0;
+    padding: 0 16px 24px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  button, input, select, textarea { font-family: inherit; color: inherit; }
+  button { font-size: var(--fs-xs); }
+  input, select, textarea { font-size: var(--fs-sm); line-height: 1.6; }
+  ::placeholder { color: var(--ink-mute); opacity: 1; }
+  a { color: var(--accent); }
+  code { font-family: var(--font-mono); font-size: var(--fs-xs); }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .column-header .dot, .group-card .stripe, .session-card .dot {
+    background: hsl(var(--col-hue, 0) var(--col-sat) var(--col-light));
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+    border-bottom: 1px solid var(--line);
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+  .hdr-row1 {
+    padding: 10px 0;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .app-title { font-size: var(--fs-md); font-weight: 700; letter-spacing: .01em; margin: 0; }
+  .date-badge {
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-mute);
+    background: var(--chip-bg);
+    border-radius: 5px;
+    padding: 2px 8px;
+  }
+  .file-controls { display: flex; align-items: center; gap: 6px; }
+  .file-controls select, .file-controls button, .board-toolbar select {
+    padding: 3px 8px;
+    border: 1px solid var(--input-line);
+    border-radius: 6px;
+    background: var(--raised);
+    color: var(--ink);
+  }
+  .file-controls button { padding: 5px 10px; cursor: pointer; }
+  .hdr-spacer { flex: 1; }
+  .today-block { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .today-label { font-size: var(--fs-xs); color: var(--ink-mute); flex: 0 0 auto; }
+  .today-strip { display: flex; gap: 3px; overflow: hidden; max-width: 110px; flex: 0 1 auto; }
+  .today-strip span { width: 13px; height: 5px; border-radius: 3px; flex: 0 0 auto; }
+  .today-ratio { font-size: var(--fs-xs); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); flex: 0 0 auto; }
+  .history-toggle {
+    display: flex; align-items: center; padding: 3px 6px;
+    border: 1px solid var(--input-line); border-radius: 6px; background: var(--raised); cursor: pointer;
+  }
+  .history-toggle:hover { border-color: var(--accent); }
+  .history-bars { display: flex; gap: 2px; align-items: flex-end; width: 70px; height: 16px; }
+  .history-bars span { flex: 1; border-radius: 1px; min-height: 2px; }
+  .header-popover {
+    position: fixed; inset: auto; margin: 0;
+    padding: 10px 12px; min-width: 220px;
+    border: 1px solid var(--input-line); border-radius: 8px;
+    background: var(--raised); color: var(--ink);
+    box-shadow: 0 8px 24px var(--shadow);
+  }
+  .header-popover-head { font-size: var(--fs-xs); font-weight: 600; margin-bottom: 6px; }
+  .settings-popover:popover-open { display: flex; flex-direction: column; gap: 10px; }
+  .settings-popover select {
+    padding: 3px 8px; border: 1px solid var(--input-line); border-radius: 6px;
+    background: var(--raised); color: var(--ink);
+  }
+  .search-field input {
+    width: 160px; padding: 3px 10px;
+    border: 1px solid var(--input-line); border-radius: 6px;
+    background: var(--raised); color: var(--ink);
+  }
+  #focusColumnSelect { max-width: 160px; }
+  mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 2px; }
+  kbd {
+    font-family: var(--font-mono); font-size: var(--fs-xs);
+    padding: 0 5px; border: 1px solid var(--input-line); border-radius: 4px; background: var(--surface);
+  }
+  .input-hint { font-size: var(--fs-xs); color: var(--ink-mute); }
+  .history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .history-list li {
+    display: flex; justify-content: space-between; gap: 16px;
+    font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute);
+  }
+  .history-list li.today { color: var(--ink); font-weight: 600; }
+  .hdr-sep { width: 1px; height: 18px; background: var(--ink-faint); }
+  .ghost-btn, .solid-btn {
+    padding: 6px 11px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .ghost-btn {
+    border: 1px solid var(--input-line);
+    background: var(--raised);
+    color: var(--ink);
+  }
+  .ghost-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .solid-btn {
+    border: 1px solid transparent;
+    background: var(--btn-bg);
+    color: var(--btn-ink);
+  }
+  .solid-btn:hover { background: var(--accent); }
+  button:disabled, textarea:disabled, input:disabled { cursor: not-allowed; opacity: .55; }
+  .ghost-btn:disabled:hover, .share-btn:disabled:hover { border-color: var(--input-line); color: inherit; }
+  .solid-btn:disabled:hover { background: var(--btn-bg); }
+  .copy-empty-reason { font-size: var(--fs-xs); color: var(--ink-mute); white-space: nowrap; }
+  .copy-empty-reason[hidden] { display: none; }
+
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+  .field-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-sub); }
+
+  .toast-region {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 200; width: min(480px, calc(100vw - 32px));
+    display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  }
+  .card-panel .toast-region { left: calc((100vw - min(540px, 100vw)) / 2); }
+  .toast-list { display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    pointer-events: auto; display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px 9px 12px; border-radius: 8px; font-size: var(--fs-sm); line-height: 1.5;
+    background: var(--raised); color: var(--ink);
+    border: 1px solid var(--input-line); border-left: 4px solid var(--accent);
+    box-shadow: 0 8px 24px var(--shadow);
+  }
+  .toast.error { border-left-color: var(--state-blocked); }
+  .toast-message { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .toast-action, .toast-close {
+    flex: 0 0 auto; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--input-line); background: var(--raised); color: var(--ink);
+  }
+  .toast-action:hover, .toast-close:hover { border-color: var(--accent); color: var(--accent); }
+  .toast-close { padding: 4px 8px; }
+
+  #status { font-size: var(--fs-xs); color: var(--ink-mute); padding: 8px 0 0; min-height: 1em; }
+
+  #mainLayout { display: flex; gap: 16px; align-items: flex-start; padding-top: 12px; }
+  #mainLayout.hidden { display: none; }
+  #globalCommentsPanel {
+    flex: 0 0 340px; min-width: 0; position: sticky; top: calc(var(--header-h) + 12px);
+    display: flex; flex-direction: column; gap: 8px; overflow-y: auto;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+    padding: 10px 11px; max-height: calc(100vh - var(--header-h) - 24px);
+  }
+  .global-comments-dialog { width: min(560px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
+  .global-comments-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
+  .global-comments-dialog-body {
+    padding: 14px 20px 18px; display: flex; flex-direction: column; gap: 8px;
+    flex: 1 1 auto; min-height: 0; overflow: hidden;
+  }
+  .global-comments-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; justify-content: flex-end; font-size: var(--fs-xs); font-weight: 600; }
+  .global-comments-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1 1 auto; min-height: 40px; }
+  .global-comments-form { display: flex; gap: 8px; align-items: flex-end; }
+  #globalCommentInput, #newCardColumnInput, #newCardTextInput, #modalCommentInput, #modalTaskInput,
+  #sessionLogReplyInput {
+    border: 1px solid var(--input-line); border-radius: 8px;
+    padding: 8px 11px; background: var(--raised); color: var(--ink);
+  }
+  #globalCommentInput, #newCardTextInput, #modalCommentInput, #modalTaskInput, #sessionLogReplyInput { resize: none; }
+  #globalCommentSubmit, #newCardSubmit, #modalCommentSaveBtn, #modalTaskSubmit {
+    padding: 10px 16px; border: none; border-radius: 8px;
+    background: var(--btn-bg); color: var(--btn-ink); cursor: pointer;
+  }
+  #globalCommentSubmit:hover, #newCardSubmit:hover, #modalCommentSaveBtn:hover, #modalTaskSubmit:hover { background: var(--accent); }
+  #globalCommentSubmit:disabled:hover, #newCardSubmit:disabled:hover, #modalCommentSaveBtn:disabled:hover, #modalTaskSubmit:disabled:hover { background: var(--btn-bg); }
+  #modalCommentLaunchBtn, #sessionLogReplyBtn {
+    padding: 9px 15px; border: 1px solid var(--accent); border-radius: 8px;
+    background: var(--raised); color: var(--accent); cursor: pointer;
+  }
+  #modalCommentLaunchBtn:hover, #sessionLogReplyBtn:hover { background: var(--chip-bg); }
+
+  .new-card-form { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px 18px; }
+
+  .board-area { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .board-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-chip {
+    padding: 4px 10px; border: 1px solid var(--input-line); border-radius: 999px;
+    background: var(--raised); color: var(--ink-sub); cursor: pointer;
+  }
+  .filter-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-chip[aria-pressed="true"] { background: var(--btn-bg); border-color: var(--btn-bg); color: var(--btn-ink); }
+  .filter-chip[aria-pressed="true"]::before { content: "✓ "; }
+  .filter-chip[hidden] { display: none; }
+  .empty-state { font-size: var(--fs-xs); line-height: 1.65; color: var(--ink-mute); padding: 4px 2px; }
+  .empty-state-title { font-weight: 600; color: var(--ink-sub); margin-bottom: 2px; }
+  .board-empty { border: 1px dashed var(--ink-faint); border-radius: 8px; padding: 16px; text-align: center; }
+  .board-empty[hidden] { display: none; }
+  .load-error {
+    margin-top: 12px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    border: 1px solid var(--state-blocked); border-left-width: 4px; border-radius: 8px; background: var(--surface);
+  }
+  .load-error[hidden] { display: none; }
+  .load-error-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .load-error-title { font-weight: 600; }
+  .load-error-detail { font-size: var(--fs-xs); color: var(--ink-sub); overflow-wrap: anywhere; }
+  #board {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  @media (min-width: 1280px) {
+    #board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  }
+  @media (min-width: 1680px) {
+    #board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .column-wrap { position: relative; min-width: 0; }
+  .column {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 10px 10px;
+  }
+  .column-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 84px 6px 2px;
+    cursor: pointer;
+    list-style: none;
+    scroll-margin-top: calc(var(--header-h) + 8px);
+  }
+  .column-header::-webkit-details-marker { display: none; }
+  .column-title-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .column-header .chevron { width: 12px; flex: 0 0 auto; color: var(--ink-mute); font-size: var(--fs-xs); }
+  .column-header .chevron::before { content: "▸"; }
+  .column[open] > .column-header .chevron::before { content: "▾"; }
+  .column-header .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .column-header .name {
+    font-size: var(--fs-sm); font-weight: 600;
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .column-header .column-count { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); }
+  .column-done-badge {
+    font-size: var(--fs-xs); font-weight: 600; color: var(--state-done);
+    border: 1px solid currentColor; border-radius: 999px; padding: 0 7px;
+  }
+  .column-stats {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-left: 19px;
+    font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute);
+  }
+  .column-progress { display: flex; align-items: center; gap: 6px; }
+  .column-progress .bar { width: 64px; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+  .column-progress .bar span { display: block; height: 100%; background: var(--accent); }
+  .column-stat { display: inline-flex; align-items: center; gap: 4px; }
+  .column-stat.working { color: var(--state-working); }
+  .column-stat.blocked { color: var(--state-blocked); }
+  .column-next {
+    padding-left: 19px; font-size: var(--fs-xs); color: var(--ink-sub);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .column-actions { position: absolute; top: 8px; right: 10px; display: flex; gap: 6px; z-index: 1; }
+  .column-wrap.is-menu-open .column-actions { z-index: 5; }
+  .share-btn {
+    padding: 2px 8px;
+    border: 1px solid var(--input-line);
+    border-radius: 5px;
+    background: var(--raised);
+    color: var(--ink-sub);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .share-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .column-menu {
+    position: absolute; top: calc(100% + 4px); right: 0; min-width: 240px;
+    display: flex; flex-direction: column; padding: 4px;
+    background: var(--raised); border: 1px solid var(--input-line); border-radius: 8px;
+    box-shadow: 0 8px 24px var(--shadow);
+  }
+  .column-menu[hidden] { display: none; }
+  .column-menu-item {
+    text-align: left; padding: 7px 10px; border: none; border-radius: 6px;
+    background: transparent; color: var(--ink); cursor: pointer;
+  }
+  .column-menu-item:hover, .column-menu-item:focus-visible { background: var(--chip-bg); }
+  .column-menu-item:disabled { opacity: 1; color: var(--ink-mute); }
+  .column-menu-item:disabled:hover { background: transparent; }
+  .column-menu-item .menu-item-note { display: block; font-size: var(--fs-xs); color: var(--ink-mute); }
+
+  .task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-height: 20px;
+  }
+
+  .card-wrap { position: relative; }
+  .card-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 1; }
+  .card-wrap.is-menu-open .card-actions { z-index: 6; }
+  .card-action-btn { padding: 0 7px; line-height: 1.6; }
+  .star-btn.is-starred { color: var(--accent); border-color: var(--accent); }
+  .group-card {
+    scroll-margin-top: calc(var(--header-h) + 8px);
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+    cursor: default;
+  }
+  .card-hint { font-size: var(--fs-xs); color: var(--ink-mute); margin-top: 2px; }
+  .modal-hint { font-size: var(--fs-xs); color: var(--ink-mute); margin: 2px 0; }
+  .group-card .stripe { width: 3px; flex: 0 0 auto; }
+  .group-card .card-body { flex: 1; min-width: 0; padding: 10px 11px; cursor: pointer; }
+  .group-card.dragging { opacity: .4; }
+  .group-card.done .stripe { opacity: .45; }
+  .group-card.done .card-title { color: var(--ink-mute); text-decoration: line-through; }
+
+  .card-head { display: flex; flex-direction: column; gap: 1px; padding-right: 56px; }
+  .card-match {
+    margin-top: 4px; font-size: var(--fs-xs); color: var(--ink-sub);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .card-parent { font-size: var(--fs-xs); color: var(--ink-mute); overflow-wrap: anywhere; }
+  .card-title { font-size: var(--fs-sm); line-height: 1.55; font-weight: 700; text-wrap: pretty; overflow-wrap: anywhere; }
+
+  .card-meta { margin-top: 8px; display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .segs { display: flex; gap: 2px; max-width: 100px; flex: 0 1 auto; }
+  .segs span { width: var(--seg-w, 15px); height: 4px; border-radius: 2px; flex: 0 0 auto; min-width: 1px; }
+  .ratio-text { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); flex: 0 0 auto; }
+  .comment-badge { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--ink-mute); }
+  .comment-badge .icon { display: inline-block; width: 10px; height: 8px; border: 1.5px solid currentColor; border-radius: 2px; }
+
+  .closed-section { border-top: 1px dashed var(--ink-faint); margin-top: 8px; padding-top: 6px; flex: 0 0 auto; }
+  .closed-header { font-size: var(--fs-xs); color: var(--ink-mute); padding: 0 2px 6px; }
+  .closed-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; }
+
+  .app-dialog {
+    padding: 0; border: none; background: transparent; color: var(--ink);
+    max-width: none; max-height: none; overflow: visible;
+  }
+  .app-dialog::backdrop { background: var(--overlay); }
+  .modal-box {
+    background: var(--raised);
+    border-radius: 10px;
+    width: min(560px, 100%);
+    height: auto;
+    max-height: 100%;
+    display: flex; flex-direction: column;
+    box-shadow: 0 18px 48px var(--shadow);
+    overflow: hidden;
+  }
+  .card-panel { inset: 0 0 0 auto; margin: 0; width: min(540px, 100vw); height: 100vh; }
+  .card-panel::backdrop { background: color-mix(in srgb, var(--overlay) 45%, transparent); }
+  .card-panel .modal-box { width: 100%; height: 100%; border-radius: 0; border-left: 1px solid var(--line); }
+  .session-log-dialog { width: min(720px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
+  .shortcut-dialog { width: min(560px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
+  .shortcut-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
+  .shortcut-body { padding: 4px 20px 18px; overflow-y: auto; }
+  .shortcut-section { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-mute); margin: 12px 0 6px; }
+  .shortcut-list {
+    margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 7px 16px; align-items: baseline;
+  }
+  .shortcut-list dt { white-space: nowrap; }
+  .shortcut-list dd { margin: 0; }
+  .session-log-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
+  .modal-header {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .modal-header-text { flex: 1; min-width: 0; }
+  .modal-col-label { font-size: var(--fs-xs); letter-spacing: .04em; color: var(--ink-mute); }
+  .modal-header-text h2 { font-size: var(--fs-lg); margin: 5px 0 0; line-height: 1.35; text-wrap: pretty; overflow-wrap: anywhere; }
+  .modal-ratio { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); margin-top: 6px; }
+  .modal-header-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+  .modal-header-actions button {
+    padding: 6px 11px;
+    border: 1px solid var(--input-line); border-radius: 7px;
+    background: var(--raised); color: var(--ink); cursor: pointer;
+  }
+  .modal-header-actions button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .modal-tasks { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; padding: 12px 14px; }
+  .modal-task {
+    font-size: var(--fs-sm); line-height: 1.65; display: flex; gap: 9px; align-items: flex-start;
+    padding: 8px 10px; border-radius: 7px; cursor: pointer;
+  }
+  .modal-task:hover { background: var(--chip-bg); }
+  .modal-task.dragging { opacity: .4; }
+  .modal-task.done { color: var(--ink-mute); }
+  .modal-task.done .task-text { text-decoration: line-through; }
+  .modal-task input { margin-top: 3px; }
+  .modal-task .task-number {
+    font-size: var(--fs-xs); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent);
+    white-space: nowrap; align-self: flex-start; margin-top: 2px;
+  }
+  .modal-task .task-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .modal-task .task-text { text-wrap: pretty; overflow-wrap: anywhere; }
+  .modal-task .task-text a { word-break: break-all; }
+  .modal-task .task-text code { background: var(--chip-bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+  .task-source-path {
+    display: block; padding: 4px 8px; border-radius: 6px; background: var(--chip-bg); color: var(--ink-sub);
+    word-break: break-all; user-select: all; cursor: text;
+  }
+  .task-source-path[hidden] { display: none; }
+  .focus-task-text { min-width: 0; overflow-wrap: anywhere; }
+  .quote-btn {
+    padding: 3px 9px;
+    border: 1px solid var(--input-line); border-radius: 6px;
+    background: var(--raised); color: var(--ink-sub);
+    align-self: flex-start; cursor: pointer; white-space: nowrap;
+  }
+  .quote-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .modal-comments { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 16px; }
+  .modal-comments-head { font-size: var(--fs-xs); letter-spacing: .04em; color: var(--ink-mute); margin-bottom: 8px; }
+  .modal-comment-list { display: flex; flex-direction: column; gap: 6px; max-height: 92px; overflow-y: auto; margin-bottom: 10px; }
+  .modal-comment { background: var(--raised); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; }
+  .modal-comment .at { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); margin-bottom: 3px; }
+  .modal-comment .text { font-size: var(--fs-xs); line-height: 1.65; }
+  .modal-comment-form { display: flex; flex-direction: column; gap: 8px; }
+  .modal-comment-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  #modalCommentInput.drag-over { outline: 2px dashed var(--accent); }
+
+  .modal-task-form { display: flex; gap: 8px; align-items: flex-end; margin: 4px 0 14px; padding: 0 20px; }
+
+  .session-log-box { width: min(720px, 100%); }
+  .session-log-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .session-log-empty {
+    color: var(--ink-mute); font-size: var(--fs-xs); text-align: center; padding: 24px 0;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .log-entry { border-radius: 8px; padding: 8px 10px; font-size: var(--fs-xs); line-height: 1.6; }
+  .log-entry .role { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-mute); margin-bottom: 3px; }
+  .log-entry .body { white-space: pre-wrap; word-break: break-word; }
+  .session-artifacts { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .session-artifacts[hidden] { display: none; }
+  .session-artifacts-list { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--fs-xs); }
+  .session-artifact-preview iframe { width: 100%; height: 50vh; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .session-artifact-preview img { max-width: 100%; max-height: 50vh; }
+  .session-artifact-preview pre { white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; font-size: var(--fs-xs); }
+  .log-branch-btn { margin-top: 6px; font-size: var(--fs-xs); }
+  .log-entry.text.user { background: var(--surface); }
+  .log-entry.text.assistant { background: var(--raised); border: 1px solid var(--line); }
+  .log-entry.tool_use, .log-entry.tool_result { background: var(--chip-bg); }
+  .log-entry.tool_use .body, .log-entry.tool_result .body { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-mute); }
+  .ask-user-question-block { display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 4px; }
+  .ask-user-question-label { font-size: var(--fs-xs); color: var(--ink-mute); }
+  .ask-user-question-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .session-log-reply {
+    flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 16px;
+    display: flex; gap: 8px; align-items: flex-end;
+  }
+
+  .focus-panel.hidden { display: none; }
+  .focus-panel .hidden { display: none; }
+  .focus-panel { display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 14px; }
+  .focus-progress { display: flex; align-items: center; gap: 9px; width: min(420px, 100%); }
+  .focus-strip { display: flex; gap: 3px; flex: 1; }
+  .focus-strip span { flex: 1; height: 4px; border-radius: 2px; }
+  .focus-position { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); flex: 0 0 auto; }
+  .focus-card {
+    width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .focus-col-label { font-size: var(--fs-xs); letter-spacing: .04em; color: var(--ink-mute); }
+  .focus-card h2 { margin: 0; font-size: var(--fs-xl); line-height: 1.35; text-wrap: pretty; overflow-wrap: anywhere; }
+  .focus-tasks { display: flex; flex-direction: column; gap: 8px; }
+  .focus-task { display: flex; gap: 9px; align-items: flex-start; font-size: var(--fs-sm); line-height: 1.6; cursor: pointer; }
+  .focus-task.done { color: var(--ink-mute); }
+  .focus-task.done .focus-task-text { text-decoration: line-through; }
+  .focus-task input { margin-top: 3px; }
+  .focus-note { padding: 9px 12px; background: var(--raised); border-radius: 9px; font-size: var(--fs-xs); line-height: 1.65; color: var(--ink-mute); }
+  .focus-actions { display: flex; gap: 8px; }
+  #focusNextBtn { flex: 1; }
+  .focus-next-preview { font-size: var(--fs-xs); color: var(--ink-mute); text-align: center; }
+  .focus-end { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 30px 0; text-align: center; }
+  .focus-end-message { margin: 0; font-size: var(--fs-md); font-weight: 600; }
+
+  .session-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--track); flex: 0 0 auto; }
+  .session-icon { font-size: var(--fs-xs); line-height: 1; flex: 0 0 auto; }
+  .working > .session-dot { background: var(--state-working); }
+  .blocked > .session-icon { color: var(--state-blocked); }
+  .done > .session-dot { background: var(--state-done); }
+  @keyframes session-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .45; transform: scale(.75); }
+  }
+  .working > .session-dot { animation: session-pulse 2.4s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .working > .session-dot { animation: none; }
+  }
+
+  .card-session { margin-top: 7px; display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-mute); }
+  .card-session .session-label { font-weight: 600; flex: 0 0 auto; }
+  .card-session.working .session-label { color: var(--state-working); }
+  .card-session.blocked .session-label { color: var(--state-blocked); }
+  .card-session .session-detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .session-panel { display: flex; flex-direction: column; gap: 8px; }
+  .session-panel.hidden { display: none; }
+  .attention-panel {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .attention-panel[hidden] { display: none; }
+  .attention-label {
+    flex: 0 0 auto; font-size: var(--fs-xs); font-weight: 700; color: var(--state-blocked);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .session-card {
+    display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs);
+    padding: 8px 10px; border-radius: 8px; background: var(--surface); cursor: pointer;
+    width: 100%; border: 1px solid var(--line); color: var(--ink); text-align: left;
+  }
+  .session-card:hover { border-color: var(--accent); }
+  .attention-panel .session-card { border-color: var(--state-blocked); }
+  .session-card-head { display: flex; align-items: center; gap: 6px; }
+  .session-card .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+  .session-card .title { font-weight: 600; overflow-wrap: anywhere; }
+  .session-card .chip-state { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .session-card .chip-state.working { color: var(--state-working); }
+  .session-card .chip-state.blocked { color: var(--state-blocked); }
+  .session-card .detail { color: var(--ink-mute); overflow-wrap: anywhere; }
+  .session-list { display: flex; flex-direction: column; gap: 6px; }
+  .session-list .meta { color: var(--ink-mute); }
+  .rate-limits { display: inline-flex; gap: 10px; font-size: var(--fs-xs); color: var(--ink-mute); white-space: nowrap; }
+  .rate-limits .pct { font-weight: 700; color: var(--ink); }
+</style>
+</head>
+<body>
+<header id="appHeader">
+  <div class="hdr-row1">
+    <h1 class="app-title">Today Todo</h1>
+    <span class="date-badge" id="dateBadge"></span>
+    <div class="file-controls">
+      <label for="fileSelect" class="sr-only">表示ファイル</label>
+      <select id="fileSelect"></select>
+      <button id="reloadBtn" type="button">再読込</button>
+    </div>
+    <div class="search-field">
+      <label for="searchInput" class="sr-only">カード名・タスク本文で検索</label>
+      <input id="searchInput" type="search" placeholder="カードを検索（/）" autocomplete="off">
+    </div>
+    <div class="file-controls">
+      <label for="focusColumnSelect" class="sr-only">フォーカス対象</label>
+      <select id="focusColumnSelect"></select>
+      <button id="focusModeBtn" type="button" class="ghost-btn">フォーカス</button>
+    </div>
+    <div class="hdr-spacer"></div>
+    <div class="today-block">
+      <span class="today-label">今日のカード</span>
+      <span class="today-strip" id="todayStrip" aria-hidden="true"></span>
+      <span class="today-ratio" id="todayRatio"></span>
+      <span class="today-label">タスク</span>
+      <span class="today-ratio" id="todayTaskRatio"></span>
+      <button id="historyToggle" type="button" class="history-toggle" popovertarget="historyPopover" aria-label="直近14日の完了数（日別の件数を開く）">
+        <span class="history-bars" id="historyBars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <div class="hdr-sep"></div>
+    <span class="rate-limits" id="rateLimits" hidden></span>
+    <button id="sessionListBtn" type="button" class="ghost-btn" aria-label="viewerから起動したセッションの一覧">セッション一覧</button>
+    <button id="settingsToggle" type="button" class="ghost-btn" popovertarget="settingsPopover" aria-label="表示設定（テーマ・列の初期表示）">設定</button>
+    <button id="costBtn" type="button" class="ghost-btn" aria-label="トークンのAPI換算コスト（月間）">コスト</button>
+    <button id="modelSettingsBtn" type="button" class="ghost-btn" aria-label="Claude Codeのモデル設定（model・effort）">モデル設定</button>
+    <button id="shortcutHelpBtn" type="button" class="ghost-btn" aria-label="キーボードショートカット一覧（?）">?</button>
+  </div>
+</header>
+<div id="toastRegion" class="toast-region">
+  <div class="toast-list" data-toast-kind="error" role="alert"></div>
+  <div class="toast-list" data-toast-kind="info" role="status"></div>
+</div>
+<div id="historyPopover" class="header-popover" popover aria-labelledby="historyPopoverHead">
+  <div class="header-popover-head" id="historyPopoverHead">直近14日の完了数</div>
+  <ol id="historyList" class="history-list"></ol>
+</div>
+<div id="settingsPopover" class="header-popover settings-popover" popover aria-labelledby="settingsPopoverHead">
+  <div class="header-popover-head" id="settingsPopoverHead">表示設定</div>
+  <div class="field">
+    <label for="themeSelect" class="field-label">テーマ</label>
+    <select id="themeSelect">
+      <option value="auto">自動</option>
+      <option value="light">ライト</option>
+      <option value="dark">ダーク</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="initialOpenModeSelect" class="field-label">列の初期表示（全ファイル共通）</label>
+    <select id="initialOpenModeSelect">
+      <option value="closed">すべて閉じる</option>
+      <option value="active">未完了・稼働中のある列だけ開く</option>
+      <option value="restore">前回の開閉を復元</option>
+    </select>
+  </div>
+</div>
+<div id="status" aria-live="polite"></div>
+<main>
+<div id="loadError" class="load-error" role="alert" hidden>
+  <div class="load-error-text">
+    <span class="load-error-title" id="loadErrorMessage"></span>
+    <span class="load-error-detail" id="loadErrorDetail"></span>
+  </div>
+  <button id="loadErrorRetryBtn" type="button" class="ghost-btn">再試行</button>
+</div>
+<div id="mainLayout">
+  <aside id="globalCommentsPanel">
+    <div id="attentionPanel" class="attention-panel" role="region" aria-label="要対応" hidden></div>
+    <div id="sessionPanel" class="session-panel hidden"></div>
+  </aside>
+  <section class="board-area" aria-label="ボード">
+    <div class="board-toolbar">
+      <button id="openAllColumnsBtn" type="button" class="ghost-btn">すべて開く</button>
+      <button id="closeAllColumnsBtn" type="button" class="ghost-btn">すべて閉じる</button>
+      <label for="columnJumpSelect" class="sr-only">列へ移動</label>
+      <select id="columnJumpSelect"><option value="">列へ移動…</option></select>
+      <div class="filter-chips" id="filterChips" role="group" aria-label="絞り込み（複数選択はすべてを満たすカード）">
+        <button type="button" class="filter-chip" data-filter-id="incomplete" aria-pressed="false">未完了のみ</button>
+        <button type="button" class="filter-chip" data-filter-id="commented" aria-pressed="false">コメントあり</button>
+        <button type="button" class="filter-chip" data-filter-id="working" aria-pressed="false">稼働中</button>
+        <button type="button" class="filter-chip" data-filter-id="blocked" aria-pressed="false">待機中</button>
+        <button type="button" class="filter-chip" data-filter-id="addedToday" aria-pressed="false" hidden>今日追加</button>
+      </div>
+      <div class="hdr-spacer"></div>
+      <button id="globalCommentsOpenBtn" type="button" class="ghost-btn" aria-label="全体コメントを開く">全体コメント</button>
+      <span id="shareAllEmptyReason" class="copy-empty-reason" hidden>コメントがありません</span>
+      <button id="shareAllBtn" type="button" class="solid-btn" aria-describedby="shareAllEmptyReason">全カードのコメントをまとめてコピー</button>
+    </div>
+    <div id="boardFilterEmpty" class="empty-state board-empty" role="status" hidden>条件に一致するカードがありません</div>
+    <div id="board"></div>
+  </section>
+</div>
+<div id="focusPanel" class="focus-panel hidden">
+  <div class="focus-progress">
+    <span class="focus-strip" id="focusStrip"></span>
+    <span class="focus-position" id="focusPositionText"></span>
+  </div>
+  <div class="focus-card" id="focusCard" tabindex="-1">
+    <div class="focus-col-label" id="focusColLabel"></div>
+    <h2 id="focusTitle"></h2>
+    <div class="focus-tasks" id="focusTasks"></div>
+    <div class="focus-note hidden" id="focusNote"></div>
+    <div class="focus-actions">
+      <button id="focusLaterBtn" type="button" class="ghost-btn">後で</button>
+      <button id="focusNextBtn" type="button" class="solid-btn">次のカードへ</button>
+    </div>
+    <div class="focus-next-preview" id="focusNextPreview"></div>
+  </div>
+  <div id="focusEmpty" class="focus-end hidden" tabindex="-1">
+    <p class="focus-end-message" id="focusEndMessage"></p>
+    <button id="focusRestartBtn" type="button" class="solid-btn">もう一周</button>
+  </div>
+</div>
+</main>
+
+<dialog id="cardDialog" class="app-dialog card-panel" aria-labelledby="modalTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <div class="modal-col-label" id="modalColLabel"></div>
+        <h2 id="modalTitle"></h2>
+        <div class="modal-hint" id="modalHint" hidden></div>
+        <div class="modal-ratio" id="modalRatio"></div>
+        <div class="modal-ratio" id="modalCost" hidden></div>
+      </div>
+      <div class="modal-header-actions">
+        <button id="modalStarBtn" type="button" class="star-btn"></button>
+        <button id="modalCloseBtn" type="button" title="Esc" aria-label="閉じる（Esc）">閉じる</button>
+      </div>
+    </div>
+    <div id="modalTasks" class="modal-tasks"></div>
+    <div class="modal-task-form">
+      <div class="field">
+        <label for="modalTaskInput" class="field-label">タスクを追加</label>
+        <textarea id="modalTaskInput" rows="1" placeholder="新しいタスクの内容" aria-describedby="modalTaskHint"></textarea>
+        <span class="input-hint" id="modalTaskHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
+      </div>
+      <button id="modalTaskSubmit" type="button">追加</button>
+    </div>
+    <div class="modal-comments">
+      <div class="modal-comments-head" id="modalCommentHead">コメント</div>
+      <div id="modalCommentList" class="modal-comment-list"></div>
+      <div class="modal-comment-form">
+        <div class="field">
+          <label for="modalCommentInput" class="field-label">新しいコメント</label>
+          <textarea id="modalCommentInput" rows="2" placeholder="コメントを入力（タスクをここにドラッグすると引用が入ります）" aria-describedby="modalCommentHint"></textarea>
+          <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」／<kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「メモ保存」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
+        </div>
+        <div class="modal-comment-actions">
+          <button id="modalCommentSaveBtn" type="button">メモ保存</button>
+          <button id="modalCommentLaunchBtn" type="button">Claudeに依頼</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="sessionLogDialog" class="app-dialog session-log-dialog" aria-labelledby="sessionLogTitle">
+  <div class="modal-box session-log-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <div class="modal-col-label" id="sessionLogColLabel"></div>
+        <h2 id="sessionLogTitle"></h2>
+        <div class="modal-ratio" id="sessionLogStateLabel"></div>
+      </div>
+      <div class="modal-header-actions">
+        <button id="sessionArtifactsBtn" type="button" aria-expanded="false" aria-controls="sessionArtifactsPanel">資料</button>
+        <button id="sessionLogCloseBtn" type="button" title="Esc" aria-label="閉じる（Esc）">閉じる</button>
+      </div>
+    </div>
+    <div id="sessionArtifactsPanel" class="session-artifacts" hidden>
+      <div id="sessionArtifactsList" class="session-artifacts-list"></div>
+      <div id="sessionArtifactPreview" class="session-artifact-preview"></div>
+    </div>
+    <div id="sessionLogList" class="session-log-list"></div>
+    <div class="session-log-reply">
+      <div class="field">
+        <label for="sessionLogReplyInput" class="field-label">返信</label>
+        <textarea id="sessionLogReplyInput" rows="2"
+          placeholder="セッションへの返信・追加の指示を入力（保存後、Claudeに依頼として再開します）"
+          aria-describedby="sessionLogReplyHint"></textarea>
+        <span class="input-hint" id="sessionLogReplyHint"><kbd>Enter</kbd> で「Claudeに依頼」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
+      </div>
+      <button id="sessionLogReplyBtn" type="button">Claudeに依頼</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="shortcutDialog" class="app-dialog shortcut-dialog" aria-labelledby="shortcutDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="shortcutDialogTitle">キーボードショートカット</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="shortcutDialogCloseBtn" type="button" title="Esc" aria-label="閉じる（Esc）">閉じる</button>
+      </div>
+    </div>
+    <div class="shortcut-body">
+      <h3 class="shortcut-section">カンバン（入力欄の外で）</h3>
+      <dl class="shortcut-list">
+        <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>次 / 前のカードへ移動（開いている列のカード）</dd>
+        <dt><kbd>Enter</kbd></dt><dd>カード詳細を開く</dd>
+        <dt><kbd>x</kbd></dt><dd>選択中のカードの先頭の未完了タスクをチェック</dd>
+        <dt><kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>選択中のカードを列内で上 / 下へ移動</dd>
+        <dt><kbd>/</kbd></dt><dd>検索欄へ</dd>
+        <dt><kbd>f</kbd></dt><dd>フォーカスモードの開始 / 終了</dd>
+        <dt><kbd>[</kbd> / <kbd>]</kbd></dt><dd>すべての列を閉じる / 開く</dd>
+        <dt><kbd>?</kbd></dt><dd>この一覧を開く</dd>
+      </dl>
+      <h3 class="shortcut-section">フォーカスモード</h3>
+      <dl class="shortcut-list">
+        <dt><kbd>→</kbd></dt><dd>次のカードへ</dd>
+        <dt><kbd>Space</kbd></dt><dd>先頭の未完了タスクをチェック</dd>
+        <dt><kbd>Esc</kbd></dt><dd>カンバンに戻る</dd>
+      </dl>
+      <h3 class="shortcut-section">入力欄</h3>
+      <dl class="shortcut-list">
+        <dt><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd></dt><dd>その欄の送信ボタンと同じ（カード詳細のコメントは「メモ保存」）</dd>
+        <dt><kbd>Enter</kbd></dt><dd>カード詳細のコメント・セッションログの返信で「Claudeに依頼」（<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行）</dd>
+      </dl>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="costDialog" class="app-dialog" aria-labelledby="costDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="costDialogTitle">コスト（月間）</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="costDialogCloseBtn" type="button" title="Esc" aria-label="閉じる（Esc）">閉じる</button>
+      </div>
+    </div>
+    <div class="new-card-form">
+      <p class="input-hint">Anthropic API単価で換算した概算（USD）です。実請求額ではありません。対象は全Claude Codeセッション（サブエージェント含む）。</p>
+      <div id="costMonthly"></div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="sessionListDialog" class="app-dialog" aria-labelledby="sessionListDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="sessionListDialogTitle">セッション一覧</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="sessionListCloseBtn" type="button" title="Esc" aria-label="閉じる（Esc）">閉じる</button>
+      </div>
+    </div>
+    <div class="new-card-form">
+      <p class="input-hint">viewerから起動したセッション（全todoファイル、新しい順）。返信は表示中のtodoファイルのセッションのみ可能です。</p>
+      <div id="sessionListBody" class="session-list"></div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="modelSettingsDialog" class="app-dialog" aria-labelledby="modelSettingsDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="modelSettingsDialogTitle">モデル設定</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="modelSettingsDialogCloseBtn" type="button" title="Esc" aria-label="閉じる（Esc）">閉じる</button>
+      </div>
+    </div>
+    <div class="new-card-form">
+      <h3 class="shortcut-section">グローバル設定（settings.json・閲覧のみ）</h3>
+      <dl class="shortcut-list" id="modelSettingsGlobal"></dl>
+      <h3 class="shortcut-section">viewerから起動するセッション</h3>
+      <div class="field">
+        <label for="modelSettingsModelInput" class="field-label">model（空欄 = グローバル設定に従う）</label>
+        <input id="modelSettingsModelInput" type="text" list="modelSettingsModelOptions" placeholder="例: opus / sonnet / claude-opus-5-5">
+        <datalist id="modelSettingsModelOptions">
+          <option value="opus"></option>
+          <option value="sonnet"></option>
+          <option value="haiku"></option>
+          <option value="fable"></option>
+        </datalist>
+      </div>
+      <div class="field">
+        <label for="modelSettingsEffortSelect" class="field-label">effort</label>
+        <select id="modelSettingsEffortSelect">
+          <option value="">未設定（グローバル設定に従う）</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+          <option value="xhigh">xhigh</option>
+          <option value="max">max</option>
+        </select>
+      </div>
+      <button id="modelSettingsSubmit" type="button">保存</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="newCardDialog" class="app-dialog" aria-labelledby="newCardDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="newCardDialogTitle">新規カード追加</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="newCardDialogCloseBtn" type="button" title="Esc" aria-label="閉じる（Esc）">閉じる</button>
+      </div>
+    </div>
+    <div class="new-card-form">
+      <div class="field">
+        <label for="newCardColumnInput" class="field-label">列（プロジェクト）</label>
+        <input id="newCardColumnInput" type="text" list="newCardColumnOptions" placeholder="プロジェクト名、自由記述可">
+        <datalist id="newCardColumnOptions"></datalist>
+      </div>
+      <div class="field">
+        <label for="newCardTextInput" class="field-label">内容</label>
+        <textarea id="newCardTextInput" rows="2" placeholder="新しいカードの内容を入力" aria-describedby="newCardTextHint"></textarea>
+        <span class="input-hint" id="newCardTextHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
+      </div>
+      <button id="newCardSubmit" type="button">追加</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="globalCommentsDialog" class="app-dialog global-comments-dialog" aria-labelledby="globalCommentsDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="globalCommentsDialogTitle">全体コメント</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="globalCommentsDialogCloseBtn" type="button" title="Esc" aria-label="閉じる（Esc）">閉じる</button>
+      </div>
+    </div>
+    <div class="global-comments-dialog-body">
+      <div class="global-comments-head">
+        <span id="globalCommentsEmptyReason" class="copy-empty-reason" hidden>コメントがありません</span>
+        <button id="globalCommentsCopyBtn" type="button" class="share-btn" aria-describedby="globalCommentsEmptyReason">全体コメントをコピー</button>
+      </div>
+      <div id="globalCommentsList" class="global-comments-list"></div>
+      <div class="global-comments-form">
+        <div class="field">
+          <label for="globalCommentInput" class="field-label">全体コメントを追加</label>
+          <textarea id="globalCommentInput" rows="2" placeholder="全体を通してのメモ・コメントを入力（カードの「全体へ引用」で参照を挿入できます）" aria-describedby="globalCommentHint"></textarea>
+          <span class="input-hint" id="globalCommentHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
+        </div>
+        <button id="globalCommentSubmit" type="button">追加</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const COLUMN_HUE_STEPS = 24;
+function hueForColumnName(name) {
+  let hash = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return ((hash >>> 0) % COLUMN_HUE_STEPS) * (360 / COLUMN_HUE_STEPS);
+}
+function applyColumnHue(el, columnName) {
+  el.style.setProperty('--col-hue', String(hueForColumnName(columnName)));
+}
+
+const SEGS_MAX_WIDTH = 100;
+const SEGS_GAP = 2;
+const SEGS_MAX_SEG_WIDTH = 15;
+const SEGS_MIN_SEG_WIDTH = 1;
+function segWidthForCount(n) {
+  if (n <= 0) return SEGS_MAX_SEG_WIDTH;
+  const available = SEGS_MAX_WIDTH - SEGS_GAP * (n - 1);
+  const w = available / n;
+  return Math.max(SEGS_MIN_SEG_WIDTH, Math.min(SEGS_MAX_SEG_WIDTH, w));
+}
+function shortDate(dateStr) { return dateStr.slice(5); }
+
+let currentFile = null;
+let boardData = null;
+let modalColumnName = null;
+let modalGroup = null;
+let modalFocusReturn = null;
+let lastModalGroupId = null;
+const busyCommentsByGroupId = new Map();
+let focusMode = false;
+let focusTarget = null;
+let focusQueueIds = [];
+let focusIndex = 0;
+let renderedBoardFile = null;
+let openedActionMenu = null;
+let todoFiles = [];
+let starredGroupIds = new Set();
+let searchQuery = '';
+const activeFilterIds = new Set();
+let previousFileGroupIds = null;
+let openColumnsBeforeFilter = new Set();
+let pendingOpenColumnNames = null;
+let failedBoardFile = null;
+let loadedBoardMtimeMs = null;
+let notifiedBoardMtimeMs = null;
+let dismissBoardUpdatedToast = null;
+let ownBoardWriteCount = 0;
+
+const INITIAL_OPEN_MODE_KEY = 'viewer:initialOpenMode';
+const INITIAL_OPEN_MODES = ['closed', 'active', 'restore'];
+const OPEN_COLUMNS_KEY_PREFIX = 'viewer:openColumns:';
+const STARRED_KEY_PREFIX = 'viewer:starred:';
+const FOCUS_TARGET_ALL_OPEN = 'all-open';
+const FOCUS_TARGET_STARRED = 'starred';
+const FOCUS_TARGET_COLUMN_PREFIX = 'column:';
+const TASK_TOGGLE_UNDO_DURATION_MS = 10000;
+const TOAST_TASK_TEXT_MAX = 30;
+
+function applyAndSaveTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+const TOAST_DEFAULT_DURATION_MS = 5000;
+const TOAST_MAX_PER_KIND = 3;
+const toastDismissers = new WeakMap();
+
+// モーダルの<dialog>を開いている間は、その外側がinertになりトーストのボタンを押せないため、
+// 最前面のダイアログの中へ移してから出す（popoverで重ねてもinertのままでクリックできないことをChromiumで実測）。
+function attachToastRegionToTopmostDialog() {
+  const region = document.getElementById('toastRegion');
+  const openDialogs = [...document.querySelectorAll('dialog[open]')].filter((d) => d.matches(':modal'));
+  const host = openDialogs[openDialogs.length - 1] || document.body;
+  if (region.parentElement !== host) host.appendChild(region);
+}
+
+// durationMs: 省略時は失敗(error)なら閉じるまで残し、それ以外は既定時間で消す。nullで常に残す。
+// key: 同じkeyのトーストが出ていれば置き換える。戻り値はトーストを閉じる関数。
+function showToast(message, { kind = 'info', actionLabel, onAction, key, durationMs } = {}) {
+  attachToastRegionToTopmostDialog();
+  const region = document.getElementById('toastRegion');
+  if (key) {
+    const existing = region.querySelector(`[data-toast-key="${CSS.escape(key)}"]`);
+    if (existing) toastDismissers.get(existing)();
+  }
+  const toast = document.createElement('div');
+  toast.className = `toast ${kind}`;
+  if (key) toast.dataset.toastKey = key;
+  let timer = null;
+  const dismiss = () => {
+    clearTimeout(timer);
+    toast.remove();
+  };
+  toastDismissers.set(toast, dismiss);
+
+  const text = document.createElement('span');
+  text.className = 'toast-message';
+  text.textContent = message;
+  toast.appendChild(text);
+  if (actionLabel && onAction) {
+    const actionBtn = document.createElement('button');
+    actionBtn.type = 'button';
+    actionBtn.className = 'toast-action';
+    actionBtn.textContent = actionLabel;
+    actionBtn.addEventListener('click', () => {
+      dismiss();
+      onAction();
+    });
+    toast.appendChild(actionBtn);
+  }
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'toast-close';
+  closeBtn.textContent = '×';
+  closeBtn.setAttribute('aria-label', '通知を閉じる');
+  closeBtn.addEventListener('click', dismiss);
+  toast.appendChild(closeBtn);
+
+  const list = region.querySelector(`[data-toast-kind="${kind === 'error' ? 'error' : 'info'}"]`);
+  list.appendChild(toast);
+  while (list.children.length > TOAST_MAX_PER_KIND) toastDismissers.get(list.firstElementChild)();
+
+  const effectiveDurationMs = durationMs !== undefined ? durationMs : (kind === 'error' ? null : TOAST_DEFAULT_DURATION_MS);
+  if (effectiveDurationMs) {
+    // キーボードで「元に戻す」等へ移動している間は残り時間を止める。
+    // ホバーでは止めない: 止まっていたポインターの真下に出たトーストが消えず、下の操作を塞ぎ続けるため。
+    let remainingMs = effectiveDurationMs;
+    let startedAt = 0;
+    const resume = () => {
+      startedAt = Date.now();
+      timer = setTimeout(dismiss, remainingMs);
+    };
+    toast.addEventListener('focusin', () => {
+      if (timer === null) return;
+      clearTimeout(timer);
+      timer = null;
+      remainingMs -= Date.now() - startedAt;
+    });
+    toast.addEventListener('focusout', (e) => {
+      if (!toast.contains(e.relatedTarget) && timer === null) resume();
+    });
+    resume();
+  }
+  return dismiss;
+}
+
+function showFailureToast(message, onRetry) {
+  return showToast(message, { kind: 'error', actionLabel: '再試行', onAction: onRetry });
+}
+
+// 通信失敗も含めて例外を投げず、呼び出し側が `ok` だけで分岐できる形にそろえる。
+async function postJson(url, body) {
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: null };
+  }
+}
+
+function formatFailureReason(response) {
+  if (response.status === 0) return 'サーバーに接続できません';
+  const error = response.data && response.data.error;
+  return error ? `${error}（HTTP ${response.status}）` : `HTTP ${response.status}`;
+}
+
+function findGroupById(groupId) {
+  if (!boardData) return null;
+  for (const column of boardData.columns) {
+    const group = column.groups.find((g) => g.id === groupId);
+    if (group) return { column, group };
+  }
+  return null;
+}
+
+function findTaskById(taskId) {
+  if (!boardData) return null;
+  for (const column of boardData.columns) {
+    for (const group of column.groups) {
+      const task = group.tasks.find((t) => t.id === taskId);
+      if (task) return { column, group, task };
+    }
+  }
+  return null;
+}
+
+function findElementByFocusKey(focusKey) {
+  return focusKey ? document.querySelector(`[data-focus-key="${CSS.escape(focusKey)}"]`) : null;
+}
+
+function captureFocusReturn() {
+  const element = document.activeElement;
+  const keyed = element && element.closest ? element.closest('[data-focus-key]') : null;
+  return { element, focusKey: keyed ? keyed.dataset.focusKey : null };
+}
+
+// 開いている間の再描画で元の要素が作り直されていたら、同じキーを持つ新しい要素へ戻す。
+function restoreFocusReturn(focusReturn) {
+  if (!focusReturn) return;
+  if (focusReturn.element && focusReturn.element.isConnected) {
+    focusReturn.element.focus();
+    return;
+  }
+  const replacement = findElementByFocusKey(focusReturn.focusKey);
+  if (replacement) replacement.focus();
+}
+
+function setCopyAvailability(button, reasonEl, hasComments) {
+  button.disabled = !hasComments;
+  reasonEl.hidden = hasComments;
+}
+
+function countCardComments(groups) {
+  return groups.reduce((n, g) => n + (g.comments ? g.comments.length : 0), 0);
+}
+
+function observeHeaderHeight() {
+  const header = document.getElementById('appHeader');
+  const syncHeaderHeight = () => {
+    document.documentElement.style.setProperty('--header-h', `${header.offsetHeight}px`);
+  };
+  new ResizeObserver(syncHeaderHeight).observe(header);
+  syncHeaderHeight();
+}
+
+async function loadFileList() {
+  const res = await fetch('/api/files');
+  const files = await res.json();
+  const select = document.getElementById('fileSelect');
+  select.innerHTML = files.map(f => `<option value="${f}">${f}</option>`).join('');
+  todoFiles = files;
+  return files;
+}
+
+async function fetchJson(url) {
+  try {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: null };
+  }
+}
+
+async function loadBoard(file) {
+  currentFile = file;
+  const status = document.getElementById('status');
+  status.textContent = '読込中...';
+  const response = await fetchJson(`/api/board?file=${encodeURIComponent(file)}`);
+  if (file !== currentFile) return false;
+  if (!response.ok) {
+    status.textContent = '';
+    showBoardLoadError(file, response);
+    return false;
+  }
+  hideBoardLoadError();
+  const isSameFile = renderedBoardFile === file;
+  boardData = response.data;
+  loadedBoardMtimeMs = boardData.mtimeMs;
+  notifiedBoardMtimeMs = null;
+  if (dismissBoardUpdatedToast) dismissBoardUpdatedToast();
+  if (!isSameFile) {
+    starredGroupIds = loadStarredGroupIds(file);
+    fetchPreviousFileGroupIds(file);
+  }
+  renderAll();
+  status.textContent = `最終取得: ${new Date().toLocaleTimeString('ja-JP')}`;
+  if (focusMode) {
+    if (isSameFile) renderFocusCard();
+    else enterFocusMode(focusTarget);
+  }
+  syncUrlHash();
+  return true;
+}
+
+function showBoardLoadError(file, response) {
+  failedBoardFile = file;
+  boardData = null;
+  renderedBoardFile = null;
+  pendingOpenColumnNames = null;
+  if (focusMode) exitFocusMode();
+  document.getElementById('cardDialog').close();
+  document.getElementById('board').innerHTML = '';
+  document.getElementById('mainLayout').classList.add('hidden');
+  document.getElementById('loadErrorMessage').textContent = `「${file}」を読み込めませんでした: ${formatFailureReason(response)}`;
+  const detail = response.data && response.data.detail;
+  const detailEl = document.getElementById('loadErrorDetail');
+  detailEl.textContent = detail || '';
+  detailEl.hidden = !detail;
+  document.getElementById('loadError').hidden = false;
+}
+
+function hideBoardLoadError() {
+  failedBoardFile = null;
+  document.getElementById('loadError').hidden = true;
+  if (!focusMode) document.getElementById('mainLayout').classList.remove('hidden');
+}
+
+async function fetchBoardMtimeMs(file) {
+  const response = await fetchJson(`/api/board/version?file=${encodeURIComponent(file)}`);
+  return response.ok && response.data ? response.data.mtimeMs : null;
+}
+
+// 自分の書き込み（チェック・タスク/カード追加）でtodo.mdの更新時刻が変わっても、外部更新として通知しないようにする。
+// 書き込み完了から時刻の取り直しまでの間に外部で更新された場合は、その変更も既知として扱ってしまう（取り逃しは次の外部更新で解消する）。
+async function runOwnBoardWrite(file, operation) {
+  ownBoardWriteCount += 1;
+  try {
+    return await operation();
+  } finally {
+    if (file === currentFile) {
+      const mtimeMs = await fetchBoardMtimeMs(file);
+      if (mtimeMs !== null && file === currentFile) loadedBoardMtimeMs = mtimeMs;
+    }
+    ownBoardWriteCount -= 1;
+  }
+}
+
+async function detectExternalBoardUpdate() {
+  if (!boardData || ownBoardWriteCount > 0) return;
+  const file = currentFile;
+  const mtimeMs = await fetchBoardMtimeMs(file);
+  if (mtimeMs === null || file !== currentFile || !boardData || ownBoardWriteCount > 0) return;
+  if (mtimeMs === loadedBoardMtimeMs || mtimeMs === notifiedBoardMtimeMs) return;
+  notifiedBoardMtimeMs = mtimeMs;
+  dismissBoardUpdatedToast = showToast('新しい内容があります', {
+    actionLabel: '再読込',
+    onAction: () => loadBoard(currentFile),
+    key: 'board-updated',
+    durationMs: null,
+  });
+}
+
+async function fetchPreviousFileGroupIds(file) {
+  previousFileGroupIds = null;
+  renderFilterChips();
+  const index = todoFiles.indexOf(file);
+  const previousFile = index === -1 ? undefined : todoFiles[index + 1];
+  const response = previousFile ? await fetchJson(`/api/board?file=${encodeURIComponent(previousFile)}`) : null;
+  if (file !== currentFile) return;
+  previousFileGroupIds = response && response.ok
+    ? new Set(response.data.columns.flatMap((c) => c.groups.map((g) => g.id)))
+    : null;
+  renderFilterChips();
+  if (!activeFilterIds.has('addedToday')) return;
+  if (previousFileGroupIds) renderBoard();
+  else updateBoardFilter(() => activeFilterIds.delete('addedToday'));
+}
+
+// 列単位のピンポイント更新（`column`クエリでその列のみ取得し、APIレスポンスサイズを絞る）。
+async function refreshColumn(columnName) {
+  let res;
+  try {
+    res = await fetch(`/api/board?file=${encodeURIComponent(currentFile)}&column=${encodeURIComponent(columnName)}`);
+  } catch {
+    res = null;
+  }
+  if (!res || !res.ok) {
+    showFailureToast(`「${columnName}」の再取得に失敗しました`, () => refreshColumn(columnName));
+    return;
+  }
+  const data = await res.json();
+  const updated = data.columns[0];
+  if (!updated) return;
+  const index = boardData.columns.findIndex((c) => c.name === columnName);
+  if (index === -1) return;
+  boardData.columns[index] = updated;
+  renderBoard();
+  showToast(`「${columnName}」を再取得しました`);
+}
+
+function countProgress(columns) {
+  const groups = columns.flatMap((c) => c.groups);
+  const tasks = groups.flatMap((g) => g.tasks);
+  return {
+    doneGroups: groups.filter((g) => g.done).length,
+    totalGroups: groups.length,
+    doneTasks: tasks.filter((t) => t.done).length,
+    totalTasks: tasks.length,
+  };
+}
+
+function renderAll() {
+  renderHeader();
+  renderBoard();
+  renderGlobalComments();
+}
+
+function renderGlobalComments() {
+  const listEl = document.getElementById('globalCommentsList');
+  listEl.innerHTML = '';
+  const comments = boardData.globalComments || [];
+  setCopyAvailability(
+    document.getElementById('globalCommentsCopyBtn'),
+    document.getElementById('globalCommentsEmptyReason'),
+    comments.length > 0,
+  );
+  if (comments.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    const title = document.createElement('div');
+    title.className = 'empty-state-title';
+    title.textContent = '全体コメントはまだありません';
+    const description = document.createElement('div');
+    description.textContent = 'カードをまたぐメモを残す場所です。'
+      + 'カード詳細のタスク行の「全体へ引用」で、列・カード名付きの参照を下の入力欄に挿入できます。';
+    empty.appendChild(title);
+    empty.appendChild(description);
+    listEl.appendChild(empty);
+  }
+  for (const comment of comments) {
+    const item = document.createElement('div');
+    item.className = 'modal-comment';
+    const at = document.createElement('div');
+    at.className = 'at';
+    at.textContent = new Date(comment.at).toLocaleString('ja-JP');
+    const text = document.createElement('div');
+    text.className = 'text';
+    text.textContent = comment.text;
+    item.appendChild(at);
+    item.appendChild(text);
+    listEl.appendChild(item);
+  }
+}
+
+function submitGlobalComment() {
+  const text = document.getElementById('globalCommentInput').value.trim();
+  if (!text) return;
+  addGlobalComment(currentFile, text);
+}
+
+async function addGlobalComment(file, text) {
+  const response = await postJson('/api/comments/global', { file, text });
+  if (!response.ok) {
+    showFailureToast(`全体コメントの追加に失敗しました: ${formatFailureReason(response)}`, () => addGlobalComment(file, text));
+    return;
+  }
+  if (file !== currentFile) return;
+  boardData.globalComments = response.data.comments;
+  const input = document.getElementById('globalCommentInput');
+  if (input.value.trim() === text) input.value = '';
+  renderGlobalComments();
+}
+
+async function copyGlobalComments() {
+  const comments = boardData.globalComments || [];
+  if (comments.length === 0) {
+    showToast('コピーできる全体コメントがありません');
+    return;
+  }
+  const text = `# 全体コメント\n\n${comments.map((c) => `- ${c.text}`).join('\n')}`;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('クリップボードにコピーしました（全体コメント）');
+  } catch {
+    showToast('コピーに失敗しました', { kind: 'error' });
+  }
+}
+
+let newCardDialogFocusReturn = null;
+
+function openNewCardDialog() {
+  const dialog = document.getElementById('newCardDialog');
+  if (dialog.open) return;
+  newCardDialogFocusReturn = captureFocusReturn();
+  dialog.showModal();
+  attachToastRegionToTopmostDialog();
+}
+
+let globalCommentsDialogFocusReturn = null;
+
+function openGlobalCommentsDialog() {
+  const dialog = document.getElementById('globalCommentsDialog');
+  if (!dialog.open) {
+    globalCommentsDialogFocusReturn = captureFocusReturn();
+    dialog.showModal();
+    attachToastRegionToTopmostDialog();
+  }
+}
+
+function submitNewCard() {
+  const columnName = document.getElementById('newCardColumnInput').value.trim();
+  const text = document.getElementById('newCardTextInput').value.trim();
+  if (!columnName || !text) return;
+  addCard(currentFile, columnName, text);
+}
+
+async function addCard(file, columnName, text) {
+  const response = await runOwnBoardWrite(file, () => postJson('/api/cards', { file, columnName, text }));
+  if (!response.ok) {
+    showFailureToast(`カード追加に失敗しました: ${formatFailureReason(response)}`, () => addCard(file, columnName, text));
+    return;
+  }
+  const textInput = document.getElementById('newCardTextInput');
+  if (textInput.value.trim() === text) textInput.value = '';
+  if (response.data.mirroredToAggregate) {
+    if (file === currentFile) await loadBoard(currentFile);
+    showToast('カードを追加しました');
+  } else {
+    showToast('元のtodo.mdにカードを追加しました（このボードへの反映は次回のtodo-import実行後になります）');
+  }
+}
+
+function renderHeader() {
+  document.getElementById('dateBadge').textContent = boardData.date || '';
+
+  const progress = countProgress(boardData.columns);
+  const strip = document.getElementById('todayStrip');
+  strip.innerHTML = '';
+  for (let i = 0; i < progress.totalGroups; i++) {
+    const seg = document.createElement('span');
+    seg.style.background = i < progress.doneGroups ? 'var(--accent)' : 'var(--track)';
+    strip.appendChild(seg);
+  }
+  document.getElementById('todayRatio').textContent = `${progress.doneGroups} / ${progress.totalGroups}`;
+  document.getElementById('todayTaskRatio').textContent = `${progress.doneTasks} / ${progress.totalTasks}`;
+
+  renderHistoryGraph(boardData.history || []);
+}
+
+function renderHistoryGraph(history) {
+  const bars = document.getElementById('historyBars');
+  bars.innerHTML = '';
+  const max = Math.max(1, ...history.map((h) => h.done));
+  history.forEach((h, i) => {
+    const bar = document.createElement('span');
+    const isLast = i === history.length - 1;
+    const heightPct = h.done > 0 ? Math.max(12, Math.round((h.done / max) * 100)) : 10;
+    bar.style.height = `${heightPct}%`;
+    bar.style.background = isLast || h.done > 0 ? 'var(--accent)' : 'var(--track)';
+    bars.appendChild(bar);
+  });
+
+  const list = document.getElementById('historyList');
+  list.innerHTML = '';
+  history.forEach((h, i) => {
+    const item = document.createElement('li');
+    item.classList.toggle('today', i === history.length - 1);
+    const date = document.createElement('span');
+    date.textContent = shortDate(h.date);
+    const count = document.createElement('span');
+    count.textContent = `${h.done} / ${h.total} 完了`;
+    item.appendChild(date);
+    item.appendChild(count);
+    list.appendChild(item);
+  });
+}
+
+function placePopoverBelow(popover, anchorEl) {
+  const anchor = anchorEl.getBoundingClientRect();
+  // 開く前（beforetoggle）は未表示で幅が測れないため、leftではなくrightで揃える。
+  popover.style.top = `${anchor.bottom + 6}px`;
+  popover.style.right = `${Math.max(8, document.documentElement.clientWidth - anchor.right)}px`;
+}
+
+function plainTextFromMarkdown(markdown) {
+  // markedはCDN読み込みのため、取得に失敗しても列見出しの描画は止めずに原文を出す。
+  if (typeof marked === 'undefined') return markdown;
+  const scratch = document.createElement('div');
+  scratch.innerHTML = marked.parseInline(markdown);
+  return scratch.textContent;
+}
+
+// todo-importが本文末尾に付ける「 → <元todo.mdの絶対パス>」（後ろにnotionコメントが続くことがある）。
+// 本文途中の「→ docs/…」のような相対パスは本文の一部なので外さない。
+const TASK_SOURCE_SUFFIX_PATTERN = /\s*→\s*(\/\S+)\s*(?:<!--[^>]*-->\s*)?$/;
+
+function splitTaskSource(text) {
+  const match = text.match(TASK_SOURCE_SUFFIX_PATTERN);
+  if (!match) return { body: text, sourcePath: null };
+  return { body: text.slice(0, match.index), sourcePath: match[1] };
+}
+
+function summarizeColumn(column) {
+  const progress = countProgress([column]);
+  const sessionStates = column.groups.map((g) => g.session && g.session.state);
+  const firstOpenTask = column.groups
+    .filter((g) => !g.done)
+    .flatMap((g) => g.tasks)
+    .find((t) => !t.done);
+  return {
+    doneTasks: progress.doneTasks,
+    totalTasks: progress.totalTasks,
+    workingCount: sessionStates.filter((s) => s === 'working').length,
+    blockedCount: sessionStates.filter((s) => s === 'blocked').length,
+    commentCount: column.groups.reduce((n, g) => n + (g.comments ? g.comments.length : 0), 0),
+    firstOpenTask,
+    isAllDone: column.groups.length > 0 && column.groups.every((g) => g.done),
+  };
+}
+
+function loadInitialOpenMode() {
+  const saved = localStorage.getItem(INITIAL_OPEN_MODE_KEY);
+  return INITIAL_OPEN_MODES.includes(saved) ? saved : 'closed';
+}
+
+function loadSavedOpenColumnNames(file) {
+  try {
+    const names = JSON.parse(localStorage.getItem(OPEN_COLUMNS_KEY_PREFIX + file));
+    return new Set(Array.isArray(names) ? names : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function readOpenColumnNamesFromDom() {
+  return new Set([...document.querySelectorAll('#board details.column[open]')].map((d) => d.dataset.column));
+}
+
+// 検索・絞り込み中の開閉は一時的な表示なので、復元用の保存状態を上書きしない。
+function saveOpenColumnNames() {
+  if (!renderedBoardFile || isBoardFilterActive()) return;
+  localStorage.setItem(OPEN_COLUMNS_KEY_PREFIX + renderedBoardFile, JSON.stringify([...readOpenColumnNamesFromDom()]));
+}
+
+function onColumnToggled() {
+  saveOpenColumnNames();
+  syncUrlHash();
+}
+
+function hasActiveWork(column) {
+  return column.groups.some((g) => !g.done || (g.session && g.session.state === 'working'));
+}
+
+function resolveInitialOpenColumnNames() {
+  const mode = loadInitialOpenMode();
+  if (mode === 'active') return new Set(boardData.columns.filter(hasActiveWork).map((c) => c.name));
+  if (mode === 'restore') return loadSavedOpenColumnNames(currentFile);
+  return new Set();
+}
+
+function setAllColumnsOpen(isOpen) {
+  for (const details of document.querySelectorAll('#board details.column')) details.open = isOpen;
+}
+
+const BOARD_FILTERS = {
+  incomplete: (group) => !group.done,
+  commented: (group) => !!(group.comments && group.comments.length > 0),
+  working: (group) => !!group.session && group.session.state === 'working',
+  blocked: (group) => !!group.session && group.session.state === 'blocked',
+  addedToday: (group) => !!previousFileGroupIds && !previousFileGroupIds.has(group.id),
+};
+
+function isBoardFilterActive() {
+  return searchQuery !== '' || activeFilterIds.size > 0;
+}
+
+function findSearchMatch(group) {
+  if (!searchQuery || group.title.toLowerCase().includes(searchQuery)) return { matchedTaskText: null };
+  const matchedTaskText = group.tasks
+    .map((t) => plainTextFromMarkdown(splitTaskSource(t.text).body))
+    .find((text) => text.toLowerCase().includes(searchQuery));
+  return matchedTaskText ? { matchedTaskText } : null;
+}
+
+function listVisibleGroupMatches(column) {
+  return column.groups.flatMap((group) => {
+    if (![...activeFilterIds].every((id) => BOARD_FILTERS[id](group))) return [];
+    const match = findSearchMatch(group);
+    return match ? [{ group, matchedTaskText: match.matchedTaskText }] : [];
+  });
+}
+
+function listColumnNamesWithVisibleGroups() {
+  return new Set(boardData.columns.filter((c) => listVisibleGroupMatches(c).length > 0).map((c) => c.name));
+}
+
+function updateBoardFilter(applyChange) {
+  const wasFiltering = isBoardFilterActive();
+  if (!wasFiltering && boardData && renderedBoardFile === currentFile) openColumnsBeforeFilter = readOpenColumnNamesFromDom();
+  applyChange();
+  renderFilterChips();
+  const isFiltering = isBoardFilterActive();
+  if (!boardData || (!wasFiltering && !isFiltering)) return;
+  pendingOpenColumnNames = isFiltering ? listColumnNamesWithVisibleGroups() : new Set(openColumnsBeforeFilter);
+  renderBoard();
+}
+
+function renderFilterChips() {
+  for (const chip of document.querySelectorAll('#filterChips .filter-chip')) {
+    const filterId = chip.dataset.filterId;
+    chip.setAttribute('aria-pressed', String(activeFilterIds.has(filterId)));
+    if (filterId === 'addedToday') chip.hidden = !previousFileGroupIds;
+  }
+}
+
+function appendHighlightedText(parent, text) {
+  if (!searchQuery) {
+    parent.append(text);
+    return;
+  }
+  const lowerText = text.toLowerCase();
+  let from = 0;
+  for (let at = lowerText.indexOf(searchQuery); at !== -1; at = lowerText.indexOf(searchQuery, from)) {
+    parent.append(text.slice(from, at));
+    const mark = document.createElement('mark');
+    mark.textContent = text.slice(at, at + searchQuery.length);
+    parent.appendChild(mark);
+    from = at + searchQuery.length;
+  }
+  parent.append(text.slice(from));
+}
+
+function resolveRenderOpenColumnNames(board) {
+  if (pendingOpenColumnNames) {
+    const names = pendingOpenColumnNames;
+    pendingOpenColumnNames = null;
+    return names;
+  }
+  if (renderedBoardFile === currentFile) {
+    const names = readOpenColumnNamesFromDom();
+    // 絞り込み中に一致が現れた列（前回は非表示）は、手で開かなくても中身が見えるようにする。
+    if (isBoardFilterActive()) {
+      for (const details of board.querySelectorAll('.column-wrap[hidden] details.column')) names.add(details.dataset.column);
+    }
+    return names;
+  }
+  const initialNames = resolveInitialOpenColumnNames();
+  if (!isBoardFilterActive()) return initialNames;
+  openColumnsBeforeFilter = initialNames;
+  return listColumnNamesWithVisibleGroups();
+}
+
+function buildColumnHeader(column, colIndex) {
+  const summary = document.createElement('summary');
+  summary.className = 'column-header';
+  summary.dataset.focusKey = `column:${column.name}`;
+  summary.setAttribute('aria-label', `${column.name} ${column.groups.length}件`);
+  const stats = summarizeColumn(column);
+  const describedByIds = [];
+
+  const titleRow = document.createElement('span');
+  titleRow.className = 'column-title-row';
+  const chevron = document.createElement('span');
+  chevron.className = 'chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  const dot = document.createElement('span');
+  dot.className = 'dot';
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = column.name;
+  const count = document.createElement('span');
+  count.className = 'column-count';
+  count.textContent = String(column.groups.length);
+  titleRow.appendChild(chevron);
+  titleRow.appendChild(dot);
+  titleRow.appendChild(name);
+  titleRow.appendChild(count);
+  if (stats.isAllDone) {
+    const doneBadge = document.createElement('span');
+    doneBadge.className = 'column-done-badge';
+    doneBadge.id = `col-${colIndex}-done`;
+    doneBadge.textContent = '✓ 完了';
+    titleRow.appendChild(doneBadge);
+    describedByIds.push(doneBadge.id);
+  }
+  summary.appendChild(titleRow);
+
+  const statsRow = document.createElement('span');
+  statsRow.className = 'column-stats';
+  statsRow.id = `col-${colIndex}-stats`;
+  describedByIds.push(statsRow.id);
+  const progress = document.createElement('span');
+  progress.className = 'column-progress';
+  const bar = document.createElement('span');
+  bar.className = 'bar';
+  bar.setAttribute('aria-hidden', 'true');
+  const fill = document.createElement('span');
+  fill.style.width = `${stats.totalTasks > 0 ? Math.round((stats.doneTasks / stats.totalTasks) * 100) : 0}%`;
+  bar.appendChild(fill);
+  const progressText = document.createElement('span');
+  progressText.textContent = `タスク ${stats.doneTasks}/${stats.totalTasks}`;
+  progress.appendChild(bar);
+  progress.appendChild(progressText);
+  statsRow.appendChild(progress);
+  const sessionCounts = [
+    { state: 'working', count: stats.workingCount },
+    { state: 'blocked', count: stats.blockedCount },
+  ];
+  for (const { state, count: sessionCount } of sessionCounts) {
+    if (sessionCount === 0) continue;
+    const stat = document.createElement('span');
+    stat.className = `column-stat ${state}`;
+    stat.appendChild(buildSessionStateMarker(state));
+    stat.append(`${sessionStatusLabel({ state })} ${sessionCount}`);
+    statsRow.appendChild(stat);
+  }
+  if (stats.commentCount > 0) {
+    const commentStat = document.createElement('span');
+    commentStat.className = 'column-stat';
+    commentStat.textContent = `コメント ${stats.commentCount}`;
+    statsRow.appendChild(commentStat);
+  }
+  summary.appendChild(statsRow);
+
+  if (stats.firstOpenTask) {
+    const next = document.createElement('span');
+    next.className = 'column-next';
+    next.id = `col-${colIndex}-next`;
+    next.textContent = `次: ${plainTextFromMarkdown(splitTaskSource(stats.firstOpenTask.text).body)}`;
+    summary.appendChild(next);
+    describedByIds.push(next.id);
+  }
+  summary.setAttribute('aria-describedby', describedByIds.join(' '));
+  return summary;
+}
+
+function buildColumnMenuItems(column) {
+  return [
+    {
+      label: 'この列のコメントをまとめてコピー',
+      ariaLabel: `${column.name} のコメントをまとめてコピー`,
+      disabledReason: countCardComments(column.groups) === 0 ? 'コメントがありません' : null,
+      onSelect: () => copyPrompt(column.name, column.groups.map((g) => ({ column: column.name, group: g }))),
+    },
+    {
+      label: '列を再取得',
+      ariaLabel: `${column.name} の列を再取得`,
+      onSelect: () => refreshColumn(column.name),
+    },
+  ];
+}
+
+function buildActionMenu(menuId, menuLabel, items) {
+  const menu = document.createElement('div');
+  menu.className = 'column-menu';
+  menu.id = menuId;
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', menuLabel);
+  menu.hidden = true;
+  for (const item of items) {
+    const itemBtn = document.createElement('button');
+    itemBtn.type = 'button';
+    itemBtn.className = 'column-menu-item';
+    itemBtn.setAttribute('role', 'menuitem');
+    itemBtn.tabIndex = -1;
+    itemBtn.textContent = item.label;
+    itemBtn.setAttribute('aria-label', item.ariaLabel);
+    if (item.disabledReason) {
+      itemBtn.disabled = true;
+      const note = document.createElement('span');
+      note.className = 'menu-item-note';
+      note.textContent = item.disabledReason;
+      itemBtn.appendChild(note);
+      itemBtn.setAttribute('aria-label', `${item.ariaLabel}（${item.disabledReason}）`);
+    }
+    itemBtn.addEventListener('click', () => {
+      closeActionMenu(true);
+      item.onSelect();
+    });
+    menu.appendChild(itemBtn);
+  }
+  menu.addEventListener('keydown', onActionMenuKeydown);
+  return menu;
+}
+
+function buildActionMenuButton(menu, className) {
+  const menuBtn = document.createElement('button');
+  menuBtn.type = 'button';
+  menuBtn.className = className;
+  menuBtn.textContent = '…';
+  menuBtn.setAttribute('aria-label', menu.getAttribute('aria-label'));
+  menuBtn.setAttribute('aria-haspopup', 'menu');
+  menuBtn.setAttribute('aria-expanded', 'false');
+  menuBtn.setAttribute('aria-controls', menu.id);
+  menuBtn.addEventListener('click', () => {
+    if (openedActionMenu && openedActionMenu.menu === menu) closeActionMenu(false);
+    else openActionMenu(menuBtn, menu);
+  });
+  return menuBtn;
+}
+
+function buildColumnActions(column, colIndex) {
+  const actions = document.createElement('div');
+  actions.className = 'column-actions';
+  const menu = buildActionMenu(`col-${colIndex}-menu`, `${column.name} の操作`, buildColumnMenuItems(column));
+  const menuBtn = buildActionMenuButton(menu, 'share-btn');
+  menuBtn.dataset.focusKey = `column-menu:${column.name}`;
+
+  const newCardBtn = document.createElement('button');
+  newCardBtn.type = 'button';
+  newCardBtn.className = 'share-btn';
+  newCardBtn.textContent = '+';
+  newCardBtn.title = '新規カードを追加';
+  newCardBtn.setAttribute('aria-label', `${column.name} にカードを追加`);
+  newCardBtn.addEventListener('click', () => {
+    openNewCardDialog();
+    document.getElementById('newCardColumnInput').value = column.name;
+    document.getElementById('newCardTextInput').focus();
+  });
+
+  actions.appendChild(menuBtn);
+  actions.appendChild(newCardBtn);
+  actions.appendChild(menu);
+  return actions;
+}
+
+const ACTION_MENU_HOST_SELECTOR = '.card-wrap, .column-wrap';
+
+function openActionMenu(button, menu) {
+  closeActionMenu(false);
+  menu.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  button.closest(ACTION_MENU_HOST_SELECTOR).classList.add('is-menu-open');
+  openedActionMenu = { button, menu };
+  menu.querySelector('[role="menuitem"]:not(:disabled)').focus();
+}
+
+function closeActionMenu(shouldRestoreFocus) {
+  if (!openedActionMenu) return;
+  const { button, menu } = openedActionMenu;
+  openedActionMenu = null;
+  menu.hidden = true;
+  button.setAttribute('aria-expanded', 'false');
+  button.closest(ACTION_MENU_HOST_SELECTOR).classList.remove('is-menu-open');
+  if (shouldRestoreFocus && button.isConnected) button.focus();
+}
+
+function captureOpenedActionMenu() {
+  if (!openedActionMenu) return null;
+  const items = [...openedActionMenu.menu.querySelectorAll('[role="menuitem"]')];
+  return { buttonFocusKey: openedActionMenu.button.dataset.focusKey, focusedItemIndex: items.indexOf(document.activeElement) };
+}
+
+function reopenActionMenu(openedMenuSnapshot) {
+  const button = openedMenuSnapshot ? findElementByFocusKey(openedMenuSnapshot.buttonFocusKey) : null;
+  if (!button || button.getClientRects().length === 0) return false;
+  openActionMenu(button, document.getElementById(button.getAttribute('aria-controls')));
+  const item = openedActionMenu.menu.querySelectorAll('[role="menuitem"]')[openedMenuSnapshot.focusedItemIndex];
+  if (item && !item.disabled) item.focus();
+  return true;
+}
+
+function onActionMenuKeydown(e) {
+  const items = [...e.currentTarget.querySelectorAll('[role="menuitem"]:not(:disabled)')];
+  const index = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    items[(index + 1) % items.length].focus();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    items[(index - 1 + items.length) % items.length].focus();
+  } else if (e.key === 'Home') {
+    e.preventDefault();
+    items[0].focus();
+  } else if (e.key === 'End') {
+    e.preventDefault();
+    items[items.length - 1].focus();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeActionMenu(true);
+  } else if (e.key === 'Tab') {
+    closeActionMenu(false);
+  }
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  const { focusKey: focusedKey } = captureFocusReturn();
+  const openedMenuSnapshot = captureOpenedActionMenu();
+  closeActionMenu(false);
+  // 同じファイルの再描画では<details>を作り直すため、開閉状態を列名で覚えておいて復元する
+  // （5秒間隔のrefreshSessionsやカード更新のたびに開いた列が閉じてしまわないようにするため）。
+  const openColumns = resolveRenderOpenColumnNames(board);
+  const isFiltering = isBoardFilterActive();
+  let visibleColumnCount = 0;
+  board.innerHTML = '';
+  boardData.columns.forEach((column, colIndex) => {
+    const visibleMatches = listVisibleGroupMatches(column);
+    const wrap = document.createElement('div');
+    wrap.className = 'column-wrap';
+    wrap.hidden = isFiltering && visibleMatches.length === 0;
+    if (!wrap.hidden) visibleColumnCount += 1;
+    applyColumnHue(wrap, column.name);
+
+    const columnEl = document.createElement('details');
+    columnEl.className = 'column';
+    columnEl.dataset.column = column.name;
+    columnEl.id = `col-${colIndex}`;
+    columnEl.open = openColumns.has(column.name);
+    columnEl.setAttribute('aria-label', column.name);
+    columnEl.addEventListener('toggle', onColumnToggled);
+    columnEl.appendChild(buildColumnHeader(column, colIndex));
+
+    const openMatches = visibleMatches.filter((m) => !m.group.done);
+    const closedMatches = visibleMatches.filter((m) => m.group.done);
+    const closedGroups = closedMatches.map((m) => m.group);
+
+    const list = document.createElement('div');
+    list.className = 'task-list';
+    list.addEventListener('dragover', onDragOver);
+    list.addEventListener('drop', onDrop);
+    openMatches.forEach(({ group, matchedTaskText }, index) => {
+      const orderPosition = openMatches.length >= 2 ? { index, count: openMatches.length } : null;
+      list.appendChild(makeCard(column, group, { matchedTaskText, orderPosition }));
+    });
+    columnEl.appendChild(list);
+
+    if (closedGroups.length > 0) {
+      const closedSection = document.createElement('div');
+      closedSection.className = 'closed-section';
+      const closedHeader = document.createElement('div');
+      closedHeader.className = 'closed-header';
+      closedHeader.textContent = `完了（${closedGroups.length}）`;
+      closedSection.appendChild(closedHeader);
+      const closedList = document.createElement('div');
+      closedList.className = 'closed-list';
+      for (const { group, matchedTaskText } of closedMatches) {
+        closedList.appendChild(makeCard(column, group, { matchedTaskText, orderPosition: null }));
+      }
+      closedSection.appendChild(closedList);
+      columnEl.appendChild(closedSection);
+    }
+
+    wrap.appendChild(columnEl);
+    wrap.appendChild(buildColumnActions(column, colIndex));
+    board.appendChild(wrap);
+  });
+  renderedBoardFile = currentFile;
+  document.getElementById('boardFilterEmpty').hidden = !(isFiltering && visibleColumnCount === 0);
+  populateColumnJump();
+  populateFocusColumnSelect();
+  populateNewCardColumnOptions();
+  renderSessionPanel();
+  setCopyAvailability(
+    document.getElementById('shareAllBtn'),
+    document.getElementById('shareAllEmptyReason'),
+    countCardComments(boardData.columns.flatMap((c) => c.groups)) > 0,
+  );
+  if (!reopenActionMenu(openedMenuSnapshot)) {
+    const focusedElement = findElementByFocusKey(focusedKey);
+    if (focusedElement && document.activeElement !== focusedElement) focusedElement.focus({ preventScroll: true });
+  }
+  syncUrlHash();
+}
+
+function populateFocusColumnSelect() {
+  const select = document.getElementById('focusColumnSelect');
+  const prev = select.value;
+  select.innerHTML = '';
+  const columnGroup = document.createElement('optgroup');
+  columnGroup.label = '列';
+  for (const column of boardData.columns) {
+    columnGroup.appendChild(new Option(column.name, FOCUS_TARGET_COLUMN_PREFIX + column.name));
+  }
+  const crossGroup = document.createElement('optgroup');
+  crossGroup.label = '列をまたいで';
+  crossGroup.appendChild(new Option('全列の未完了', FOCUS_TARGET_ALL_OPEN));
+  crossGroup.appendChild(new Option('★を付けたカード', FOCUS_TARGET_STARRED));
+  select.appendChild(columnGroup);
+  select.appendChild(crossGroup);
+  if (prev && [...select.options].some((o) => o.value === prev)) select.value = prev;
+}
+
+function populateColumnJump() {
+  const select = document.getElementById('columnJumpSelect');
+  select.innerHTML = '<option value="">列へ移動…</option>' +
+    boardData.columns.map((c, i) => `<option value="col-${i}">${c.name}</option>`).join('');
+}
+
+function populateNewCardColumnOptions() {
+  const datalist = document.getElementById('newCardColumnOptions');
+  datalist.innerHTML = boardData.columns.map((c) => `<option value="${c.name}">`).join('');
+}
+
+function jumpToColumn(id) {
+  if (!id) return;
+  const details = document.getElementById(id);
+  if (!details) return;
+  details.open = true;
+  const header = details.querySelector('.column-header');
+  header.scrollIntoView({ block: 'start', inline: 'nearest' });
+  header.focus();
+}
+
+function toggleFocusMode() {
+  if (focusMode) exitFocusMode(); else enterFocusMode();
+}
+
+// 戻り値nullは、対象がこのボードに存在しない（列が無い・値が不正）ことを表す。
+function listFocusTargetEntries(target) {
+  if (!boardData || !target) return null;
+  const entries = boardData.columns.flatMap((column) => column.groups.map((group) => ({ column, group })));
+  if (target === FOCUS_TARGET_ALL_OPEN) return entries;
+  if (target === FOCUS_TARGET_STARRED) return entries.filter((e) => starredGroupIds.has(e.group.id));
+  if (!target.startsWith(FOCUS_TARGET_COLUMN_PREFIX)) return null;
+  const columnName = target.slice(FOCUS_TARGET_COLUMN_PREFIX.length);
+  if (!boardData.columns.some((c) => c.name === columnName)) return null;
+  return entries.filter((e) => e.column.name === columnName);
+}
+
+function enterFocusMode(target = document.getElementById('focusColumnSelect').value) {
+  const entries = listFocusTargetEntries(target);
+  if (!entries) {
+    if (focusMode) exitFocusMode();
+    return false;
+  }
+  document.getElementById('focusColumnSelect').value = target;
+  focusTarget = target;
+  focusQueueIds = entries.filter((e) => !e.group.done).map((e) => e.group.id);
+  focusIndex = 0;
+  focusMode = true;
+  document.getElementById('mainLayout').classList.add('hidden');
+  document.getElementById('focusPanel').classList.remove('hidden');
+  document.getElementById('focusModeBtn').textContent = 'カンバンに戻る';
+  renderFocusCard();
+  moveFocusIntoFocusPanel();
+  syncUrlHash();
+  return true;
+}
+
+function exitFocusMode() {
+  const wasFocusInPanel = document.getElementById('focusPanel').contains(document.activeElement);
+  focusMode = false;
+  document.getElementById('mainLayout').classList.remove('hidden');
+  document.getElementById('focusPanel').classList.add('hidden');
+  document.getElementById('focusModeBtn').textContent = 'フォーカス';
+  if (wasFocusInPanel) document.getElementById('focusModeBtn').focus();
+  syncUrlHash();
+}
+
+// ボタン以外（カード本体か終了画面）にフォーカスを置き、Spaceがボタンの押下ではなくチェックとして届くようにする。
+function moveFocusIntoFocusPanel() {
+  const endEl = document.getElementById('focusEmpty');
+  (endEl.classList.contains('hidden') ? document.getElementById('focusCard') : endEl).focus();
+}
+
+function pruneFocusQueue() {
+  const removedBeforeIndex = focusQueueIds.slice(0, focusIndex).filter((id) => !findGroupById(id)).length;
+  focusQueueIds = focusQueueIds.filter((id) => findGroupById(id));
+  focusIndex = Math.max(0, focusIndex - removedBeforeIndex);
+}
+
+function advanceFocus() {
+  focusIndex += 1;
+  renderFocusCard();
+}
+
+// 最後のカードで「後で」を押したときは、回す先が今の位置と同じなので「次へ」と同じく一巡させる。
+function deferFocusCard() {
+  if (focusIndex >= focusQueueIds.length - 1) {
+    advanceFocus();
+    return;
+  }
+  const [deferredId] = focusQueueIds.splice(focusIndex, 1);
+  focusQueueIds.push(deferredId);
+  renderFocusCard();
+}
+
+function restartFocusRound() {
+  const openIds = (listFocusTargetEntries(focusTarget) || []).filter((e) => !e.group.done).map((e) => e.group.id);
+  const openIdSet = new Set(openIds);
+  const keptIds = focusQueueIds.filter((id) => openIdSet.has(id));
+  focusQueueIds = [...keptIds, ...openIds.filter((id) => !keptIds.includes(id))];
+  focusIndex = 0;
+  renderFocusCard();
+  moveFocusIntoFocusPanel();
+}
+
+function completeFirstOpenTaskOfFocusModeCard() {
+  const found = focusIndex < focusQueueIds.length ? findGroupById(focusQueueIds[focusIndex]) : null;
+  if (found) completeFirstOpenTask(found.group);
+}
+
+function renderFocusCard() {
+  pruneFocusQueue();
+  const total = focusQueueIds.length;
+  const strip = document.getElementById('focusStrip');
+  strip.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const seg = document.createElement('span');
+    seg.style.background = i < focusIndex ? 'var(--ink)' : i === focusIndex ? 'var(--accent)' : 'var(--track)';
+    strip.appendChild(seg);
+  }
+  document.getElementById('focusPositionText').textContent = `${Math.min(focusIndex + 1, total)} / ${total}`;
+
+  const card = document.getElementById('focusCard');
+  const emptyEl = document.getElementById('focusEmpty');
+  if (total === 0 || focusIndex >= total) {
+    card.classList.add('hidden');
+    emptyEl.classList.remove('hidden');
+    renderFocusEnd();
+    return;
+  }
+  emptyEl.classList.add('hidden');
+  card.classList.remove('hidden');
+
+  const { column, group } = findGroupById(focusQueueIds[focusIndex]);
+  document.getElementById('focusColLabel').textContent = column.name;
+  document.getElementById('focusTitle').textContent = group.title;
+
+  const tasksEl = document.getElementById('focusTasks');
+  tasksEl.innerHTML = '';
+  for (const task of group.tasks) {
+    const row = document.createElement('div');
+    row.className = 'focus-task' + (task.done ? ' done' : '');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = task.done;
+    checkbox.dataset.focusKey = `focus-task:${task.id}`;
+    const syncRow = () => {
+      checkbox.checked = task.done;
+      row.classList.toggle('done', task.done);
+    };
+    checkbox.addEventListener('change', () => toggleTaskDone(task, group, syncRow));
+    row.appendChild(checkbox);
+    const text = document.createElement('span');
+    text.className = 'focus-task-text';
+    text.id = `focus-task-${task.id}-text`;
+    text.innerHTML = marked.parseInline(splitTaskSource(task.text).body);
+    checkbox.setAttribute('aria-labelledby', text.id);
+    row.appendChild(text);
+    bindRowClickToCheckbox(row, checkbox);
+    tasksEl.appendChild(row);
+  }
+
+  const noteEl = document.getElementById('focusNote');
+  if (group.comments && group.comments.length > 0) {
+    noteEl.textContent = group.comments[group.comments.length - 1].text;
+    noteEl.classList.remove('hidden');
+  } else {
+    noteEl.textContent = '';
+    noteEl.classList.add('hidden');
+  }
+
+  const previewEl = document.getElementById('focusNextPreview');
+  const next = focusIndex + 1 < total ? findGroupById(focusQueueIds[focusIndex + 1]) : null;
+  previewEl.textContent = next ? `次：${next.group.title}` : 'これが最後のカードです';
+}
+
+function renderFocusEnd() {
+  const targetEntries = listFocusTargetEntries(focusTarget) || [];
+  const openCount = targetEntries.filter((e) => !e.group.done).length;
+  const messageEl = document.getElementById('focusEndMessage');
+  if (focusTarget === FOCUS_TARGET_STARRED && targetEntries.length === 0) {
+    messageEl.textContent = '★を付けたカードがありません（カード右上の☆かカード詳細で付けられます）';
+  } else if (openCount === 0) {
+    messageEl.textContent = 'すべて完了しました';
+  } else {
+    messageEl.textContent = `一巡しました（未完了${openCount}件）`;
+  }
+  document.getElementById('focusRestartBtn').hidden = openCount === 0;
+}
+
+const ROW_CLICK_IGNORED_SELECTOR = 'button, a, input, .task-source-path';
+
+// <label>で行を包まないのは、行内に引用ボタン等を置くとlabelの中に対話要素が入り、
+// クリック範囲とアクセシブルネームの両方に余計な文言が混ざるため。
+function bindRowClickToCheckbox(row, checkbox) {
+  row.addEventListener('click', (e) => {
+    if (e.target.closest(ROW_CLICK_IGNORED_SELECTOR)) return;
+    checkbox.click();
+  });
+}
+
+function sessionStatusLabel(session) {
+  if (session.state === 'working') return '稼働中';
+  if (session.state === 'blocked') return '待機中';
+  if (session.state === 'done') return '完了';
+  return session.state || '不明';
+}
+
+function buildSessionStateMarker(state) {
+  const marker = document.createElement('span');
+  marker.setAttribute('aria-hidden', 'true');
+  if (state === 'blocked') {
+    marker.className = 'session-icon';
+    // U+FE0E を付けないと環境によって絵文字（カラー）で描かれ、状態色が当たらない。
+    marker.textContent = '⏸\uFE0E';
+  } else {
+    marker.className = 'session-dot';
+  }
+  return marker;
+}
+
+function buildSessionStatus(group) {
+  const session = group.session;
+  if (!session) return null;
+  const wrap = document.createElement('div');
+  wrap.className = `card-session ${session.state || ''}`;
+  wrap.appendChild(buildSessionStateMarker(session.state));
+  const label = document.createElement('span');
+  label.className = 'session-label';
+  label.textContent = sessionStatusLabel(session);
+  wrap.appendChild(label);
+  if (session.detail) {
+    const detail = document.createElement('span');
+    detail.className = 'session-detail';
+    detail.textContent = session.detail;
+    wrap.appendChild(detail);
+  }
+  return wrap;
+}
+
+function listSessionEntries(state) {
+  const entries = [];
+  for (const column of boardData.columns) {
+    for (const group of column.groups) {
+      if (group.session && group.session.state === state) entries.push({ column, group });
+    }
+  }
+  return entries;
+}
+
+function renderSessionPanel() {
+  const blockedEntries = listSessionEntries('blocked');
+  const workingEntries = listSessionEntries('working');
+
+  const attentionPanel = document.getElementById('attentionPanel');
+  attentionPanel.innerHTML = '';
+  attentionPanel.hidden = blockedEntries.length === 0;
+  if (blockedEntries.length > 0) {
+    const label = document.createElement('span');
+    label.className = 'attention-label';
+    label.appendChild(buildSessionStateMarker('blocked'));
+    label.append(`要対応 ${blockedEntries.length}件`);
+    attentionPanel.appendChild(label);
+    for (const { column, group } of blockedEntries) attentionPanel.appendChild(buildSessionCard(column, group));
+  }
+
+  const panel = document.getElementById('sessionPanel');
+  panel.innerHTML = '';
+  panel.classList.toggle('hidden', workingEntries.length === 0);
+  for (const { column, group } of workingEntries) panel.appendChild(buildSessionCard(column, group));
+
+  renderBlockedCountBadge(blockedEntries.length);
+}
+
+const BASE_DOCUMENT_TITLE = 'Today Todo';
+const BADGE_COUNT_MAX = 9;
+let baseFaviconHref = null;
+
+function renderBlockedCountBadge(blockedCount) {
+  const favicon = document.querySelector('link[rel="icon"]');
+  if (baseFaviconHref === null) baseFaviconHref = favicon.href;
+  if (blockedCount === 0) {
+    document.title = BASE_DOCUMENT_TITLE;
+    favicon.href = baseFaviconHref;
+    return;
+  }
+  document.title = `(${blockedCount}) ${BASE_DOCUMENT_TITLE}`;
+  const rootStyle = getComputedStyle(document.documentElement);
+  const badgeFill = rootStyle.getPropertyValue('--state-blocked').trim();
+  const badgeInk = rootStyle.getPropertyValue('--bg').trim();
+  const badgeText = blockedCount > BADGE_COUNT_MAX ? `${BADGE_COUNT_MAX}+` : String(blockedCount);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">`
+    + `<text y=".9em" font-size="90">📋</text>`
+    + `<circle cx="70" cy="30" r="30" fill="${badgeFill}"/>`
+    + `<text x="70" y="44" font-size="40" font-weight="700" font-family="sans-serif" text-anchor="middle" fill="${badgeInk}">${badgeText}</text>`
+    + `</svg>`;
+  favicon.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function buildSessionCard(column, group) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'session-card';
+  card.dataset.focusKey = `chip:${group.id}`;
+  applyColumnHue(card, column.name);
+  const head = document.createElement('span');
+  head.className = 'session-card-head';
+  const dot = document.createElement('span');
+  dot.className = 'dot';
+  const title = document.createElement('span');
+  title.className = 'title';
+  title.textContent = group.title;
+  head.appendChild(dot);
+  head.appendChild(title);
+  const state = document.createElement('span');
+  state.className = `chip-state ${group.session.state}`;
+  state.appendChild(buildSessionStateMarker(group.session.state));
+  state.append(sessionStatusLabel(group.session));
+  card.appendChild(head);
+  card.appendChild(state);
+  if (group.session.detail) {
+    const detail = document.createElement('span');
+    detail.className = 'detail';
+    detail.textContent = group.session.detail;
+    card.appendChild(detail);
+  }
+  card.addEventListener('click', () => openSessionLogModal(column, group));
+  return card;
+}
+
+let sessionLogTimer = null;
+let sessionLogJobId = null;
+let sessionLogGroupId = null;
+let sessionLogFocusReturn = null;
+
+function sessionLogEntryLabel(entry) {
+  if (entry.kind === 'tool_use') return `tool_use: ${entry.name}`;
+  if (entry.kind === 'tool_result') return 'tool_result';
+  return entry.role === 'user' ? 'ユーザー' : 'Claude';
+}
+
+function renderSessionLogMessage(message, session) {
+  const list = document.getElementById('sessionLogList');
+  const retryJobId = session ? session.jobId : '';
+  const shownBox = list.querySelector(':scope > .session-log-empty');
+  // 稼働中は5秒ごとに同じ文言で呼ばれるため、作り直して再取得ボタンのフォーカスを落とさない。
+  if (shownBox && shownBox.dataset.message === message && shownBox.dataset.retryJobId === retryJobId) return;
+  list.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'session-log-empty';
+  box.dataset.message = message;
+  box.dataset.retryJobId = retryJobId;
+  const text = document.createElement('span');
+  text.textContent = message;
+  box.appendChild(text);
+  if (session) {
+    const retryBtn = document.createElement('button');
+    retryBtn.type = 'button';
+    retryBtn.className = 'ghost-btn';
+    retryBtn.textContent = '再取得';
+    retryBtn.addEventListener('click', () => fetchAndRenderSessionLog(session));
+    box.appendChild(retryBtn);
+  }
+  list.appendChild(box);
+}
+
+// AskUserQuestionのinputをJSONとして解釈し、`multiSelect`でない質問だけ選択肢をボタン化する。
+// 壊れている（切り詰め等でJSONとして不正）場合や選択肢が無い場合はnullを返し、生ログ表示のみにする。
+function buildAskUserQuestionOptions(entry) {
+  let payload;
+  try {
+    payload = JSON.parse(entry.input);
+  } catch {
+    return null;
+  }
+  const questions = Array.isArray(payload && payload.questions) ? payload.questions : [];
+  const wrap = document.createElement('div');
+  wrap.className = 'ask-user-question-options';
+  for (const q of questions) {
+    if (q.multiSelect || !Array.isArray(q.options) || q.options.length === 0) continue;
+    const block = document.createElement('div');
+    block.className = 'ask-user-question-block';
+    const label = document.createElement('div');
+    label.className = 'ask-user-question-label';
+    label.textContent = q.header ? `${q.header}: ${q.question || ''}` : (q.question || '');
+    block.appendChild(label);
+    const buttons = document.createElement('div');
+    buttons.className = 'ask-user-question-buttons';
+    for (const opt of q.options) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ghost-btn';
+      btn.textContent = opt.label;
+      if (opt.description) btn.title = opt.description;
+      btn.addEventListener('click', () => answerAskUserQuestion(opt.label));
+      buttons.appendChild(btn);
+    }
+    block.appendChild(buttons);
+    wrap.appendChild(block);
+  }
+  return wrap.childElementCount > 0 ? wrap : null;
+}
+
+function answerAskUserQuestion(label) {
+  document.getElementById('sessionLogReplyInput').value = label;
+  submitSessionLogReply();
+}
+
+function renderSessionLogEntries(entries, session) {
+  const list = document.getElementById('sessionLogList');
+  list.innerHTML = '';
+  entries.forEach((entry, index) => {
+    const row = document.createElement('div');
+    row.className = `log-entry ${entry.kind} ${entry.role || ''}`;
+    const role = document.createElement('div');
+    role.className = 'role';
+    role.textContent = sessionLogEntryLabel(entry);
+    row.appendChild(role);
+    const body = document.createElement('div');
+    body.className = 'body';
+    body.textContent = entry.kind === 'tool_use' ? entry.input : entry.text;
+    row.appendChild(body);
+    if (entry.kind === 'text' && entry.role === 'assistant' && entry.uuid) {
+      const branchBtn = document.createElement('button');
+      branchBtn.type = 'button';
+      branchBtn.className = 'log-branch-btn';
+      branchBtn.textContent = 'ここから分岐';
+      branchBtn.disabled = !!(sessionLogGroupId && busyCommentsByGroupId.has(sessionLogGroupId));
+      branchBtn.addEventListener('click', () => branchSessionFromEntry(entry.uuid));
+      row.appendChild(branchBtn);
+    }
+    list.appendChild(row);
+    const isPendingAskUserQuestion = index === entries.length - 1 && entry.kind === 'tool_use' &&
+      entry.name === 'AskUserQuestion' && session && session.state === 'blocked';
+    if (isPendingAskUserQuestion) {
+      const options = buildAskUserQuestionOptions(entry);
+      if (options) list.appendChild(options);
+    }
+  });
+  list.scrollTop = list.scrollHeight;
+}
+
+// サーバーはtranscriptの所在がまだ記録されていないときも404を返すため、稼働中なら起動直後とみなす。
+function resolveEmptySessionLogReason(session, status) {
+  const isJustLaunched = status === 200 || session.state === 'working';
+  return isJustLaunched ? '起動直後でまだログがありません' : '紐付くログがありません';
+}
+
+async function fetchAndRenderSessionLog(session) {
+  let res;
+  try {
+    res = await fetch(`/api/session/transcript?jobId=${encodeURIComponent(session.jobId)}`);
+  } catch {
+    res = null;
+  }
+  if (sessionLogJobId !== session.jobId) return;
+  if (!res) {
+    renderSessionLogMessage('ログを取得できませんでした（サーバーに接続できません）', session);
+    return;
+  }
+  if (res.status === 404) {
+    renderSessionLogMessage(resolveEmptySessionLogReason(session, res.status), session);
+    return;
+  }
+  if (!res.ok) {
+    renderSessionLogMessage(`ログを取得できませんでした（HTTP ${res.status}）`, session);
+    return;
+  }
+  const data = await res.json();
+  if (!data.entries || data.entries.length === 0) {
+    renderSessionLogMessage(resolveEmptySessionLogReason(session, res.status), session);
+    return;
+  }
+  renderSessionLogEntries(data.entries, session);
+}
+
+function openSessionLogModal(column, group) {
+  const session = group.session;
+  if (!session) return;
+  const dialog = document.getElementById('sessionLogDialog');
+  const wasOpen = dialog.open;
+  if (!wasOpen) sessionLogFocusReturn = captureFocusReturn();
+  if (sessionLogGroupId !== group.id) document.getElementById('sessionLogReplyInput').value = '';
+  if (sessionLogJobId !== session.jobId) resetSessionArtifacts();
+  sessionLogJobId = session.jobId;
+  sessionLogGroupId = group.id;
+  document.getElementById('sessionLogColLabel').textContent = column.name;
+  document.getElementById('sessionLogTitle').textContent = group.title;
+  document.getElementById('sessionLogStateLabel').textContent = sessionStatusLabel(session);
+  renderSessionLogMessage('読込中…', null);
+  if (!wasOpen) dialog.showModal();
+  attachToastRegionToTopmostDialog();
+  if (!wasOpen) document.getElementById('sessionLogCloseBtn').focus();
+  fetchAndRenderSessionLog(session);
+  if (sessionLogTimer) clearInterval(sessionLogTimer);
+  sessionLogTimer = session.state === 'working'
+    ? setInterval(() => fetchAndRenderSessionLog(session), 5000)
+    : null;
+}
+
+function resetSessionArtifacts() {
+  document.getElementById('sessionArtifactsPanel').hidden = true;
+  document.getElementById('sessionArtifactsBtn').setAttribute('aria-expanded', 'false');
+  document.getElementById('sessionArtifactsList').replaceChildren();
+  document.getElementById('sessionArtifactPreview').replaceChildren();
+}
+
+function artifactUrl(jobId, filePath) {
+  return `/api/session/artifact?jobId=${encodeURIComponent(jobId)}&path=${encodeURIComponent(filePath)}`;
+}
+
+async function showArtifactPreview(jobId, artifact) {
+  const preview = document.getElementById('sessionArtifactPreview');
+  const url = artifactUrl(jobId, artifact.path);
+  if (artifact.kind === 'html') {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', '');
+    frame.title = artifact.path;
+    frame.src = url;
+    preview.replaceChildren(frame);
+  } else if (artifact.kind === 'image') {
+    const img = document.createElement('img');
+    img.alt = artifact.path;
+    img.src = url;
+    preview.replaceChildren(img);
+  } else {
+    const res = await fetch(url);
+    if (!res.ok) {
+      showToast(`資料の読み込みに失敗しました（HTTP ${res.status}）`, { kind: 'error' });
+      return;
+    }
+    const pre = document.createElement('pre');
+    pre.textContent = await res.text();
+    preview.replaceChildren(pre);
+  }
+}
+
+async function toggleSessionArtifacts() {
+  const panel = document.getElementById('sessionArtifactsPanel');
+  if (!panel.hidden) {
+    resetSessionArtifacts();
+    return;
+  }
+  const jobId = sessionLogJobId;
+  if (!jobId) return;
+  const res = await fetch(`/api/session/artifacts?jobId=${encodeURIComponent(jobId)}`).catch(() => null);
+  if (!res || !res.ok) {
+    showToast('資料一覧の読み込みに失敗しました', { kind: 'error', actionLabel: '再試行', onAction: toggleSessionArtifacts });
+    return;
+  }
+  const { artifacts } = await res.json();
+  if (sessionLogJobId !== jobId) return;
+  const list = document.getElementById('sessionArtifactsList');
+  list.replaceChildren();
+  if (!artifacts.length) list.textContent = 'このセッションが書いた資料はありません';
+  for (const artifact of artifacts) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const name = artifact.path.split('/').pop();
+    btn.title = artifact.path;
+    if (artifact.locked) {
+      btn.textContent = `🔒 ${name}`;
+      btn.disabled = true;
+    } else if (!artifact.exists) {
+      btn.textContent = `${name}（削除済み）`;
+      btn.disabled = true;
+    } else {
+      btn.textContent = name;
+      btn.addEventListener('click', () => showArtifactPreview(jobId, artifact));
+    }
+    list.append(btn);
+  }
+  panel.hidden = false;
+  document.getElementById('sessionArtifactsBtn').setAttribute('aria-expanded', 'true');
+}
+
+function closeSessionLogModal() {
+  document.getElementById('sessionLogDialog').close();
+}
+
+function onSessionLogDialogClosed() {
+  resetSessionArtifacts();
+  sessionLogJobId = null;
+  sessionLogGroupId = null;
+  if (sessionLogTimer) {
+    clearInterval(sessionLogTimer);
+    sessionLogTimer = null;
+  }
+  attachToastRegionToTopmostDialog();
+  restoreFocusReturn(sessionLogFocusReturn);
+  sessionLogFocusReturn = null;
+}
+
+async function refreshSessions() {
+  if (!currentFile || !boardData) return;
+  const res = await fetch(`/api/sessions?file=${encodeURIComponent(currentFile)}`);
+  if (!res.ok) return;
+  const map = await res.json();
+  let changed = false;
+  for (const column of boardData.columns) {
+    for (const group of column.groups) {
+      const next = map[group.id] || null;
+      if (JSON.stringify(next) !== JSON.stringify(group.session || null)) changed = true;
+      group.session = next;
+    }
+  }
+  if (changed) renderBoard();
+}
+
+function splitGroupTitle(title) {
+  const separator = ' ▸ ';
+  const index = title.indexOf(separator);
+  if (index === -1) return { parent: '', main: title };
+  return { parent: title.slice(0, index), main: title.slice(index + separator.length) };
+}
+
+function loadStarredGroupIds(file) {
+  try {
+    const ids = JSON.parse(localStorage.getItem(STARRED_KEY_PREFIX + file));
+    return new Set(Array.isArray(ids) ? ids : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function toggleGroupStar(groupId) {
+  if (starredGroupIds.has(groupId)) starredGroupIds.delete(groupId);
+  else starredGroupIds.add(groupId);
+  localStorage.setItem(STARRED_KEY_PREFIX + currentFile, JSON.stringify([...starredGroupIds]));
+  renderBoard();
+  renderModalStarButton();
+}
+
+function buildCardMenuItems(column, group, { index, count }) {
+  const { main } = splitGroupTitle(group.title);
+  return [
+    {
+      label: '上へ',
+      ariaLabel: `${main} を上へ移動（Alt+↑）`,
+      disabledReason: index === 0 ? '先頭です' : null,
+      onSelect: () => moveCardWithinColumn(column.name, group.id, -1),
+    },
+    {
+      label: '下へ',
+      ariaLabel: `${main} を下へ移動（Alt+↓）`,
+      disabledReason: index === count - 1 ? '末尾です' : null,
+      onSelect: () => moveCardWithinColumn(column.name, group.id, 1),
+    },
+  ];
+}
+
+// カード本体（role="button"）の中に置くと対話要素が入れ子になるため、列の操作と同じくカードの外側に重ねる。
+function buildCardActions(column, group, orderPosition) {
+  const actions = document.createElement('div');
+  actions.className = 'card-actions';
+  const { main } = splitGroupTitle(group.title);
+  const isStarred = starredGroupIds.has(group.id);
+  const starBtn = document.createElement('button');
+  starBtn.type = 'button';
+  starBtn.className = 'share-btn card-action-btn star-btn' + (isStarred ? ' is-starred' : '');
+  starBtn.dataset.focusKey = `card-star:${group.id}`;
+  starBtn.textContent = isStarred ? '★' : '☆';
+  starBtn.setAttribute('aria-label', isStarred ? `${main} の★を外す` : `${main} に★を付ける`);
+  starBtn.addEventListener('click', () => toggleGroupStar(group.id));
+  actions.appendChild(starBtn);
+  if (orderPosition) {
+    const menu = buildActionMenu(`card-${group.id}-menu`, `${main} の操作`, buildCardMenuItems(column, group, orderPosition));
+    const menuBtn = buildActionMenuButton(menu, 'share-btn card-action-btn');
+    menuBtn.dataset.focusKey = `card-menu:${group.id}`;
+    actions.appendChild(menuBtn);
+    actions.appendChild(menu);
+  }
+  return actions;
+}
+
+// orderPosition: 列内で並べ替えられるときだけ { index, count }（表示中の未完了カードでの位置）。
+function makeCard(column, group, { matchedTaskText = null, orderPosition = null } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'card-wrap';
+  const card = document.createElement('div');
+  card.className = 'group-card' + (group.done ? ' done' : '');
+  card.draggable = !group.done;
+  card.dataset.id = group.id;
+  card.dataset.focusKey = `card:${group.id}`;
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+
+  const stripe = document.createElement('span');
+  stripe.className = 'stripe';
+  card.appendChild(stripe);
+
+  const body = document.createElement('div');
+  body.className = 'card-body';
+
+  const head = document.createElement('div');
+  head.className = 'card-head';
+  const { parent, main } = splitGroupTitle(group.title);
+  if (parent) {
+    const parentLabel = document.createElement('span');
+    parentLabel.className = 'card-parent';
+    appendHighlightedText(parentLabel, parent);
+    head.appendChild(parentLabel);
+  }
+  const title = document.createElement('span');
+  title.className = 'card-title';
+  appendHighlightedText(title, main);
+  head.appendChild(title);
+  body.appendChild(head);
+
+  if (matchedTaskText) {
+    const match = document.createElement('div');
+    match.className = 'card-match';
+    match.append('タスク: ');
+    appendHighlightedText(match, matchedTaskText);
+    body.appendChild(match);
+  }
+
+  if (group.projectHint) {
+    const hint = document.createElement('div');
+    hint.className = 'card-hint';
+    hint.textContent = group.projectHint;
+    body.appendChild(hint);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'card-meta';
+  const segs = document.createElement('span');
+  segs.className = 'segs';
+  segs.style.setProperty('--seg-w', `${segWidthForCount(group.tasks.length)}px`);
+  for (const task of group.tasks) {
+    const seg = document.createElement('span');
+    seg.style.background = task.done ? 'var(--accent)' : 'var(--track)';
+    segs.appendChild(seg);
+  }
+  meta.appendChild(segs);
+  const doneN = group.tasks.filter((t) => t.done).length;
+  const ratio = document.createElement('span');
+  ratio.className = 'ratio-text';
+  ratio.textContent = `${doneN}/${group.tasks.length}`;
+  meta.appendChild(ratio);
+  const spacer = document.createElement('span');
+  spacer.style.flex = '1';
+  meta.appendChild(spacer);
+  if (group.comments && group.comments.length > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'comment-badge';
+    badge.innerHTML = `<span class="icon"></span>${group.comments.length}`;
+    meta.appendChild(badge);
+  }
+  body.appendChild(meta);
+  const sessionEl = buildSessionStatus(group);
+  if (sessionEl) body.appendChild(sessionEl);
+  card.appendChild(body);
+
+  let dragged = false;
+  card.addEventListener('dragstart', (e) => {
+    dragged = true;
+    card.classList.add('dragging');
+    e.dataTransfer.setData('text/plain', group.id);
+  });
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  body.addEventListener('click', () => {
+    if (dragged) { dragged = false; return; }
+    openModal(column, group);
+  });
+  card.addEventListener('keydown', (e) => {
+    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      if (!group.done) moveCardWithinColumn(column.name, group.id, e.key === 'ArrowUp' ? -1 : 1);
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openModal(column, group);
+    }
+  });
+
+  wrap.appendChild(card);
+  wrap.appendChild(buildCardActions(column, group, orderPosition));
+  return wrap;
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  const list = e.currentTarget;
+  const draggingCard = document.querySelector('.group-card.dragging');
+  if (!draggingCard) return;
+  const draggingSlot = draggingCard.closest('.card-wrap');
+  const after = [...list.querySelectorAll(':scope > .card-wrap')].find((slot) => {
+    if (slot === draggingSlot) return false;
+    const rect = slot.getBoundingClientRect();
+    return e.clientY < rect.top + rect.height / 2;
+  });
+  if (after) {
+    list.insertBefore(draggingSlot, after);
+  } else {
+    list.appendChild(draggingSlot);
+  }
+}
+
+async function onDrop(e) {
+  e.preventDefault();
+  const list = e.currentTarget;
+  const columnName = list.parentElement.dataset.column;
+  const shownIds = [...list.querySelectorAll('.group-card')].map((c) => c.dataset.id);
+
+  await saveColumnOrder(currentFile, columnName, mergeShownOrder(columnName, shownIds), { isDomAlreadyReordered: true });
+}
+
+// 絞り込み中のリストには一部のカードしか無いため、非表示のカードは元の位置に残し、表示中のカードの位置だけを入れ替える。
+function mergeShownOrder(columnName, shownIds) {
+  const column = boardData.columns.find((c) => c.name === columnName);
+  if (!column) return shownIds;
+  const shownIdSet = new Set(shownIds);
+  const remainingShownIds = [...shownIds];
+  const merged = column.groups
+    .filter((g) => !g.done)
+    .map((g) => (shownIdSet.has(g.id) ? remainingShownIds.shift() : g.id));
+  return [...merged, ...remainingShownIds];
+}
+
+// 絞り込みで隠れているカードは飛ばし、画面上で隣にあるカードと入れ替わるように動かす。
+function moveCardWithinColumn(columnName, groupId, step) {
+  const column = boardData.columns.find((c) => c.name === columnName);
+  if (!column) return;
+  const openIds = column.groups.filter((g) => !g.done).map((g) => g.id);
+  const shownIds = new Set(listVisibleGroupMatches(column).map((m) => m.group.id));
+  const from = openIds.indexOf(groupId);
+  if (from === -1) return;
+  let to = from + step;
+  while (to >= 0 && to < openIds.length && !shownIds.has(openIds[to])) to += step;
+  if (to < 0 || to >= openIds.length) return;
+  const ids = [...openIds];
+  ids.splice(from, 1);
+  ids.splice(to, 0, groupId);
+  saveColumnOrder(currentFile, columnName, ids);
+  const movedCard = findElementByFocusKey(`card:${groupId}`);
+  if (movedCard) movedCard.scrollIntoView({ block: 'nearest' });
+}
+
+function reorderColumnGroups(column, ids) {
+  const byId = new Map(column.groups.map((g) => [g.id, g]));
+  const openIds = new Set(ids);
+  const reorderedOpen = ids.map((id) => byId.get(id)).filter(Boolean);
+  const closed = column.groups.filter((g) => !openIds.has(g.id));
+  column.groups = [...reorderedOpen, ...closed];
+}
+
+async function saveColumnOrder(file, columnName, ids, { isDomAlreadyReordered = false } = {}) {
+  const column = file === currentFile ? boardData.columns.find((c) => c.name === columnName) : null;
+  const previousGroups = column ? column.groups : null;
+  if (column) {
+    reorderColumnGroups(column, ids);
+    if (!isDomAlreadyReordered) renderBoard();
+  }
+  const response = await postJson('/api/order', { file, order: { [columnName]: ids } });
+  if (response.ok) return true;
+  if (column && boardData.columns.includes(column)) {
+    column.groups = previousGroups;
+    renderBoard();
+  }
+  showFailureToast(
+    `「${columnName}」の並べ替えを保存できませんでした（元の順序に戻しました）: ${formatFailureReason(response)}`,
+    () => saveColumnOrder(file, columnName, ids),
+  );
+  return false;
+}
+
+// onSettled: 成功・失敗のどちらでも呼ばれ、呼び出し側が task.done に表示を合わせる。
+function toggleTaskDone(task, group, onSettled) {
+  return sendTaskToggle(currentFile, task, group, onSettled);
+}
+
+// 元に戻す・再試行は、その後に表示ファイルを切り替えていても、最初にチェックしたファイルに対して行う。
+async function sendTaskToggle(file, task, group, onSettled) {
+  const response = await runOwnBoardWrite(file, () => postJson('/api/checkbox', { file, taskId: task.id }));
+  if (!response.ok) {
+    if (onSettled) onSettled();
+    showFailureToast(
+      `チェック状態の更新に失敗しました: ${formatFailureReason(response)}`,
+      () => sendTaskToggle(file, task, group, onSettled),
+    );
+    return false;
+  }
+  task.done = response.data.done;
+  group.done = group.tasks.every((t) => t.done);
+  // 再読込でboardDataが作り直された後に呼ばれると task/group は古いオブジェクトなので、表示中のものにも反映する。
+  const current = file === currentFile ? findTaskById(task.id) : null;
+  if (current) {
+    current.task.done = task.done;
+    current.group.done = current.group.tasks.every((t) => t.done);
+  }
+  if (onSettled) onSettled();
+  if (current) reflectTaskDoneChange();
+  showToast(describeTaskToggle(task, response.data.sourceUpdated), {
+    actionLabel: '元に戻す',
+    onAction: () => sendTaskToggle(file, task, group, onSettled),
+    key: `task-toggle:${task.id}`,
+    durationMs: TASK_TOGGLE_UNDO_DURATION_MS,
+  });
+  return true;
+}
+
+function describeTaskToggle(task, sourceUpdated) {
+  const body = plainTextFromMarkdown(splitTaskSource(task.text).body);
+  const label = body.length > TOAST_TASK_TEXT_MAX ? `${body.slice(0, TOAST_TASK_TEXT_MAX)}…` : body;
+  const result = task.done ? '完了にしました' : '未完了に戻しました';
+  const note = sourceUpdated === false ? '（元ファイルへの反映はスキップされました）' : '';
+  return `「${label}」を${result}${note}`;
+}
+
+function reflectTaskDoneChange() {
+  renderHeader();
+  renderBoard();
+  syncModalTaskRows();
+  if (focusMode) {
+    const focusReturn = captureFocusReturn();
+    renderFocusCard();
+    restoreFocusReturn(focusReturn);
+  }
+}
+
+function completeFirstOpenTask(group) {
+  const task = group.tasks.find((t) => !t.done);
+  if (!task) {
+    showToast('このカードに未完了のタスクはありません');
+    return;
+  }
+  toggleTaskDone(task, group);
+}
+
+function insertQuote(task) {
+  const commentInput = document.getElementById('modalCommentInput');
+  const quote = task.number != null ? `#${task.number} ` : `> ${task.text}\n`;
+  const start = commentInput.selectionStart ?? commentInput.value.length;
+  const end = commentInput.selectionEnd ?? commentInput.value.length;
+  commentInput.value = commentInput.value.slice(0, start) + quote + commentInput.value.slice(end);
+  commentInput.focus();
+  const pos = start + quote.length;
+  commentInput.setSelectionRange(pos, pos);
+}
+
+// 全体コメントは複数カードの引用が混在しうるため、`#<連番>`単体ではなく列・カード名ラベルを付けて
+// 一意にする（`#<連番>`の採番スコープはプロジェクト単位でありカード横断では重複しうるため）。
+function insertGlobalQuote(columnName, groupTitle, task) {
+  openGlobalCommentsDialog();
+  const input = document.getElementById('globalCommentInput');
+  const label = `[${columnName} ▸ ${groupTitle}]`;
+  const quote = task.number != null ? `${label} #${task.number} ` : `${label} > ${task.text}\n`;
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0, start) + quote + input.value.slice(end);
+  input.focus();
+  const pos = start + quote.length;
+  input.setSelectionRange(pos, pos);
+}
+
+function openModal(column, group) {
+  const dialog = document.getElementById('cardDialog');
+  if (!dialog.open) modalFocusReturn = captureFocusReturn();
+  if (lastModalGroupId !== group.id) {
+    document.getElementById('modalCommentInput').value = '';
+    document.getElementById('modalTaskInput').value = '';
+  }
+  lastModalGroupId = group.id;
+  modalColumnName = column.name;
+  modalGroup = group;
+  document.getElementById('modalColLabel').textContent = column.name;
+  document.getElementById('modalTitle').textContent = group.title;
+  const hintEl = document.getElementById('modalHint');
+  hintEl.textContent = group.projectHint || '';
+  hintEl.hidden = !group.projectHint;
+  renderModalRatio();
+  renderModalCost(group.id);
+
+  const tasksEl = document.getElementById('modalTasks');
+  tasksEl.innerHTML = '';
+  for (const task of group.tasks) tasksEl.appendChild(buildModalTaskRow(column, group, task));
+
+  renderModalComments();
+  renderModalCommentControls();
+  renderModalStarButton();
+  if (!dialog.open) {
+    dialog.showModal();
+    attachToastRegionToTopmostDialog();
+    document.getElementById('modalCloseBtn').focus();
+  }
+  syncUrlHash();
+}
+
+function renderModalStarButton() {
+  if (!modalGroup) return;
+  const starBtn = document.getElementById('modalStarBtn');
+  const isStarred = starredGroupIds.has(modalGroup.id);
+  starBtn.textContent = isStarred ? '★ 外す' : '☆ 付ける';
+  starBtn.setAttribute('aria-label', isStarred ? 'このカードの★を外す' : 'このカードに★を付ける');
+  starBtn.classList.toggle('is-starred', isStarred);
+}
+
+// 行を作り直すとチェックボックスのフォーカスが失われるため、表示中の行の状態だけを書き換える。
+function syncModalTaskRows() {
+  if (!modalGroup) return;
+  const found = findGroupById(modalGroup.id);
+  if (!found) return;
+  modalGroup = found.group;
+  for (const row of document.querySelectorAll('#modalTasks .modal-task')) {
+    const task = modalGroup.tasks.find((t) => t.id === row.dataset.taskId);
+    if (!task) continue;
+    row.classList.toggle('done', task.done);
+    row.draggable = !task.done;
+    row.querySelector('input[type="checkbox"]').checked = task.done;
+  }
+  renderModalRatio();
+}
+
+function renderModalRatio() {
+  const doneN = modalGroup.tasks.filter((t) => t.done).length;
+  document.getElementById('modalRatio').textContent = `${doneN} / ${modalGroup.tasks.length} 完了`;
+}
+
+function buildModalTaskRow(column, group, task) {
+  const row = document.createElement('div');
+  row.className = 'modal-task' + (task.done ? ' done' : '');
+  row.dataset.taskId = task.id;
+  row.draggable = !task.done;
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = task.done;
+  checkbox.addEventListener('change', () => toggleTaskDone(task, group, () => {
+    checkbox.checked = task.done;
+    row.classList.toggle('done', task.done);
+    row.draggable = !task.done;
+    if (modalGroup === group) renderModalRatio();
+  }));
+  row.appendChild(checkbox);
+  if (task.number != null) {
+    const number = document.createElement('span');
+    number.className = 'task-number';
+    number.textContent = `#${task.number}`;
+    row.appendChild(number);
+  }
+  const { body: taskBody, sourcePath } = splitTaskSource(task.text);
+  const main = document.createElement('div');
+  main.className = 'task-main';
+  const body = document.createElement('div');
+  body.className = 'task-text';
+  body.id = `task-${task.id}-text`;
+  body.innerHTML = marked.parseInline(taskBody);
+  checkbox.setAttribute('aria-labelledby', body.id);
+  main.appendChild(body);
+  row.appendChild(main);
+  bindRowClickToCheckbox(row, checkbox);
+
+  row.addEventListener('dragstart', (e) => {
+    row.classList.add('dragging');
+    const quoteText = task.number != null ? `#${task.number}` : task.text;
+    e.dataTransfer.setData('text/plain', quoteText);
+    e.dataTransfer.setData('application/x-todo-quote', task.number != null ? 'number' : 'text');
+  });
+  row.addEventListener('dragend', () => row.classList.remove('dragging'));
+
+  if (sourcePath) {
+    const sourceEl = document.createElement('code');
+    sourceEl.className = 'task-source-path';
+    sourceEl.id = `task-${task.id}-source`;
+    sourceEl.textContent = sourcePath;
+    sourceEl.hidden = true;
+    main.appendChild(sourceEl);
+    const sourceBtn = document.createElement('button');
+    sourceBtn.type = 'button';
+    sourceBtn.className = 'quote-btn';
+    sourceBtn.textContent = '出典';
+    sourceBtn.setAttribute('aria-expanded', 'false');
+    sourceBtn.setAttribute('aria-controls', sourceEl.id);
+    sourceBtn.addEventListener('click', () => {
+      sourceEl.hidden = !sourceEl.hidden;
+      sourceBtn.setAttribute('aria-expanded', String(!sourceEl.hidden));
+    });
+    row.appendChild(sourceBtn);
+  }
+
+  const quoteBtn = document.createElement('button');
+  quoteBtn.type = 'button';
+  quoteBtn.className = 'quote-btn';
+  quoteBtn.textContent = '引用';
+  quoteBtn.setAttribute('aria-label', 'コメント欄に引用を挿入');
+  quoteBtn.addEventListener('click', () => insertQuote(task));
+  row.appendChild(quoteBtn);
+
+  const globalQuoteBtn = document.createElement('button');
+  globalQuoteBtn.type = 'button';
+  globalQuoteBtn.className = 'quote-btn';
+  globalQuoteBtn.textContent = '全体へ引用';
+  globalQuoteBtn.setAttribute('aria-label', '全体コメント欄に列・カード名付きで引用を挿入');
+  globalQuoteBtn.addEventListener('click', () => insertGlobalQuote(column.name, group.title, task));
+  row.appendChild(globalQuoteBtn);
+  return row;
+}
+
+function closeModal() {
+  document.getElementById('cardDialog').close();
+}
+
+function onCardDialogClosed() {
+  modalColumnName = null;
+  modalGroup = null;
+  attachToastRegionToTopmostDialog();
+  restoreFocusReturn(modalFocusReturn);
+  modalFocusReturn = null;
+  syncUrlHash();
+}
+
+function renderModalComments() {
+  document.getElementById('modalCommentHead').textContent = `コメント ${modalGroup.comments.length}`;
+  const listEl = document.getElementById('modalCommentList');
+  listEl.innerHTML = '';
+  for (const comment of modalGroup.comments) {
+    const item = document.createElement('div');
+    item.className = 'modal-comment';
+    const at = document.createElement('div');
+    at.className = 'at';
+    at.textContent = new Date(comment.at).toLocaleString('ja-JP');
+    const text = document.createElement('div');
+    text.className = 'text';
+    text.textContent = comment.text;
+    item.appendChild(at);
+    item.appendChild(text);
+    listEl.appendChild(item);
+  }
+}
+
+function submitModalTask() {
+  const text = document.getElementById('modalTaskInput').value.trim();
+  if (!text || !modalGroup) return;
+  addTaskToCard({ file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title }, text);
+}
+
+async function addTaskToCard(target, text) {
+  const { file, columnName, groupId, groupTitle } = target;
+  const response = await runOwnBoardWrite(file, () => postJson('/api/tasks', { file, columnName, groupTitle, text }));
+  if (!response.ok) {
+    showFailureToast(`タスク追加に失敗しました: ${formatFailureReason(response)}`, () => addTaskToCard(target, text));
+    return;
+  }
+  const isShowingTarget = modalGroup && modalGroup.id === groupId;
+  const input = document.getElementById('modalTaskInput');
+  if (isShowingTarget && input.value.trim() === text) input.value = '';
+  if (response.data.mirroredToAggregate) {
+    if (file === currentFile) await loadBoard(currentFile);
+    const found = findGroupById(groupId);
+    if (isShowingTarget && found) openModal(found.column, found.group);
+    showToast('タスクを追加しました');
+  } else {
+    showToast('元のtodo.mdにタスクを追加しました（このボードへの反映は次回のtodo-import実行後になります）');
+  }
+}
+
+const COMMENT_BUSY_LABELS = { memo: '保存中…', launch: '起動中…' };
+const COMMENT_IDLE_LABELS = { memo: 'メモ保存', launch: 'Claudeに依頼' };
+
+// 送信中の表示は、閉じて別カードを開き直したときに持ち越さないようカードIDで判定する。
+function renderModalCommentControls() {
+  const busy = modalGroup ? busyCommentsByGroupId.get(modalGroup.id) : null;
+  const isBusy = !!busy;
+  const saveBtn = document.getElementById('modalCommentSaveBtn');
+  const launchBtn = document.getElementById('modalCommentLaunchBtn');
+  const input = document.getElementById('modalCommentInput');
+  saveBtn.disabled = isBusy;
+  launchBtn.disabled = isBusy;
+  input.disabled = isBusy;
+  saveBtn.textContent = isBusy && busy.mode === 'memo' ? COMMENT_BUSY_LABELS.memo : COMMENT_IDLE_LABELS.memo;
+  launchBtn.textContent = isBusy && busy.mode === 'launch' ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.launch;
+}
+
+// セッションログダイアログの返信欄も、同じbusyCommentsByGroupIdをsessionLogGroupIdで参照するだけなので
+// カード詳細とは独立に描画してよい（両方開いていても状態は一致する）。
+function renderSessionLogReplyControls() {
+  const busy = sessionLogGroupId ? busyCommentsByGroupId.get(sessionLogGroupId) : null;
+  const isBusy = !!busy;
+  const replyBtn = document.getElementById('sessionLogReplyBtn');
+  const replyInput = document.getElementById('sessionLogReplyInput');
+  replyBtn.disabled = isBusy;
+  replyInput.disabled = isBusy;
+  replyBtn.textContent = isBusy ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.launch;
+  for (const btn of document.querySelectorAll('#sessionLogList .ask-user-question-buttons button, #sessionLogList .log-branch-btn')) {
+    btn.disabled = isBusy;
+  }
+}
+
+async function runWithCommentBusy(groupId, mode, operation) {
+  const busy = { mode };
+  busyCommentsByGroupId.set(groupId, busy);
+  renderModalCommentControls();
+  renderSessionLogReplyControls();
+  try {
+    await operation();
+  } finally {
+    // 同じカードの再試行と重なったとき、先に終わった側が後の送信中表示を消さないようにする。
+    if (busyCommentsByGroupId.get(groupId) === busy) busyCommentsByGroupId.delete(groupId);
+    renderModalCommentControls();
+    renderSessionLogReplyControls();
+    // 送信中にdisabledにした入力欄・ボタンからフォーカスが外れたままにしない。
+    const dialog = document.getElementById('cardDialog');
+    const hasLostFocus = document.activeElement === document.body || document.activeElement === dialog;
+    if (dialog.open && modalGroup && modalGroup.id === groupId && hasLostFocus) {
+      document.getElementById('modalCommentInput').focus();
+    }
+    const sessionLogDialogEl = document.getElementById('sessionLogDialog');
+    const hasLostSessionLogFocus = document.activeElement === document.body || document.activeElement === sessionLogDialogEl;
+    if (sessionLogDialogEl.open && sessionLogGroupId === groupId && hasLostSessionLogFocus) {
+      document.getElementById('sessionLogReplyInput').focus();
+    }
+  }
+}
+
+function saveModalComment() {
+  submitModalComment(false);
+}
+
+function saveModalCommentAndLaunch() {
+  submitModalComment(true);
+}
+
+function submitModalComment(shouldLaunch) {
+  const text = document.getElementById('modalCommentInput').value.trim();
+  if (!text || !modalGroup || busyCommentsByGroupId.has(modalGroup.id)) return;
+  const target = { file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title };
+  sendCardComment(target, text, shouldLaunch);
+}
+
+function submitSessionLogReply() {
+  const text = document.getElementById('sessionLogReplyInput').value.trim();
+  if (!text || !sessionLogGroupId || busyCommentsByGroupId.has(sessionLogGroupId)) return;
+  const found = findGroupById(sessionLogGroupId);
+  if (!found) return;
+  const target = { file: currentFile, columnName: found.column.name, groupId: sessionLogGroupId, groupTitle: found.group.title };
+  sendCardComment(target, text, true);
+}
+
+function branchSessionFromEntry(uuid) {
+  const text = document.getElementById('sessionLogReplyInput').value.trim();
+  if (!sessionLogGroupId || busyCommentsByGroupId.has(sessionLogGroupId)) return;
+  const found = findGroupById(sessionLogGroupId);
+  if (!found) {
+    showToast('分岐は表示中のtodoファイルのセッションだけが対象です');
+    return;
+  }
+  if (!text) {
+    showToast('分岐後の指示を返信欄に入力してください');
+    document.getElementById('sessionLogReplyInput').focus();
+    return;
+  }
+  const target = { file: currentFile, columnName: found.column.name, groupId: sessionLogGroupId, groupTitle: found.group.title };
+  runWithCommentBusy(target.groupId, 'launch', async () => {
+    const response = await postJson('/api/session/branch', { ...target, uuid, text });
+    if (response.status === 409) {
+      showToast('このカードは起動処理中です');
+      return;
+    }
+    if (!response.ok) {
+      showFailureToast(`分岐に失敗しました: ${formatFailureReason(response)}`, () => branchSessionFromEntry(uuid));
+      return;
+    }
+    document.getElementById('sessionLogReplyInput').value = '';
+    closeSessionLogModal();
+    showToast(`分岐したセッションを起動しました（id: ${response.data.jobId}）`);
+    await refreshSessions();
+  });
+}
+
+function sendCardComment(target, text, shouldLaunch) {
+  return runWithCommentBusy(target.groupId, shouldLaunch ? 'launch' : 'memo', async () => {
+    const response = await postJson('/api/comments', { file: target.file, groupId: target.groupId, text });
+    if (!response.ok) {
+      showFailureToast(
+        `コメントの保存に失敗しました: ${formatFailureReason(response)}`,
+        () => sendCardComment(target, text, shouldLaunch),
+      );
+      return;
+    }
+    const found = target.file === currentFile ? findGroupById(target.groupId) : null;
+    if (found) found.group.comments = response.data.comments;
+    if (modalGroup && modalGroup.id === target.groupId) {
+      const input = document.getElementById('modalCommentInput');
+      if (input.value.trim() === text) input.value = '';
+      renderModalComments();
+    }
+    if (sessionLogGroupId === target.groupId) {
+      const replyInput = document.getElementById('sessionLogReplyInput');
+      if (replyInput.value.trim() === text) replyInput.value = '';
+    }
+    if (found) renderBoard();
+    if (!shouldLaunch) {
+      showToast('メモを保存しました');
+      return;
+    }
+    await launchCardSession(target, text);
+  });
+}
+
+function retryCardSessionLaunch(target, text) {
+  return runWithCommentBusy(target.groupId, 'launch', () => launchCardSession(target, text));
+}
+
+async function launchCardSession(target, text) {
+  const { file, groupId, columnName, groupTitle } = target;
+  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text });
+  if (response.status === 409) {
+    showToast('このカードは起動処理中です（コメントは保存しました）');
+  } else if (!response.ok) {
+    showFailureToast(
+      `セッション起動に失敗しました（コメントは保存済み）: ${formatFailureReason(response)}`,
+      () => retryCardSessionLaunch(target, text),
+    );
+  } else if (response.data.launched === false) {
+    showToast('このカードは既にセッションが稼働中です（コメントのみ保存しました）');
+  } else {
+    showToast(`セッションを起動しました（id: ${response.data.jobId}）`);
+    await refreshSessions();
+    // 入力待ちからの返信は`claude stop`を挟んで同一jobIdで継続するため通常はIDが変わらないが、
+    // 念のためログダイアログを開いたままなら最新のセッション情報へ追従させる（同一IDならno-op）。
+    const sessionLogDialogEl = document.getElementById('sessionLogDialog');
+    if (sessionLogDialogEl.open && sessionLogGroupId === groupId) {
+      const found = file === currentFile ? findGroupById(groupId) : null;
+      if (found && found.group.session) openSessionLogModal(found.column, found.group);
+    }
+  }
+}
+
+function buildSharePrompt(scopeLabel, pairs) {
+  const withComments = pairs.filter((p) => p.group.comments && p.group.comments.length > 0);
+  if (withComments.length === 0) return null;
+
+  const sections = withComments.map(({ column, group }) => {
+    const lines = [`## ${column}: ${group.title}`, 'タスク:'];
+    for (const t of group.tasks) lines.push(`- [${t.done ? 'x' : ' '}] ${t.text}`);
+    lines.push('コメント:');
+    for (const c of group.comments) lines.push(`- ${c.text}`);
+    return lines.join('\n');
+  });
+
+  return `# Todo コメントまとめ（${scopeLabel}）\n\n${sections.join('\n\n')}`;
+}
+
+async function copyPrompt(scopeLabel, pairs) {
+  const prompt = buildSharePrompt(scopeLabel, pairs);
+  if (!prompt) {
+    showToast('共有できるコメントがありません');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(prompt);
+    showToast(`クリップボードにコピーしました（${scopeLabel}）`);
+  } catch {
+    showToast('コピーに失敗しました', { kind: 'error' });
+  }
+}
+
+// 検索・絞り込み中の開閉は一時的な表示なので、URLには絞り込み前の開閉を載せる。
+function syncUrlHash() {
+  if (!boardData || renderedBoardFile !== currentFile) return;
+  const params = new URLSearchParams();
+  params.set('file', currentFile);
+  const openNames = isBoardFilterActive() ? openColumnsBeforeFilter : readOpenColumnNamesFromDom();
+  for (const name of openNames) params.append('open', name);
+  if (focusMode && focusTarget) params.set('focus', focusTarget);
+  if (modalGroup && document.getElementById('cardDialog').open) params.set('card', modalGroup.id);
+  history.replaceState(null, '', `#${params}`);
+}
+
+function readUrlHashState() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const file = params.get('file');
+  if (!file) return null;
+  return {
+    file,
+    openColumnNames: params.getAll('open'),
+    focusTarget: params.get('focus'),
+    cardId: params.get('card'),
+  };
+}
+
+// 列名・カードIDが今のボードに無い場合（古いURL）は、その項目だけ無視する。
+function restoreUrlViewState(hashState) {
+  if (hashState.focusTarget) enterFocusMode(hashState.focusTarget);
+  const found = hashState.cardId ? findGroupById(hashState.cardId) : null;
+  if (found) openModal(found.column, found.group);
+}
+
+function isTypingTarget(element) {
+  return element instanceof HTMLElement && (element.matches('input, textarea, select') || element.isContentEditable);
+}
+
+function isOverlayOpen() {
+  return !!document.querySelector('dialog[open], :popover-open') || !!openedActionMenu;
+}
+
+function findFocusedCard() {
+  const slot = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.card-wrap') : null;
+  return slot ? slot.querySelector('.group-card') : null;
+}
+
+function moveCardFocus(step) {
+  const cards = [...document.querySelectorAll('#board .column-wrap:not([hidden]) details.column[open] .group-card')];
+  if (cards.length === 0) {
+    showToast('開いている列がありません（] ですべての列を開けます）', { key: 'no-open-column' });
+    return;
+  }
+  const index = cards.indexOf(findFocusedCard());
+  const nextIndex = index === -1
+    ? (step > 0 ? 0 : cards.length - 1)
+    : Math.min(cards.length - 1, Math.max(0, index + step));
+  cards[nextIndex].focus();
+}
+
+function completeFirstOpenTaskOfFocusedBoardCard() {
+  const card = findFocusedCard();
+  const found = card ? findGroupById(card.dataset.id) : null;
+  if (!found) {
+    showToast('カードを選んでから押してください（j / k で選べます）', { key: 'no-focused-card' });
+    return;
+  }
+  completeFirstOpenTask(found.group);
+}
+
+function focusSearchInput() {
+  const input = document.getElementById('searchInput');
+  input.focus();
+  input.select();
+}
+
+let shortcutDialogFocusReturn = null;
+
+function openShortcutDialog() {
+  const dialog = document.getElementById('shortcutDialog');
+  if (dialog.open) return;
+  shortcutDialogFocusReturn = captureFocusReturn();
+  dialog.showModal();
+  attachToastRegionToTopmostDialog();
+  document.getElementById('shortcutDialogCloseBtn').focus();
+}
+
+function formatUsd(usd) {
+  return `$${usd.toFixed(2)}`;
+}
+
+let costDialogFocusReturn = null;
+
+function renderMonthlyCosts(months) {
+  const container = document.getElementById('costMonthly');
+  container.replaceChildren();
+  if (!months.length) {
+    container.textContent = '集計できる使用履歴がありません';
+    return;
+  }
+  for (const month of months) {
+    const heading = document.createElement('h3');
+    heading.className = 'shortcut-section';
+    heading.textContent = `${month.month}　${formatUsd(month.usd)}（${month.tokens.toLocaleString()} tokens）`;
+    const list = document.createElement('dl');
+    list.className = 'shortcut-list';
+    for (const row of month.byModel) {
+      const dt = document.createElement('dt');
+      dt.textContent = row.model;
+      const dd = document.createElement('dd');
+      dd.textContent = `${formatUsd(row.usd)}（${row.tokens.toLocaleString()} tokens）`;
+      list.append(dt, dd);
+    }
+    container.append(heading, list);
+    if (month.unpricedTokens > 0) {
+      const note = document.createElement('p');
+      note.className = 'input-hint';
+      note.textContent = `単価不明のモデル分 ${month.unpricedTokens.toLocaleString()} tokens は金額に含まれていません`;
+      container.append(note);
+    }
+  }
+}
+
+async function openCostDialog() {
+  const dialog = document.getElementById('costDialog');
+  if (dialog.open) return;
+  try {
+    const res = await fetch('/api/costs/monthly');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderMonthlyCosts((await res.json()).months);
+  } catch (err) {
+    showToast(`コストの読み込みに失敗しました（${err.message}）`, {
+      kind: 'error', actionLabel: '再試行', onAction: openCostDialog,
+    });
+    return;
+  }
+  costDialogFocusReturn = captureFocusReturn();
+  dialog.showModal();
+  attachToastRegionToTopmostDialog();
+}
+
+let sessionListFocusReturn = null;
+
+function renderSessionList(sessions) {
+  const container = document.getElementById('sessionListBody');
+  container.replaceChildren();
+  if (!sessions.length) {
+    container.textContent = 'セッションはありません';
+    return;
+  }
+  for (const s of sessions) {
+    const title = s.name || s.groupId;
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'session-card';
+    const head = document.createElement('span');
+    head.className = 'session-card-head';
+    const name = document.createElement('span');
+    name.className = 'title';
+    name.textContent = title;
+    head.append(name);
+    const state = document.createElement('span');
+    state.className = `chip-state ${s.state}`;
+    state.append(buildSessionStateMarker(s.state), sessionStatusLabel(s));
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = `${s.launchedAt ? new Date(s.launchedAt).toLocaleString() : '起動日時不明'}　${s.file}`;
+    row.append(head, state, meta);
+    row.addEventListener('click', () => {
+      openSessionLogModal({ name: s.file.replace(/\.md$/, '') }, { id: s.groupId, title, session: s });
+    });
+    container.append(row);
+  }
+}
+
+async function openSessionListDialog() {
+  const dialog = document.getElementById('sessionListDialog');
+  if (dialog.open) return;
+  try {
+    const res = await fetch('/api/sessions/all');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderSessionList((await res.json()).sessions);
+  } catch (err) {
+    showToast(`セッション一覧の読み込みに失敗しました（${err.message}）`, {
+      kind: 'error', actionLabel: '再試行', onAction: openSessionListDialog,
+    });
+    return;
+  }
+  sessionListFocusReturn = captureFocusReturn();
+  dialog.showModal();
+  attachToastRegionToTopmostDialog();
+}
+
+function formatRateLimitWindow(label, window) {
+  if (!window) return null;
+  const el = document.createElement('span');
+  if (window.resetsAt && window.resetsAt * 1000 <= Date.now()) {
+    el.textContent = `${label} リセット済み（未更新）`;
+    return el;
+  }
+  const pct = document.createElement('span');
+  pct.className = 'pct';
+  pct.textContent = `${Math.round(window.usedPercentage)}%`;
+  const reset = window.resetsAt
+    ? `（${new Date(window.resetsAt * 1000).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}まで）`
+    : '';
+  el.append(`${label} `, pct, reset);
+  return el;
+}
+
+async function refreshRateLimits() {
+  const container = document.getElementById('rateLimits');
+  let rateLimits = null;
+  try {
+    const res = await fetch('/api/rate-limits');
+    if (res.ok) rateLimits = (await res.json()).rateLimits;
+  } catch {
+    // 表示は補助情報のため、取得失敗時は前回表示を残す。
+    return;
+  }
+  const parts = rateLimits
+    ? [formatRateLimitWindow('5h', rateLimits.fiveHour), formatRateLimitWindow('7d', rateLimits.sevenDay)].filter(Boolean)
+    : [];
+  container.replaceChildren(...parts);
+  container.hidden = parts.length === 0;
+  container.title = rateLimits ? `使用率（${new Date(rateLimits.capturedAt).toLocaleString()} 時点、Claude Codeのステータスラインより）` : '';
+}
+
+async function renderModalCost(groupId) {
+  const el = document.getElementById('modalCost');
+  el.hidden = true;
+  try {
+    const res = await fetch(`/api/costs/cards?file=${encodeURIComponent(currentFile)}`);
+    if (!res.ok) return;
+    const cost = (await res.json()).cards[groupId];
+    // 取得中に別カードへ切り替わっていたら古い結果は捨てる。
+    if (!cost || lastModalGroupId !== groupId) return;
+    el.textContent = `コスト（API換算）: ${formatUsd(cost.usd)}`;
+    el.hidden = false;
+  } catch {
+    // 補助情報のため、取得失敗時は表示しないだけに留める。
+  }
+}
+
+let modelSettingsDialogFocusReturn = null;
+
+function renderGlobalModelSettings(global) {
+  const list = document.getElementById('modelSettingsGlobal');
+  list.replaceChildren();
+  const rows = global
+    ? [['model', global.model], ['effortLevel', global.effortLevel],
+      ...Object.entries(global.modelSettings || {}).map(([name, s]) => [`${name} の effortLevel`, s && s.effortLevel])]
+    : [['状態', 'settings.json を読み込めません']];
+  for (const [label, value] of rows) {
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    dd.textContent = value ?? '（未設定）';
+    list.append(dt, dd);
+  }
+}
+
+async function openModelSettingsDialog() {
+  const dialog = document.getElementById('modelSettingsDialog');
+  if (dialog.open) return;
+  try {
+    const res = await fetch('/api/claude-settings');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { global, override } = await res.json();
+    renderGlobalModelSettings(global);
+    document.getElementById('modelSettingsModelInput').value = override.model;
+    document.getElementById('modelSettingsEffortSelect').value = override.effort;
+  } catch (err) {
+    showToast(`モデル設定の読み込みに失敗しました（${err.message}）`, {
+      kind: 'error', actionLabel: '再試行', onAction: openModelSettingsDialog,
+    });
+    return;
+  }
+  modelSettingsDialogFocusReturn = captureFocusReturn();
+  dialog.showModal();
+  attachToastRegionToTopmostDialog();
+}
+
+async function saveModelSettings() {
+  const button = document.getElementById('modelSettingsSubmit');
+  button.disabled = true;
+  button.textContent = '保存中…';
+  try {
+    const res = await fetch('/api/claude-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: document.getElementById('modelSettingsModelInput').value.trim(),
+        effort: document.getElementById('modelSettingsEffortSelect').value,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(res.status === 400 ? 'modelの書式が不正です' : `HTTP ${res.status} ${body.error || ''}`);
+    }
+    showToast('モデル設定を保存しました（次回の起動から反映）');
+  } catch (err) {
+    showToast(`モデル設定の保存に失敗しました（${err.message}）`, {
+      kind: 'error', actionLabel: '再試行', onAction: saveModelSettings,
+    });
+  } finally {
+    button.disabled = false;
+    button.textContent = '保存';
+  }
+}
+
+const BOARD_SHORTCUT_ACTIONS = {
+  j: () => moveCardFocus(1),
+  k: () => moveCardFocus(-1),
+  x: completeFirstOpenTaskOfFocusedBoardCard,
+  '/': focusSearchInput,
+  f: toggleFocusMode,
+  '[': () => setAllColumnsOpen(false),
+  ']': () => setAllColumnsOpen(true),
+  '?': openShortcutDialog,
+};
+
+const FOCUS_MODE_SHORTCUT_ACTIONS = {
+  ArrowRight: advanceFocus,
+  ' ': completeFirstOpenTaskOfFocusModeCard,
+  Escape: exitFocusMode,
+  f: exitFocusMode,
+  '?': openShortcutDialog,
+};
+
+// Enter（カード詳細を開く）とAlt+↑↓はカード自身のkeydownで扱う。
+function onShortcutKeydown(e) {
+  if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+  if (!boardData || isTypingTarget(e.target) || isOverlayOpen()) return;
+  // ボタン上のSpaceはブラウザ標準のボタン押下のままにする（キーボード利用者がボタンを押せなくならないように）。
+  if (e.key === ' ' && e.target instanceof HTMLElement && e.target.closest('button')) return;
+  const action = (focusMode ? FOCUS_MODE_SHORTCUT_ACTIONS : BOARD_SHORTCUT_ACTIONS)[e.key];
+  if (!action) return;
+  e.preventDefault();
+  action();
+}
+
+function bindSubmitShortcut(textarea, submit) {
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.isComposing) return;
+    e.preventDefault();
+    submit();
+  });
+}
+
+function bindLaunchOnEnter(textarea, launch) {
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    e.preventDefault();
+    launch();
+  });
+}
+
+async function init() {
+  observeHeaderHeight();
+  const themeSelect = document.getElementById('themeSelect');
+  themeSelect.value = document.documentElement.dataset.theme;
+  themeSelect.addEventListener('change', () => applyAndSaveTheme(themeSelect.value));
+  document.getElementById('historyPopover').addEventListener('beforetoggle', (e) => {
+    if (e.newState === 'open') placePopoverBelow(e.currentTarget, document.getElementById('historyToggle'));
+  });
+  document.getElementById('settingsPopover').addEventListener('beforetoggle', (e) => {
+    if (e.newState === 'open') placePopoverBelow(e.currentTarget, document.getElementById('settingsToggle'));
+  });
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+  if (isMac) {
+    for (const kbd of document.querySelectorAll('kbd[data-mod-key]')) kbd.textContent = '⌘';
+  }
+  bindSubmitShortcut(document.getElementById('globalCommentInput'), submitGlobalComment);
+  bindSubmitShortcut(document.getElementById('newCardTextInput'), submitNewCard);
+  bindSubmitShortcut(document.getElementById('modalTaskInput'), submitModalTask);
+  bindSubmitShortcut(document.getElementById('modalCommentInput'), saveModalComment);
+  bindLaunchOnEnter(document.getElementById('modalCommentInput'), saveModalCommentAndLaunch);
+  bindLaunchOnEnter(document.getElementById('sessionLogReplyInput'), submitSessionLogReply);
+  document.addEventListener('keydown', onShortcutKeydown);
+  document.getElementById('shortcutHelpBtn').addEventListener('click', openShortcutDialog);
+  document.getElementById('costBtn').addEventListener('click', openCostDialog);
+  const costDialog = document.getElementById('costDialog');
+  document.getElementById('costDialogCloseBtn').addEventListener('click', () => costDialog.close());
+  costDialog.addEventListener('click', (e) => {
+    if (e.target === costDialog) costDialog.close();
+  });
+  costDialog.addEventListener('close', () => {
+    attachToastRegionToTopmostDialog();
+    restoreFocusReturn(costDialogFocusReturn);
+    costDialogFocusReturn = null;
+  });
+  document.getElementById('sessionArtifactsBtn').addEventListener('click', toggleSessionArtifacts);
+  document.getElementById('sessionListBtn').addEventListener('click', openSessionListDialog);
+  const sessionListDialog = document.getElementById('sessionListDialog');
+  document.getElementById('sessionListCloseBtn').addEventListener('click', () => sessionListDialog.close());
+  sessionListDialog.addEventListener('click', (e) => {
+    if (e.target === sessionListDialog) sessionListDialog.close();
+  });
+  sessionListDialog.addEventListener('close', () => {
+    restoreFocusReturn(sessionListFocusReturn);
+    sessionListFocusReturn = null;
+  });
+  refreshRateLimits();
+  setInterval(refreshRateLimits, 60000);
+  document.getElementById('modelSettingsBtn').addEventListener('click', openModelSettingsDialog);
+  document.getElementById('modelSettingsSubmit').addEventListener('click', saveModelSettings);
+  const modelSettingsDialog = document.getElementById('modelSettingsDialog');
+  document.getElementById('modelSettingsDialogCloseBtn').addEventListener('click', () => modelSettingsDialog.close());
+  modelSettingsDialog.addEventListener('click', (e) => {
+    if (e.target === modelSettingsDialog) modelSettingsDialog.close();
+  });
+  modelSettingsDialog.addEventListener('close', () => {
+    attachToastRegionToTopmostDialog();
+    restoreFocusReturn(modelSettingsDialogFocusReturn);
+    modelSettingsDialogFocusReturn = null;
+  });
+  const shortcutDialog = document.getElementById('shortcutDialog');
+  document.getElementById('shortcutDialogCloseBtn').addEventListener('click', () => shortcutDialog.close());
+  shortcutDialog.addEventListener('click', (e) => {
+    if (e.target === shortcutDialog) shortcutDialog.close();
+  });
+  shortcutDialog.addEventListener('close', () => {
+    attachToastRegionToTopmostDialog();
+    restoreFocusReturn(shortcutDialogFocusReturn);
+    shortcutDialogFocusReturn = null;
+  });
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    const nextQuery = e.target.value.trim().toLowerCase();
+    if (nextQuery === searchQuery) return;
+    updateBoardFilter(() => { searchQuery = nextQuery; });
+  });
+  for (const chip of document.querySelectorAll('#filterChips .filter-chip')) {
+    chip.addEventListener('click', () => updateBoardFilter(() => {
+      const filterId = chip.dataset.filterId;
+      if (activeFilterIds.has(filterId)) activeFilterIds.delete(filterId);
+      else activeFilterIds.add(filterId);
+    }));
+  }
+  document.getElementById('loadErrorRetryBtn').addEventListener('click', () => {
+    if (failedBoardFile) loadBoard(failedBoardFile);
+  });
+  document.getElementById('modalStarBtn').addEventListener('click', () => {
+    if (modalGroup) toggleGroupStar(modalGroup.id);
+  });
+  document.getElementById('focusRestartBtn').addEventListener('click', restartFocusRound);
+  // 共有されたURLを同じタブに貼った場合も、読み込み時と同じ手順で状態を復元する。
+  window.addEventListener('hashchange', () => location.reload());
+  document.getElementById('openAllColumnsBtn').addEventListener('click', () => setAllColumnsOpen(true));
+  document.getElementById('closeAllColumnsBtn').addEventListener('click', () => setAllColumnsOpen(false));
+  const initialOpenModeSelect = document.getElementById('initialOpenModeSelect');
+  initialOpenModeSelect.value = loadInitialOpenMode();
+  initialOpenModeSelect.addEventListener('change', () => {
+    localStorage.setItem(INITIAL_OPEN_MODE_KEY, initialOpenModeSelect.value);
+    if (!boardData) return;
+    // toggleイベントは非同期で届くため、直前の開閉が未保存のまま「前回を復元」で上書きされないよう先に保存する。
+    saveOpenColumnNames();
+    renderedBoardFile = null;
+    renderBoard();
+  });
+  document.addEventListener('click', (e) => {
+    if (!openedActionMenu) return;
+    if (openedActionMenu.menu.contains(e.target) || openedActionMenu.button.contains(e.target)) return;
+    closeActionMenu(false);
+  });
+
+  const files = await loadFileList();
+  const select = document.getElementById('fileSelect');
+  if (files.length === 0) {
+    document.getElementById('status').textContent = 'todo-*.md が見つかりません';
+    return;
+  }
+  const hashState = readUrlHashState();
+  const isHashFileKnown = !!hashState && files.includes(hashState.file);
+  select.value = isHashFileKnown ? hashState.file : files[0];
+  if (isHashFileKnown) pendingOpenColumnNames = new Set(hashState.openColumnNames);
+  const isLoaded = await loadBoard(select.value);
+  if (isLoaded && isHashFileKnown) restoreUrlViewState(hashState);
+
+  select.addEventListener('change', () => loadBoard(select.value));
+  document.getElementById('reloadBtn').addEventListener('click', () => loadBoard(select.value));
+  document.getElementById('columnJumpSelect').addEventListener('change', (e) => {
+    jumpToColumn(e.target.value);
+    e.target.value = '';
+  });
+  document.getElementById('shareAllBtn').addEventListener('click', () => {
+    const pairs = [];
+    for (const column of boardData.columns) {
+      for (const group of column.groups) pairs.push({ column: column.name, group });
+    }
+    copyPrompt('全体', pairs);
+  });
+  document.getElementById('focusModeBtn').addEventListener('click', toggleFocusMode);
+  // マウスで押した後もSpace（チェック）が効くよう、ポインター操作のときだけボタンからフォーカスを外す。
+  document.getElementById('focusLaterBtn').addEventListener('click', (e) => {
+    deferFocusCard();
+    if (e.detail > 0) moveFocusIntoFocusPanel();
+  });
+  document.getElementById('focusNextBtn').addEventListener('click', (e) => {
+    advanceFocus();
+    if (e.detail > 0) moveFocusIntoFocusPanel();
+  });
+  document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+  const cardDialog = document.getElementById('cardDialog');
+  cardDialog.addEventListener('close', onCardDialogClosed);
+  cardDialog.addEventListener('click', (e) => {
+    if (e.target === cardDialog) closeModal();
+  });
+  document.getElementById('modalCommentSaveBtn').addEventListener('click', saveModalComment);
+  document.getElementById('modalCommentLaunchBtn').addEventListener('click', saveModalCommentAndLaunch);
+  document.getElementById('modalTaskSubmit').addEventListener('click', submitModalTask);
+  document.getElementById('globalCommentSubmit').addEventListener('click', submitGlobalComment);
+  document.getElementById('globalCommentsCopyBtn').addEventListener('click', copyGlobalComments);
+  document.getElementById('newCardSubmit').addEventListener('click', submitNewCard);
+  document.getElementById('globalCommentsOpenBtn').addEventListener('click', openGlobalCommentsDialog);
+  const newCardDialog = document.getElementById('newCardDialog');
+  document.getElementById('newCardDialogCloseBtn').addEventListener('click', () => newCardDialog.close());
+  newCardDialog.addEventListener('click', (e) => {
+    if (e.target === newCardDialog) newCardDialog.close();
+  });
+  newCardDialog.addEventListener('close', () => {
+    attachToastRegionToTopmostDialog();
+    restoreFocusReturn(newCardDialogFocusReturn);
+    newCardDialogFocusReturn = null;
+  });
+  const globalCommentsDialog = document.getElementById('globalCommentsDialog');
+  document.getElementById('globalCommentsDialogCloseBtn').addEventListener('click', () => globalCommentsDialog.close());
+  globalCommentsDialog.addEventListener('click', (e) => {
+    if (e.target === globalCommentsDialog) globalCommentsDialog.close();
+  });
+  globalCommentsDialog.addEventListener('close', () => {
+    attachToastRegionToTopmostDialog();
+    restoreFocusReturn(globalCommentsDialogFocusReturn);
+    globalCommentsDialogFocusReturn = null;
+  });
+  document.getElementById('sessionLogCloseBtn').addEventListener('click', closeSessionLogModal);
+  document.getElementById('sessionLogReplyBtn').addEventListener('click', submitSessionLogReply);
+  const sessionLogDialog = document.getElementById('sessionLogDialog');
+  sessionLogDialog.addEventListener('close', onSessionLogDialogClosed);
+  sessionLogDialog.addEventListener('click', (e) => {
+    if (e.target === sessionLogDialog) closeSessionLogModal();
+  });
+
+  const commentInput = document.getElementById('modalCommentInput');
+  commentInput.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    commentInput.classList.add('drag-over');
+  });
+  commentInput.addEventListener('dragleave', () => commentInput.classList.remove('drag-over'));
+  commentInput.addEventListener('drop', (e) => {
+    e.preventDefault();
+    commentInput.classList.remove('drag-over');
+    const text = e.dataTransfer.getData('text/plain');
+    if (!text) return;
+    const kind = e.dataTransfer.getData('application/x-todo-quote');
+    const quote = kind === 'number' ? `${text} ` : `> ${text}\n`;
+    const start = commentInput.selectionStart ?? commentInput.value.length;
+    const end = commentInput.selectionEnd ?? commentInput.value.length;
+    commentInput.value = commentInput.value.slice(0, start) + quote + commentInput.value.slice(end);
+    commentInput.focus();
+    const pos = start + quote.length;
+    commentInput.setSelectionRange(pos, pos);
+  });
+
+  setInterval(() => {
+    refreshSessions();
+    detectExternalBoardUpdate();
+  }, 5000);
+}
+
+init();
+</script>
+</body>
+</html>

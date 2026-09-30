@@ -4,7 +4,8 @@ set -euo pipefail
 # dotfiles installer (WSL / Linux / macOS)
 # .claude/commands, .claude/skills, .claude/CLAUDE.md を ~/.claude 以下へ、
 # templates/ を ~/projects/_templates へ、
-# self-work/directry-rules・self-work/document-rules を ~/projects/self-work 配下へ
+# self-work/directry-rules・self-work/document-rules を ~/projects/self-work 配下へ、
+# today-todo viewer の起動ラッパーを ~/.local/bin へ、その spec を ~/projects/today-todo/viewer/docs/specs へ
 # シンボリックリンクします。
 # 既存の実体ディレクトリ/ファイルがある場合は上書きせずタイムスタンプ付きで退避します。
 
@@ -42,5 +43,7 @@ link "${DOTFILES_DIR}/.claude/CLAUDE.md" "${CLAUDE_DIR}/CLAUDE.md"
 link "${DOTFILES_DIR}/templates" "${PROJECTS_DIR}/_templates"
 link "${DOTFILES_DIR}/self-work/directry-rules" "${PROJECTS_DIR}/self-work/directry-rules"
 link "${DOTFILES_DIR}/self-work/document-rules" "${PROJECTS_DIR}/self-work/document-rules"
+link "${DOTFILES_DIR}/scripts/today-todo-viewer" "${HOME}/.local/bin/today-todo-viewer"
+link "${DOTFILES_DIR}/today-todo/viewer/docs/specs" "${PROJECTS_DIR}/today-todo/viewer/docs/specs"
 
 echo "done."
