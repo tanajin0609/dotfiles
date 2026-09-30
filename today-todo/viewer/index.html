@@ -607,6 +607,51 @@
 
   .modal-task-form { display: flex; gap: 8px; align-items: flex-end; margin: 4px 0 14px; padding: 0 20px; }
 
+  .card-panel .modal-box { background: hsl(var(--col-hue, 0) var(--col-tint-sat) var(--col-tint-light)); }
+  .card-panel .modal-header { border-bottom: none; padding: 20px 22px 14px; }
+  .card-panel .modal-header-text h2 { font-weight: 800; margin-top: 8px; }
+  .card-panel .modal-header-actions button { background: var(--raised); box-shadow: var(--elev-1); }
+  .modal-progress-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .modal-progress { width: 140px; height: 6px; border-radius: var(--radius-pill); background: var(--track); overflow: hidden; flex: 0 0 auto; }
+  .modal-progress span { display: block; height: 100%; background: hsl(var(--col-hue, 0) var(--col-sat) var(--col-light)); }
+  .card-panel .modal-progress-row .modal-ratio { margin-top: 0; }
+  .card-panel .modal-tasks { gap: 8px; padding: 4px 18px 14px; }
+  .card-panel .modal-task {
+    background: var(--raised); padding: 12px 14px; border-radius: var(--radius-md);
+    box-shadow:
+      0 1px 2px hsl(var(--col-hue, 0) 30% 30% / var(--col-shadow-alpha)),
+      0 4px 10px -4px hsl(var(--col-hue, 0) 30% 30% / var(--col-shadow-alpha));
+  }
+  .card-panel .modal-task:hover { background: var(--raised); }
+  .card-panel .modal-task.done { background: transparent; box-shadow: none; }
+  .card-panel .modal-task .task-number {
+    color: hsl(var(--col-hue, 0) var(--col-pill-ink-sat) var(--col-pill-ink-light));
+    background: hsl(var(--col-hue, 0) var(--col-pill-sat) var(--col-pill-light));
+    padding: 0 7px; border-radius: var(--radius-pill); margin-top: 1px;
+  }
+  .card-panel .modal-task .task-main { gap: 8px; }
+  .task-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .card-panel .quote-btn { color: var(--ink-mute); }
+  .card-panel .modal-task:hover .quote-btn, .card-panel .modal-task:focus-within .quote-btn { color: var(--ink-sub); }
+  .card-panel .modal-task-form {
+    margin: 0 18px 16px; padding: 12px 14px; border-radius: var(--radius-md);
+    border: 1.5px dashed color-mix(in srgb, hsl(var(--col-hue, 0) var(--col-sat) var(--col-light)) 50%, transparent);
+  }
+  .card-panel .modal-comments { background: transparent; border-top: 1px dashed var(--track); padding: 14px 22px 18px; }
+  .card-panel .modal-comment-list { gap: 8px; max-height: 132px; padding: 2px 2px 4px; }
+  /* 右上を折った付箋。影は切り欠きに沿わせるため box-shadow ではなく drop-shadow。 */
+  .card-panel .modal-comment {
+    position: relative; box-shadow: none; border-radius: 4px 0 var(--radius-md) var(--radius-md);
+    background: linear-gradient(225deg, transparent 10px, hsl(var(--col-hue, 0) var(--col-pill-sat) var(--col-pill-light)) 0);
+    filter: drop-shadow(0 1px 1px hsl(var(--col-hue, 0) 30% 30% / var(--col-shadow-alpha)));
+    padding: 8px 20px 8px 12px;
+  }
+  .card-panel .modal-comment::before {
+    content: ""; position: absolute; top: 0; right: 0; width: 14px; height: 14px; border-bottom-left-radius: 3px;
+    background: linear-gradient(45deg, hsl(var(--col-hue, 0) var(--col-pill-sat) calc(var(--col-pill-light) - 10%)) 50%, transparent 50%);
+  }
+  .card-panel .modal-comment .at { color: hsl(var(--col-hue, 0) var(--col-pill-ink-sat) var(--col-pill-ink-light)); }
+
   .session-log-box { width: min(720px, 100%); }
   .session-log-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
   .session-log-empty {
@@ -847,7 +892,10 @@
         <div class="modal-col-label col-pill" id="modalColLabel"></div>
         <h2 id="modalTitle"></h2>
         <div class="modal-hint" id="modalHint" hidden></div>
-        <div class="modal-ratio" id="modalRatio"></div>
+        <div class="modal-progress-row">
+          <span class="modal-progress" aria-hidden="true"><span id="modalProgressFill"></span></span>
+          <div class="modal-ratio" id="modalRatio"></div>
+        </div>
         <div class="modal-ratio" id="modalCost" hidden></div>
       </div>
       <div class="modal-header-actions">
@@ -3163,6 +3211,8 @@ function syncModalTaskRows() {
 function renderModalRatio() {
   const doneN = modalGroup.tasks.filter((t) => t.done).length;
   document.getElementById('modalRatio').textContent = `${doneN} / ${modalGroup.tasks.length} 完了`;
+  const ratio = modalGroup.tasks.length > 0 ? doneN / modalGroup.tasks.length : 0;
+  document.getElementById('modalProgressFill').style.width = `${Math.round(ratio * 100)}%`;
 }
 
 function buildModalTaskRow(column, group, task) {
@@ -3197,6 +3247,8 @@ function buildModalTaskRow(column, group, task) {
   main.appendChild(body);
   row.appendChild(main);
   bindRowClickToCheckbox(row, checkbox);
+  const actions = document.createElement('div');
+  actions.className = 'task-actions';
 
   row.addEventListener('dragstart', (e) => {
     row.classList.add('dragging');
@@ -3223,7 +3275,7 @@ function buildModalTaskRow(column, group, task) {
       sourceEl.hidden = !sourceEl.hidden;
       sourceBtn.setAttribute('aria-expanded', String(!sourceEl.hidden));
     });
-    row.appendChild(sourceBtn);
+    actions.appendChild(sourceBtn);
   }
 
   const quoteBtn = document.createElement('button');
@@ -3232,7 +3284,7 @@ function buildModalTaskRow(column, group, task) {
   quoteBtn.textContent = '引用';
   quoteBtn.setAttribute('aria-label', 'コメント欄に引用を挿入');
   quoteBtn.addEventListener('click', () => insertQuote(task));
-  row.appendChild(quoteBtn);
+  actions.appendChild(quoteBtn);
 
   const globalQuoteBtn = document.createElement('button');
   globalQuoteBtn.type = 'button';
@@ -3240,7 +3292,8 @@ function buildModalTaskRow(column, group, task) {
   globalQuoteBtn.textContent = '全体へ引用';
   globalQuoteBtn.setAttribute('aria-label', '全体コメント欄に列・カード名付きで引用を挿入');
   globalQuoteBtn.addEventListener('click', () => insertGlobalQuote(column.name, group.title, task));
-  row.appendChild(globalQuoteBtn);
+  actions.appendChild(globalQuoteBtn);
+  main.appendChild(actions);
   return row;
 }
 
