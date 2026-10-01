@@ -228,6 +228,7 @@
 
   .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
   .field-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-sub); }
+  .field-error { font-size: var(--fs-xs); color: var(--state-blocked); }
 
   .toast-region {
     position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
@@ -261,6 +262,11 @@
     display: flex; flex-direction: column; gap: 8px; overflow-y: auto;
     border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
     padding: 10px 11px; max-height: calc(100vh - var(--header-h) - 24px);
+  }
+  @media (max-width: 899px) {
+    #mainLayout { flex-direction: column; align-items: stretch; }
+    #globalCommentsPanel { flex: none; width: auto; position: static; max-height: none; }
+    .today-block, .rate-limits { flex-wrap: wrap; }
   }
   .global-comments-dialog { width: min(560px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
   .global-comments-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
@@ -561,6 +567,7 @@
   .ask-user-question-block { display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 4px; }
   .ask-user-question-label { font-size: var(--fs-xs); color: var(--ink-mute); }
   .ask-user-question-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ask-user-question-option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; max-width: 100%; }
   .session-log-reply {
     flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 16px;
     display: flex; gap: 8px; align-items: flex-end;
@@ -720,6 +727,10 @@
   <aside id="globalCommentsPanel">
     <div id="attentionPanel" class="attention-panel" role="region" aria-label="要対応" hidden></div>
     <div id="sessionPanel" class="session-panel hidden"></div>
+    <div id="sessionPanelEmpty" class="empty-state" hidden>
+      <div class="empty-state-title">稼働中・入力待ちのセッションはありません</div>
+      <div>カード詳細のコメント欄で「Claudeに依頼」すると、ここに表示されます</div>
+    </div>
   </aside>
   <section class="board-area" aria-label="ボード">
     <div class="board-toolbar">
@@ -731,7 +742,7 @@
         <button type="button" class="filter-chip" data-filter-id="incomplete" aria-pressed="false">未完了のみ</button>
         <button type="button" class="filter-chip" data-filter-id="commented" aria-pressed="false">コメントあり</button>
         <button type="button" class="filter-chip" data-filter-id="working" aria-pressed="false">稼働中</button>
-        <button type="button" class="filter-chip" data-filter-id="blocked" aria-pressed="false">待機中</button>
+        <button type="button" class="filter-chip" data-filter-id="blocked" aria-pressed="false">入力待ち</button>
         <button type="button" class="filter-chip" data-filter-id="addedToday" aria-pressed="false" hidden>今日追加</button>
       </div>
       <div class="hdr-spacer"></div>
@@ -1438,9 +1449,40 @@ function renderGlobalComments() {
   }
 }
 
+function showFieldError(input, message) {
+  const errorId = `${input.id}Error`;
+  let errorEl = document.getElementById(errorId);
+  if (!errorEl) {
+    errorEl = document.createElement('span');
+    errorEl.id = errorId;
+    errorEl.className = 'field-error';
+    input.after(errorEl);
+    input.addEventListener('input', () => clearFieldError(input), { once: true });
+  }
+  errorEl.textContent = message;
+  input.setAttribute('aria-invalid', 'true');
+  const describedByIds = (input.getAttribute('aria-describedby') || '').split(' ').filter(Boolean);
+  if (!describedByIds.includes(errorId)) input.setAttribute('aria-describedby', [...describedByIds, errorId].join(' '));
+}
+
+function clearFieldError(input) {
+  const errorId = `${input.id}Error`;
+  const errorEl = document.getElementById(errorId);
+  if (errorEl) errorEl.remove();
+  input.removeAttribute('aria-invalid');
+  const describedByIds = (input.getAttribute('aria-describedby') || '').split(' ').filter((id) => id && id !== errorId);
+  if (describedByIds.length > 0) input.setAttribute('aria-describedby', describedByIds.join(' '));
+  else input.removeAttribute('aria-describedby');
+}
+
 function submitGlobalComment() {
-  const text = document.getElementById('globalCommentInput').value.trim();
-  if (!text) return;
+  const input = document.getElementById('globalCommentInput');
+  const text = input.value.trim();
+  if (!text) {
+    showFieldError(input, 'コメントを入力してください');
+    input.focus();
+    return;
+  }
   addGlobalComment(currentFile, text);
 }
 
@@ -1478,6 +1520,8 @@ function openNewCardDialog() {
   const dialog = document.getElementById('newCardDialog');
   if (dialog.open) return;
   newCardDialogFocusReturn = captureFocusReturn();
+  clearFieldError(document.getElementById('newCardColumnInput'));
+  clearFieldError(document.getElementById('newCardTextInput'));
   dialog.showModal();
   attachToastRegionToTopmostDialog();
 }
@@ -1488,15 +1532,23 @@ function openGlobalCommentsDialog() {
   const dialog = document.getElementById('globalCommentsDialog');
   if (!dialog.open) {
     globalCommentsDialogFocusReturn = captureFocusReturn();
+    clearFieldError(document.getElementById('globalCommentInput'));
     dialog.showModal();
     attachToastRegionToTopmostDialog();
   }
 }
 
 function submitNewCard() {
-  const columnName = document.getElementById('newCardColumnInput').value.trim();
-  const text = document.getElementById('newCardTextInput').value.trim();
-  if (!columnName || !text) return;
+  const columnInput = document.getElementById('newCardColumnInput');
+  const textInput = document.getElementById('newCardTextInput');
+  const columnName = columnInput.value.trim();
+  const text = textInput.value.trim();
+  if (!columnName) showFieldError(columnInput, '列（プロジェクト）を入力してください');
+  if (!text) showFieldError(textInput, '内容を入力してください');
+  if (!columnName || !text) {
+    (columnName ? textInput : columnInput).focus();
+    return;
+  }
   addCard(currentFile, columnName, text);
 }
 
@@ -1574,6 +1626,15 @@ function plainTextFromMarkdown(markdown) {
   const scratch = document.createElement('div');
   scratch.innerHTML = marked.parseInline(markdown);
   return scratch.textContent;
+}
+
+// markedはCDN読み込みのため、取得に失敗してもカード詳細・フォーカスモードが開けるよう原文を出す。
+function renderInlineMarkdown(element, markdown) {
+  if (typeof marked === 'undefined') {
+    element.textContent = markdown;
+    return;
+  }
+  element.innerHTML = marked.parseInline(markdown);
 }
 
 // todo-importが本文末尾に付ける「 → <元todo.mdの絶対パス>」（後ろにnotionコメントが続くことがある）。
@@ -2223,7 +2284,7 @@ function renderFocusCard() {
     const text = document.createElement('span');
     text.className = 'focus-task-text';
     text.id = `focus-task-${task.id}-text`;
-    text.innerHTML = marked.parseInline(splitTaskSource(task.text).body);
+    renderInlineMarkdown(text, splitTaskSource(task.text).body);
     checkbox.setAttribute('aria-labelledby', text.id);
     row.appendChild(text);
     bindRowClickToCheckbox(row, checkbox);
@@ -2271,7 +2332,7 @@ function bindRowClickToCheckbox(row, checkbox) {
 
 function sessionStatusLabel(session) {
   if (session.state === 'working') return '稼働中';
-  if (session.state === 'blocked') return '待機中';
+  if (session.state === 'blocked') return '入力待ち';
   if (session.state === 'done') return '完了';
   return session.state || '不明';
 }
@@ -2338,6 +2399,7 @@ function renderSessionPanel() {
   panel.innerHTML = '';
   panel.classList.toggle('hidden', workingEntries.length === 0);
   for (const { column, group } of workingEntries) panel.appendChild(buildSessionCard(column, group));
+  document.getElementById('sessionPanelEmpty').hidden = blockedEntries.length + workingEntries.length > 0;
 
   renderBlockedCountBadge(blockedEntries.length);
 }
@@ -2402,6 +2464,8 @@ let sessionLogTimer = null;
 let sessionLogJobId = null;
 let sessionLogGroupId = null;
 let sessionLogFocusReturn = null;
+let renderedSessionLogEntryKeys = null;
+const SESSION_LOG_FOLLOW_MARGIN_PX = 40;
 
 function sessionLogEntryLabel(entry) {
   if (entry.kind === 'tool_use') return `tool_use: ${entry.name}`;
@@ -2415,6 +2479,7 @@ function renderSessionLogMessage(message, session) {
   const shownBox = list.querySelector(':scope > .session-log-empty');
   // 稼働中は5秒ごとに同じ文言で呼ばれるため、作り直して再取得ボタンのフォーカスを落とさない。
   if (shownBox && shownBox.dataset.message === message && shownBox.dataset.retryJobId === retryJobId) return;
+  renderedSessionLogEntryKeys = null;
   list.innerHTML = '';
   const box = document.createElement('div');
   box.className = 'session-log-empty';
@@ -2446,8 +2511,8 @@ function buildAskUserQuestionOptions(entry) {
   const questions = Array.isArray(payload && payload.questions) ? payload.questions : [];
   const wrap = document.createElement('div');
   wrap.className = 'ask-user-question-options';
-  for (const q of questions) {
-    if (q.multiSelect || !Array.isArray(q.options) || q.options.length === 0) continue;
+  questions.forEach((q, questionIndex) => {
+    if (q.multiSelect || !Array.isArray(q.options) || q.options.length === 0) return;
     const block = document.createElement('div');
     block.className = 'ask-user-question-block';
     const label = document.createElement('div');
@@ -2456,18 +2521,28 @@ function buildAskUserQuestionOptions(entry) {
     block.appendChild(label);
     const buttons = document.createElement('div');
     buttons.className = 'ask-user-question-buttons';
-    for (const opt of q.options) {
+    q.options.forEach((opt, optionIndex) => {
+      const option = document.createElement('div');
+      option.className = 'ask-user-question-option';
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'ghost-btn';
       btn.textContent = opt.label;
-      if (opt.description) btn.title = opt.description;
       btn.addEventListener('click', () => answerAskUserQuestion(opt.label));
-      buttons.appendChild(btn);
-    }
+      option.appendChild(btn);
+      if (opt.description) {
+        const description = document.createElement('span');
+        description.className = 'input-hint';
+        description.id = `askUserQuestionOption${questionIndex}-${optionIndex}Description`;
+        description.textContent = opt.description;
+        btn.setAttribute('aria-describedby', description.id);
+        option.appendChild(description);
+      }
+      buttons.appendChild(option);
+    });
     block.appendChild(buttons);
     wrap.appendChild(block);
-  }
+  });
   return wrap.childElementCount > 0 ? wrap : null;
 }
 
@@ -2476,38 +2551,60 @@ function answerAskUserQuestion(label) {
   submitSessionLogReply();
 }
 
+function buildSessionLogEntryRow(entry) {
+  const row = document.createElement('div');
+  row.className = `log-entry ${entry.kind} ${entry.role || ''}`;
+  const role = document.createElement('div');
+  role.className = 'role';
+  role.textContent = sessionLogEntryLabel(entry);
+  row.appendChild(role);
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.textContent = entry.kind === 'tool_use' ? entry.input : entry.text;
+  row.appendChild(body);
+  if (entry.kind === 'text' && entry.role === 'assistant' && entry.uuid) {
+    const branchBtn = document.createElement('button');
+    branchBtn.type = 'button';
+    branchBtn.className = 'log-branch-btn';
+    branchBtn.dataset.focusKey = `log-branch:${entry.uuid}`;
+    branchBtn.textContent = 'ここから分岐';
+    branchBtn.disabled = !!(sessionLogGroupId && busyCommentsByGroupId.has(sessionLogGroupId));
+    branchBtn.addEventListener('click', () => branchSessionFromEntry(entry.uuid));
+    row.appendChild(branchBtn);
+  }
+  return row;
+}
+
+function buildPendingAskUserQuestionOptions(entries, session) {
+  const lastEntry = entries[entries.length - 1];
+  const isPendingAskUserQuestion = lastEntry.kind === 'tool_use' && lastEntry.name === 'AskUserQuestion' &&
+    session && session.state === 'blocked';
+  return isPendingAskUserQuestion ? buildAskUserQuestionOptions(lastEntry) : null;
+}
+
+// 稼働中は5秒ごとに呼ばれるため、毎回作り直すと読み返し中のスクロール位置とフォーカスが失われる。
 function renderSessionLogEntries(entries, session) {
   const list = document.getElementById('sessionLogList');
-  list.innerHTML = '';
-  entries.forEach((entry, index) => {
-    const row = document.createElement('div');
-    row.className = `log-entry ${entry.kind} ${entry.role || ''}`;
-    const role = document.createElement('div');
-    role.className = 'role';
-    role.textContent = sessionLogEntryLabel(entry);
-    row.appendChild(role);
-    const body = document.createElement('div');
-    body.className = 'body';
-    body.textContent = entry.kind === 'tool_use' ? entry.input : entry.text;
-    row.appendChild(body);
-    if (entry.kind === 'text' && entry.role === 'assistant' && entry.uuid) {
-      const branchBtn = document.createElement('button');
-      branchBtn.type = 'button';
-      branchBtn.className = 'log-branch-btn';
-      branchBtn.textContent = 'ここから分岐';
-      branchBtn.disabled = !!(sessionLogGroupId && busyCommentsByGroupId.has(sessionLogGroupId));
-      branchBtn.addEventListener('click', () => branchSessionFromEntry(entry.uuid));
-      row.appendChild(branchBtn);
-    }
-    list.appendChild(row);
-    const isPendingAskUserQuestion = index === entries.length - 1 && entry.kind === 'tool_use' &&
-      entry.name === 'AskUserQuestion' && session && session.state === 'blocked';
-    if (isPendingAskUserQuestion) {
-      const options = buildAskUserQuestionOptions(entry);
-      if (options) list.appendChild(options);
-    }
-  });
-  list.scrollTop = list.scrollHeight;
+  const entryKeys = entries.map((entry) => JSON.stringify(entry));
+  const renderedKeys = renderedSessionLogEntryKeys;
+  const canAppend = !!renderedKeys && renderedKeys.length <= entryKeys.length &&
+    renderedKeys.every((key, index) => key === entryKeys[index]);
+  if (canAppend && renderedKeys.length === entryKeys.length) return;
+  const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+  const shouldFollow = !renderedKeys || distanceFromBottom < SESSION_LOG_FOLLOW_MARGIN_PX;
+  if (canAppend) {
+    const staleOptions = list.querySelector(':scope > .ask-user-question-options');
+    if (staleOptions) staleOptions.remove();
+    for (const entry of entries.slice(renderedKeys.length)) list.appendChild(buildSessionLogEntryRow(entry));
+  } else {
+    const focusReturn = list.contains(document.activeElement) ? captureFocusReturn() : null;
+    list.replaceChildren(...entries.map((entry) => buildSessionLogEntryRow(entry)));
+    restoreFocusReturn(focusReturn);
+  }
+  const options = buildPendingAskUserQuestionOptions(entries, session);
+  if (options) list.appendChild(options);
+  renderedSessionLogEntryKeys = entryKeys;
+  if (shouldFollow) list.scrollTop = list.scrollHeight;
 }
 
 // サーバーはtranscriptの所在がまだ記録されていないときも404を返すため、稼働中なら起動直後とみなす。
@@ -2652,6 +2749,7 @@ function onSessionLogDialogClosed() {
   resetSessionArtifacts();
   sessionLogJobId = null;
   sessionLogGroupId = null;
+  renderedSessionLogEntryKeys = null;
   if (sessionLogTimer) {
     clearInterval(sessionLogTimer);
     sessionLogTimer = null;
@@ -3028,6 +3126,7 @@ function insertGlobalQuote(columnName, groupTitle, task) {
 function openModal(column, group) {
   const dialog = document.getElementById('cardDialog');
   if (!dialog.open) modalFocusReturn = captureFocusReturn();
+  if (!dialog.open || lastModalGroupId !== group.id) clearFieldError(document.getElementById('modalTaskInput'));
   if (lastModalGroupId !== group.id) {
     document.getElementById('modalCommentInput').value = '';
     document.getElementById('modalTaskInput').value = '';
@@ -3115,7 +3214,7 @@ function buildModalTaskRow(column, group, task) {
   const body = document.createElement('div');
   body.className = 'task-text';
   body.id = `task-${task.id}-text`;
-  body.innerHTML = marked.parseInline(taskBody);
+  renderInlineMarkdown(body, taskBody);
   checkbox.setAttribute('aria-labelledby', body.id);
   main.appendChild(body);
   row.appendChild(main);
@@ -3200,8 +3299,14 @@ function renderModalComments() {
 }
 
 function submitModalTask() {
-  const text = document.getElementById('modalTaskInput').value.trim();
-  if (!text || !modalGroup) return;
+  const input = document.getElementById('modalTaskInput');
+  const text = input.value.trim();
+  if (!modalGroup) return;
+  if (!text) {
+    showFieldError(input, 'タスクの内容を入力してください');
+    input.focus();
+    return;
+  }
   addTaskToCard({ file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title }, text);
 }
 
@@ -3526,21 +3631,21 @@ function renderMonthlyCosts(months) {
   for (const month of months) {
     const heading = document.createElement('h3');
     heading.className = 'shortcut-section';
-    heading.textContent = `${month.month}　${formatUsd(month.usd)}（${month.tokens.toLocaleString()} tokens）`;
+    heading.textContent = `${month.month}　${formatUsd(month.usd)}（${month.tokens.toLocaleString('ja-JP')} tokens）`;
     const list = document.createElement('dl');
     list.className = 'shortcut-list';
     for (const row of month.byModel) {
       const dt = document.createElement('dt');
       dt.textContent = row.model;
       const dd = document.createElement('dd');
-      dd.textContent = `${formatUsd(row.usd)}（${row.tokens.toLocaleString()} tokens）`;
+      dd.textContent = `${formatUsd(row.usd)}（${row.tokens.toLocaleString('ja-JP')} tokens）`;
       list.append(dt, dd);
     }
     container.append(heading, list);
     if (month.unpricedTokens > 0) {
       const note = document.createElement('p');
       note.className = 'input-hint';
-      note.textContent = `単価不明のモデル分 ${month.unpricedTokens.toLocaleString()} tokens は金額に含まれていません`;
+      note.textContent = `単価不明のモデル分 ${month.unpricedTokens.toLocaleString('ja-JP')} tokens は金額に含まれていません`;
       container.append(note);
     }
   }
@@ -3589,7 +3694,7 @@ function renderSessionList(sessions) {
     state.append(buildSessionStateMarker(s.state), sessionStatusLabel(s));
     const meta = document.createElement('span');
     meta.className = 'meta';
-    meta.textContent = `${s.launchedAt ? new Date(s.launchedAt).toLocaleString() : '起動日時不明'}　${s.file}`;
+    meta.textContent = `${s.launchedAt ? new Date(s.launchedAt).toLocaleString('ja-JP') : '起動日時不明'}　${s.file}`;
     row.append(head, state, meta);
     row.addEventListener('click', () => {
       openSessionLogModal({ name: s.file.replace(/\.md$/, '') }, { id: s.groupId, title, session: s });
@@ -3627,7 +3732,7 @@ function formatRateLimitWindow(label, window) {
   pct.className = 'pct';
   pct.textContent = `${Math.round(window.usedPercentage)}%`;
   const reset = window.resetsAt
-    ? `（${new Date(window.resetsAt * 1000).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}まで）`
+    ? `（${new Date(window.resetsAt * 1000).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}まで）`
     : '';
   el.append(`${label} `, pct, reset);
   return el;
@@ -3648,7 +3753,7 @@ async function refreshRateLimits() {
     : [];
   container.replaceChildren(...parts);
   container.hidden = parts.length === 0;
-  container.title = rateLimits ? `使用率（${new Date(rateLimits.capturedAt).toLocaleString()} 時点、Claude Codeのステータスラインより）` : '';
+  container.title = rateLimits ? `使用率（${new Date(rateLimits.capturedAt).toLocaleString('ja-JP')} 時点、Claude Codeのステータスラインより）` : '';
 }
 
 async function renderModalCost(groupId) {
