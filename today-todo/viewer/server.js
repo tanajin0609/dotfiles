@@ -455,7 +455,7 @@ function toggleTaskLine(md, taskId) {
 
 // 集約ファイルのタスク行から、todo-importが埋め込んだ元`docs/tasks/todo.md`への絶対パスを抽出する。
 function extractSourcePath(rawText) {
-  const m = rawText.match(/ → (\/\S+\/docs\/tasks\/todo\.md)(?:\s*<!--\s*notion:[^>]*-->)?\s*$/);
+  const m = rawText.match(/ → (\/\S+\/docs\/tasks\/backlog\.md)(?:\s*<!--\s*notion:[^>]*-->)?\s*$/);
   return m ? m[1] : null;
 }
 
@@ -463,7 +463,7 @@ function extractSourcePath(rawText) {
 // 比較可能な形にする（todo-importが元テキストをそのまま先頭に連結する仕様を前提にした前方一致用）。
 function computeAggCore(rawText) {
   const withoutNumber = rawText.replace(/^#\d+\s+/, '');
-  const withoutPath = withoutNumber.replace(/ → \/\S+\/docs\/tasks\/todo\.md(?:\s*<!--\s*notion:[^>]*-->)?\s*$/, '');
+  const withoutPath = withoutNumber.replace(/ → \/\S+\/docs\/tasks\/backlog\.md(?:\s*<!--\s*notion:[^>]*-->)?\s*$/, '');
   return withoutPath.replace(/\s*<!--\s*notion:[^>]*-->\s*$/, '').trim();
 }
 
@@ -489,7 +489,7 @@ const THIN_TASK_TEXTS = ['タスク細分化を行う'];
 // タスク本文から、todo-importが埋め込んだ末尾の絶対パス・notionコメントを取り除く。
 function stripEmbeddedSuffix(text) {
   return text
-    .replace(/ → \/\S+\/docs\/tasks\/todo\.md(?:\s*<!--\s*notion:[^>]*-->)?\s*$/, '')
+    .replace(/ → \/\S+\/docs\/tasks\/backlog\.md(?:\s*<!--\s*notion:[^>]*-->)?\s*$/, '')
     .replace(/\s*<!--\s*notion:[^>]*-->\s*$/, '')
     .trim();
 }
@@ -625,7 +625,7 @@ function resolveLaunchCwd(columnName, groupTitle) {
   return base;
 }
 
-// todo.md内の`#<N>`採番の最大値を返す（1件も無ければ0＝この対象ファイルは無番号運用とみなす）。
+// backlog.md内の`#<N>`採番の最大値を返す（1件も無ければ0＝この対象ファイルは無番号運用とみなす）。
 function findMaxTaskNumber(md) {
   let max = 0;
   for (const line of md.split('\n')) {
@@ -1296,9 +1296,9 @@ const server = http.createServer(async (req, res) => {
     if (!targetDir) {
       return sendJson(res, 400, { error: 'no matching project directory', columnName });
     }
-    const sourcePath = path.join(targetDir, 'docs', 'tasks', 'todo.md');
+    const sourcePath = path.join(targetDir, 'docs', 'tasks', 'backlog.md');
     if (!fs.existsSync(sourcePath)) {
-      return sendJson(res, 400, { error: 'source todo.md not found', sourcePath });
+      return sendJson(res, 400, { error: 'source backlog.md not found', sourcePath });
     }
 
     const srcMd = fs.readFileSync(sourcePath, 'utf-8');
@@ -1341,9 +1341,9 @@ const server = http.createServer(async (req, res) => {
     if (!targetDir) {
       return sendJson(res, 400, { error: 'no matching project directory', columnName });
     }
-    const sourcePath = path.join(targetDir, 'docs', 'tasks', 'todo.md');
+    const sourcePath = path.join(targetDir, 'docs', 'tasks', 'backlog.md');
     if (!fs.existsSync(sourcePath)) {
-      return sendJson(res, 400, { error: 'source todo.md not found', sourcePath });
+      return sendJson(res, 400, { error: 'source backlog.md not found', sourcePath });
     }
 
     const srcMd = fs.readFileSync(sourcePath, 'utf-8');
