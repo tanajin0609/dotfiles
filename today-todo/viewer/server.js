@@ -1234,6 +1234,23 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (url.pathname === '/api/doc' && req.method === 'GET') {
+    const requested = path.resolve(url.searchParams.get('path') || '/');
+    if (path.extname(requested).toLowerCase() !== '.md') {
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+    if (!fs.existsSync(requested)) {
+      return sendJson(res, 404, { error: 'not found' });
+    }
+    // symlinkで配下外を指していても読めないよう、解決後の実体パスで判定する。
+    const realRoot = fs.realpathSync(PROJECTS_ROOT);
+    if (!fs.realpathSync(requested).startsWith(realRoot + path.sep)) {
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+    res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' });
+    return res.end(fs.readFileSync(requested));
+  }
+
   if ((url.pathname === '/api/session/artifacts' || url.pathname === '/api/session/artifact') && req.method === 'GET') {
     const jobId = url.searchParams.get('jobId') || '';
     if (!/^[0-9a-f-]+$/.test(jobId)) {
