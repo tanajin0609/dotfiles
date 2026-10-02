@@ -1171,7 +1171,7 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJson(res, 400, { error: 'invalid json' });
     }
-    const { file, groupId, columnName, groupTitle, text } = payload;
+    const { file, groupId, columnName, groupTitle, text, newSession } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof columnName !== 'string' ||
         typeof groupTitle !== 'string' || !trimmed) {
@@ -1184,7 +1184,8 @@ const server = http.createServer(async (req, res) => {
     activeLaunchKeys.add(lockKey);
     try {
       const sessionsMap = readSessionsMap(file);
-      const existing = sessionsMap[groupId];
+      // 同じカードの別タスクの指示を前の会話に混ぜないため、newSessionでは既存セッションを見ずに新規起動する。
+      const existing = newSession === true ? null : sessionsMap[groupId];
       if (existing && isSessionBusy(existing.jobId)) {
         return sendJson(res, 200, { launched: false, reason: 'already-running', jobId: existing.jobId });
       }

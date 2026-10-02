@@ -207,3 +207,41 @@ test('完了済み(done)セッションへの再起動では、stopを呼ばず�
     fs.rmSync(jobDir, { recursive: true, force: true });
   }
 });
+
+// AC-NS-SRV-1
+test('newSession指定時は稼働中の既存セッションがあってもstop・--resumeせず新規起動し、紐付けを差し替える', async () => {
+  const fixture = setupFixture();
+  const oldJobId = 'cccc3333';
+  const newJobId = 'dddd4444';
+  const jobDir = makeTestJobDir(oldJobId);
+  const callLog = path.join(fixture.root, 'claude-calls.log');
+  writeFakeClaude(path.join(fixture.root, 'bin'), { jobId: newJobId, callLogPath: callLog, delayMs: 20 });
+  const file = buildLaunchPayload().file;
+  writeSessionsMap(fixture.dataDir, file, {
+    'group-a': { jobId: oldJobId, name: 'demo-project ▸ demo-project', launchedAt: new Date().toISOString() },
+  });
+  fs.writeFileSync(path.join(jobDir, 'state.json'), JSON.stringify({
+    state: 'working',
+    sessionId: 'full-session-uuid-0003',
+  }));
+  const server = await startViewerServer({
+    VIEWER_TODO_DIR: fixture.todoDir,
+    VIEWER_DATA_DIR: fixture.dataDir,
+    PATH: `${path.join(fixture.root, 'bin')}:${process.env.PATH}`,
+  });
+  try {
+    const res = await postLaunch(server.baseUrl, buildLaunchPayload({ newSession: true }));
+    assert.equal(res.status, 200);
+    assert.equal(res.body.launched, true);
+    assert.equal(res.body.jobId, newJobId);
+    const calls = fs.readFileSync(callLog, 'utf-8').trim().split('\n');
+    assert.equal(calls.length, 1, 'stopは呼ばれず起動のみ1回であること');
+    assert.doesNotMatch(calls[0], /--resume/);
+    const sessionsMap = JSON.parse(fs.readFileSync(
+      path.join(fixture.dataDir, `sessions-${file.replace(/\.md$/, '')}.json`), 'utf-8'));
+    assert.equal(sessionsMap['group-a'].jobId, newJobId);
+  } finally {
+    await server.stop();
+    fs.rmSync(jobDir, { recursive: true, force: true });
+  }
+});
