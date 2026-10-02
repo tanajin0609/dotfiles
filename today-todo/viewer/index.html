@@ -276,7 +276,7 @@
   }
 
   .ghost-btn, .solid-btn, .tool-btn,
-  #globalCommentSubmit, #newCardSubmit, #modalCommentSaveBtn, #modalTaskSubmit, #modelSettingsSubmit,
+  #globalCommentSubmit, #newCardSubmit, #modalCommentSaveBtn, #modalCommentNewSessionBtn, #modalTaskSubmit, #modelSettingsSubmit,
   #modalCommentLaunchBtn, #sessionLogReplyBtn, #reloadBtn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     height: 32px; padding: 0 12px; border-radius: var(--radius);
@@ -294,10 +294,10 @@
   }
   .solid-btn:hover, #globalCommentSubmit:hover, #newCardSubmit:hover, #modalTaskSubmit:hover, #modelSettingsSubmit:hover,
   #modalCommentLaunchBtn:hover, #sessionLogReplyBtn:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
-  #modalCommentSaveBtn {
+  #modalCommentSaveBtn, #modalCommentNewSessionBtn {
     border: 1px solid var(--input-line); background: var(--raised); color: var(--ink);
   }
-  #modalCommentSaveBtn:hover { background: var(--hover-bg); }
+  #modalCommentSaveBtn:hover, #modalCommentNewSessionBtn:hover { background: var(--hover-bg); }
   .tool-btn, #reloadBtn {
     width: 32px; padding: 0; border: 1px solid transparent; background: transparent; color: var(--ink-sub);
   }
@@ -306,7 +306,7 @@
   .ghost-btn:disabled:hover { background: var(--chip-bg); }
   .solid-btn:disabled:hover, #globalCommentSubmit:disabled:hover, #newCardSubmit:disabled:hover,
   #modalTaskSubmit:disabled:hover, #modalCommentLaunchBtn:disabled:hover, #sessionLogReplyBtn:disabled:hover { background: var(--accent); }
-  #modalCommentSaveBtn:disabled:hover { background: var(--raised); }
+  #modalCommentSaveBtn:disabled:hover, #modalCommentNewSessionBtn:disabled:hover { background: var(--raised); }
   .share-btn:disabled:hover { background: transparent; color: var(--ink-sub); }
   .copy-empty-reason { font-size: var(--fs-xs); color: var(--ink-mute); white-space: nowrap; }
   .copy-empty-reason[hidden] { display: none; }
@@ -1027,6 +1027,7 @@
         <div class="modal-comment-actions">
           <button id="modalCommentSaveBtn" type="button">メモ保存</button>
           <button id="modalCommentLaunchBtn" type="button">Claudeに依頼</button>
+          <button id="modalCommentNewSessionBtn" type="button" title="このカードの既存セッションを引き継がず、新しいセッションで依頼します">新規セッションで依頼</button>
         </div>
       </div>
     </div>
@@ -3318,9 +3319,14 @@ function completeFirstOpenTask(group) {
   toggleTaskDone(task, group);
 }
 
+// `#<連番>`はtodoファイル内だけの番号で、起動先セッションのbacklogとは一致しないため本文も必ず添える。
+function formatTaskQuote(task) {
+  return task.number != null ? `#${task.number} ${task.text}` : task.text;
+}
+
 function insertQuote(task) {
   const commentInput = document.getElementById('modalCommentInput');
-  const quote = task.number != null ? `#${task.number} ` : `> ${task.text}\n`;
+  const quote = `> ${formatTaskQuote(task)}\n`;
   const start = commentInput.selectionStart ?? commentInput.value.length;
   const end = commentInput.selectionEnd ?? commentInput.value.length;
   commentInput.value = commentInput.value.slice(0, start) + quote + commentInput.value.slice(end);
@@ -3335,7 +3341,7 @@ function insertGlobalQuote(columnName, groupTitle, task) {
   openGlobalCommentsDialog();
   const input = document.getElementById('globalCommentInput');
   const label = `[${columnName} ▸ ${groupTitle}]`;
-  const quote = task.number != null ? `${label} #${task.number} ` : `${label} > ${task.text}\n`;
+  const quote = `${label} > ${formatTaskQuote(task)}\n`;
   const start = input.selectionStart ?? input.value.length;
   const end = input.selectionEnd ?? input.value.length;
   input.value = input.value.slice(0, start) + quote + input.value.slice(end);
@@ -3443,9 +3449,7 @@ function buildModalTaskRow(column, group, task) {
 
   row.addEventListener('dragstart', (e) => {
     row.classList.add('dragging');
-    const quoteText = task.number != null ? `#${task.number}` : task.text;
-    e.dataTransfer.setData('text/plain', quoteText);
-    e.dataTransfer.setData('application/x-todo-quote', task.number != null ? 'number' : 'text');
+    e.dataTransfer.setData('text/plain', formatTaskQuote(task));
   });
   row.addEventListener('dragend', () => row.classList.remove('dragging'));
 
@@ -3552,7 +3556,7 @@ async function addTaskToCard(target, text) {
 }
 
 const COMMENT_BUSY_LABELS = { memo: '保存中…', launch: '起動中…' };
-const COMMENT_IDLE_LABELS = { memo: 'メモ保存', launch: 'Claudeに依頼' };
+const COMMENT_IDLE_LABELS = { memo: 'メモ保存', launch: 'Claudeに依頼', newSession: '新規セッションで依頼' };
 
 // 送信中の表示は、閉じて別カードを開き直したときに持ち越さないようカードIDで判定する。
 function renderModalCommentControls() {
@@ -3560,12 +3564,15 @@ function renderModalCommentControls() {
   const isBusy = !!busy;
   const saveBtn = document.getElementById('modalCommentSaveBtn');
   const launchBtn = document.getElementById('modalCommentLaunchBtn');
+  const newSessionBtn = document.getElementById('modalCommentNewSessionBtn');
   const input = document.getElementById('modalCommentInput');
   saveBtn.disabled = isBusy;
   launchBtn.disabled = isBusy;
+  newSessionBtn.disabled = isBusy;
   input.disabled = isBusy;
   saveBtn.textContent = isBusy && busy.mode === 'memo' ? COMMENT_BUSY_LABELS.memo : COMMENT_IDLE_LABELS.memo;
   launchBtn.textContent = isBusy && busy.mode === 'launch' ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.launch;
+  newSessionBtn.textContent = isBusy && busy.mode === 'newSession' ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.newSession;
 }
 
 // セッションログダイアログの返信欄も、同じbusyCommentsByGroupIdをsessionLogGroupIdで参照するだけなので
@@ -3617,11 +3624,15 @@ function saveModalCommentAndLaunch() {
   submitModalComment(true);
 }
 
-function submitModalComment(shouldLaunch) {
+function saveModalCommentAndLaunchNewSession() {
+  submitModalComment(true, { newSession: true });
+}
+
+function submitModalComment(shouldLaunch, launchOptions = {}) {
   const text = document.getElementById('modalCommentInput').value.trim();
   if (!text || !modalGroup || busyCommentsByGroupId.has(modalGroup.id)) return;
   const target = { file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title };
-  sendCardComment(target, text, shouldLaunch);
+  sendCardComment(target, text, shouldLaunch, launchOptions);
 }
 
 function submitSessionLogReply() {
@@ -3664,13 +3675,14 @@ function branchSessionFromEntry(uuid) {
   });
 }
 
-function sendCardComment(target, text, shouldLaunch) {
-  return runWithCommentBusy(target.groupId, shouldLaunch ? 'launch' : 'memo', async () => {
+function sendCardComment(target, text, shouldLaunch, launchOptions = {}) {
+  const mode = !shouldLaunch ? 'memo' : launchOptions.newSession ? 'newSession' : 'launch';
+  return runWithCommentBusy(target.groupId, mode, async () => {
     const response = await postJson('/api/comments', { file: target.file, groupId: target.groupId, text });
     if (!response.ok) {
       showFailureToast(
         `コメントの保存に失敗しました: ${formatFailureReason(response)}`,
-        () => sendCardComment(target, text, shouldLaunch),
+        () => sendCardComment(target, text, shouldLaunch, launchOptions),
       );
       return;
     }
@@ -3690,23 +3702,23 @@ function sendCardComment(target, text, shouldLaunch) {
       showToast('メモを保存しました');
       return;
     }
-    await launchCardSession(target, text);
+    await launchCardSession(target, text, launchOptions);
   });
 }
 
-function retryCardSessionLaunch(target, text) {
-  return runWithCommentBusy(target.groupId, 'launch', () => launchCardSession(target, text));
+function retryCardSessionLaunch(target, text, launchOptions) {
+  return runWithCommentBusy(target.groupId, launchOptions.newSession ? 'newSession' : 'launch', () => launchCardSession(target, text, launchOptions));
 }
 
-async function launchCardSession(target, text) {
+async function launchCardSession(target, text, launchOptions = {}) {
   const { file, groupId, columnName, groupTitle } = target;
-  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text });
+  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text, newSession: launchOptions.newSession === true });
   if (response.status === 409) {
     showToast('このカードは起動処理中です（コメントは保存しました）');
   } else if (!response.ok) {
     showFailureToast(
       `セッション起動に失敗しました（コメントは保存済み）: ${formatFailureReason(response)}`,
-      () => retryCardSessionLaunch(target, text),
+      () => retryCardSessionLaunch(target, text, launchOptions),
     );
   } else if (response.data.launched === false) {
     showToast('このカードは既にセッションが稼働中です（コメントのみ保存しました）');
@@ -4264,6 +4276,7 @@ async function init() {
   });
   document.getElementById('modalCommentSaveBtn').addEventListener('click', saveModalComment);
   document.getElementById('modalCommentLaunchBtn').addEventListener('click', saveModalCommentAndLaunch);
+  document.getElementById('modalCommentNewSessionBtn').addEventListener('click', saveModalCommentAndLaunchNewSession);
   document.getElementById('modalTaskSubmit').addEventListener('click', submitModalTask);
   document.getElementById('globalCommentSubmit').addEventListener('click', submitGlobalComment);
   document.getElementById('globalCommentsCopyBtn').addEventListener('click', copyGlobalComments);
@@ -4308,8 +4321,7 @@ async function init() {
     commentInput.classList.remove('drag-over');
     const text = e.dataTransfer.getData('text/plain');
     if (!text) return;
-    const kind = e.dataTransfer.getData('application/x-todo-quote');
-    const quote = kind === 'number' ? `${text} ` : `> ${text}\n`;
+    const quote = `> ${text}\n`;
     const start = commentInput.selectionStart ?? commentInput.value.length;
     const end = commentInput.selectionEnd ?? commentInput.value.length;
     commentInput.value = commentInput.value.slice(0, start) + quote + commentInput.value.slice(end);
