@@ -33,3 +33,36 @@ test('GET /api/docはPROJECTS_ROOT配下の.mdだけを返し、それ以外は4
     fs.rmSync(outside, { force: true });
   }
 });
+
+// AC-DV-SRV-2
+test('GET /api/doc/resolveは出典のディレクトリから上へさかのぼってrefを解決し、配下の.mdを返す', async () => {
+  const fixture = setupFixture();
+  const projectsRoot = path.resolve(fixture.todoDir, '..');
+  const orderDir = path.join(projectsRoot, 'ops', 'inbox', 'order-1');
+  fs.mkdirSync(path.join(orderDir, 'src', 'node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(orderDir, 'instruction.md'), '# i');
+  fs.writeFileSync(path.join(orderDir, 'plan.md'), '# p');
+  fs.writeFileSync(path.join(orderDir, '.snapshot.md'), '# s');
+  fs.writeFileSync(path.join(orderDir, 'src', 'node_modules', 'x.md'), '# x');
+  const backlog = path.join(projectsRoot, 'ops', 'inbox', 'docs', 'tasks', 'backlog.md');
+  fs.mkdirSync(path.dirname(backlog), { recursive: true });
+  fs.writeFileSync(backlog, '');
+  const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
+  const resolve = (ref) => fetch(`${server.baseUrl}/api/doc/resolve?ref=${encodeURIComponent(ref)}&base=${encodeURIComponent(backlog)}`);
+  try {
+    for (const ref of ['ops/inbox/order-1', 'inbox/order-1']) {
+      const res = await resolve(ref);
+      assert.equal(res.status, 200, ref);
+      const body = await res.json();
+      assert.equal(body.kind, 'dir');
+      assert.equal(body.path, orderDir);
+      assert.deepEqual(body.docs, [path.join(orderDir, 'instruction.md'), path.join(orderDir, 'plan.md')]);
+    }
+    const file = await (await resolve('ops/inbox/order-1/plan.md')).json();
+    assert.deepEqual([file.kind, file.docs], ['file', [path.join(orderDir, 'plan.md')]]);
+    assert.equal((await resolve('nope/missing')).status, 404);
+    assert.equal((await resolve('../../../../../../etc')).status, 404);
+  } finally {
+    await server.stop();
+  }
+});

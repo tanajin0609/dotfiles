@@ -645,6 +645,40 @@ function insertStandaloneTaskAfterColumnHeading(md, columnName, newLine) {
   return `${md}${sep}\n## ${columnName}\n${newLine}\n`;
 }
 
+function isUnderProjectsRoot(p) {
+  return fs.realpathSync(p).startsWith(fs.realpathSync(PROJECTS_ROOT) + path.sep);
+}
+
+function listMarkdownFiles(dir, depth, out) {
+  if (depth < 0 || out.length >= 100) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) listMarkdownFiles(full, depth - 1, out);
+    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md') && out.length < 100) out.push(full);
+  }
+  return out;
+}
+
+// タスク本文のパス表記は書いた場所（サブプロジェクト・その親・projects直下）によって基準が違うため、
+// 出典のディレクトリから上へさかのぼって最初に実在したものを採る。
+function resolveDocRef(ref, base) {
+  if (!ref || path.isAbsolute(ref)) return null;
+  let dir = fs.existsSync(base) && fs.statSync(base).isDirectory() ? base : path.dirname(base);
+  while (dir.startsWith(PROJECTS_ROOT)) {
+    const candidate = path.resolve(dir, ref);
+    if (fs.existsSync(candidate) && isUnderProjectsRoot(candidate)) {
+      if (fs.statSync(candidate).isDirectory()) {
+        return { path: candidate, kind: 'dir', docs: listMarkdownFiles(candidate, 2, []) };
+      }
+      return { path: candidate, kind: 'file', docs: candidate.toLowerCase().endsWith('.md') ? [candidate] : [] };
+    }
+    if (dir === PROJECTS_ROOT) break;
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+
 // `claude --bg` の標準出力（`backgrounded · <id> · <name>`、ANSIカラーコード付き）から短縮IDを取り出す。
 function parseBackgroundedId(output) {
   const stripped = output.replace(/\x1b\[[0-9;]*m/g, '');
@@ -1232,6 +1266,14 @@ const server = http.createServer(async (req, res) => {
     } finally {
       activeLaunchKeys.delete(lockKey);
     }
+  }
+
+  if (url.pathname === '/api/doc/resolve' && req.method === 'GET') {
+    const ref = url.searchParams.get('ref') || '';
+    const base = path.resolve(url.searchParams.get('base') || PROJECTS_ROOT);
+    const found = resolveDocRef(ref, base);
+    if (!found) return sendJson(res, 404, { error: 'not found' });
+    return sendJson(res, 200, found);
   }
 
   if (url.pathname === '/api/doc' && req.method === 'GET') {

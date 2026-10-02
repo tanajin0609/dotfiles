@@ -664,7 +664,13 @@
   .doc-path { font-size: 12px; color: var(--ink-3, var(--ink)); overflow-wrap: anywhere; }
   .doc-status:empty { display: none; }
   .doc-status { padding: 12px 20px; }
-  .doc-frame { flex: 1; width: 100%; border: 0; background: #fff; border-radius: 0 0 var(--radius) var(--radius); }
+  .doc-body { flex: 1; display: flex; min-height: 0; }
+  .doc-nav { width: 200px; flex: none; overflow-y: auto; padding: 8px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+  .doc-nav button { text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; cursor: pointer; }
+  .doc-nav button:hover { background: var(--hover-bg); }
+  .doc-nav button[aria-current="true"] { background: var(--hover-bg); font-weight: 600; }
+  .doc-frame { flex: 1; min-width: 0; width: 100%; border: 0; background: #fff; border-radius: 0 0 var(--radius) var(--radius); }
+  .doc-ref { cursor: pointer; text-decoration: underline dotted; }
   .shortcut-dialog { width: min(560px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
   .shortcut-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
   .global-comments-dialog { width: min(560px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
@@ -1051,7 +1057,10 @@
       </div>
     </div>
     <div id="docStatus" class="doc-status" role="status"></div>
-    <iframe id="docFrame" class="doc-frame" sandbox title="ドキュメント本文"></iframe>
+    <div class="doc-body">
+      <nav id="docNav" class="doc-nav" aria-label="ドキュメント一覧" hidden></nav>
+      <iframe id="docFrame" class="doc-frame" sandbox title="ドキュメント本文"></iframe>
+    </div>
   </div>
 </dialog>
 <dialog id="sessionLogDialog" class="app-dialog session-log-dialog" aria-labelledby="sessionLogTitle">
@@ -1484,9 +1493,48 @@ function escapeHtml(text) {
   return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
-async function openDocDialog(absPath) {
+// 一覧から開くとき最初に見せたい順。ops系はinstruction→order→plan、dev系はproposal。
+const DOC_PREFERRED_NAMES = ['instruction.md', 'order.md', 'plan.md', 'proposal.md'];
+
+function renderDocNav(docs, baseDir, currentPath) {
+  const nav = document.getElementById('docNav');
+  nav.replaceChildren();
+  nav.hidden = docs.length < 2;
+  for (const docPath of docs) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = docPath.startsWith(baseDir + '/') ? docPath.slice(baseDir.length + 1) : docPath;
+    btn.title = docPath;
+    btn.setAttribute('aria-current', String(docPath === currentPath));
+    btn.addEventListener('click', () => {
+      for (const other of nav.children) other.setAttribute('aria-current', String(other === btn));
+      openDocDialog(docPath, { keepNav: true });
+    });
+    nav.appendChild(btn);
+  }
+}
+
+async function openDocRef(ref, sourcePath) {
+  let response;
+  try {
+    response = await fetch(`/api/doc/resolve?ref=${encodeURIComponent(ref)}&base=${encodeURIComponent(sourcePath || '')}`);
+  } catch {
+    response = null;
+  }
+  const found = response && response.ok ? await response.json() : null;
+  if (!found || found.docs.length === 0) {
+    showToast('表示できるドキュメントがありません');
+    return;
+  }
+  const first = DOC_PREFERRED_NAMES.map((name) => found.docs.find((d) => d.endsWith(`/${name}`))).find(Boolean) || found.docs[0];
+  renderDocNav(found.docs, found.path, first);
+  openDocDialog(first, { keepNav: true });
+}
+
+async function openDocDialog(absPath, { keepNav = false } = {}) {
   const dialog = document.getElementById('docDialog');
   if (!dialog.open) docFocusReturn = captureFocusReturn();
+  if (!keepNav) renderDocNav([], '', absPath);
   document.getElementById('docTitle').textContent = absPath.split('/').pop();
   document.getElementById('docPath').textContent = absPath;
   const status = document.getElementById('docStatus');
@@ -1540,6 +1588,21 @@ function bindDocLinks(container, sourcePath) {
       e.stopPropagation();
       openDocDialog(absPath);
     });
+  }
+  for (const code of container.querySelectorAll('code')) {
+    const ref = code.textContent.trim();
+    if (!/^[\w.-]+(\/[\w.-]+)+\/?$/.test(ref) || code.closest('a')) continue;
+    code.classList.add('doc-ref');
+    code.tabIndex = 0;
+    code.setAttribute('role', 'button');
+    code.title = 'このパスのドキュメントを開く';
+    const open = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openDocRef(ref, sourcePath);
+    };
+    code.addEventListener('click', open);
+    code.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); });
   }
 }
 

@@ -109,6 +109,9 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 
 - AC-DV-SRV-1: `GET /api/doc?path=<絶対パス>` は、symlink解決後のパスが `PROJECTS_ROOT` 配下にある実在の `.md` ファイルだけを
   `200 text/markdown; charset=utf-8` で返す。`.md` 以外・配下外は403、存在しなければ404。
+- AC-DV-SRV-2: `GET /api/doc/resolve?ref=<相対パス>&base=<出典の絶対パス>` は、`base` のディレクトリから `PROJECTS_ROOT` まで1階層ずつ
+  さかのぼり、各階層に `ref` を連結して最初に実在したパスを採る（`PROJECTS_ROOT` 配下のものだけ）。`200 { "path", "kind": "file" | "dir", "docs": [<絶対パス>] }`
+  を返し、`docs` はファイルなら（`.md` のとき）自身、ディレクトリなら配下の `.md`（`node_modules`・`.`始まりを除き3階層まで、パス順、最大100件）。見つからなければ404。
 
 ## 2. 画面
 
@@ -214,6 +217,10 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   Markdownとして整形表示する（本文幅を絞った読み物レイアウト。見出し・表・引用・コード・チェックリストを区別して描く）。相対リンクは
   タスク末尾の出典パス（AC-B6-1）のディレクトリ基準で解決する。描画は `sandbox` 属性（スクリプト不可）付きの `iframe` で行う。
   ダイアログにはファイル名と絶対パスを出す。取得失敗時はダイアログ内に理由を出す。markedが読めないときは原文をそのまま出す。
+- AC-DV-2: タスク本文中の `/` を含むコード表記（例: `` `ops-work/inbox/order-20261002` ``）は押せるようにし、押すと `/api/doc/resolve` で解決する。
+  `.md` が1件ならそのまま表示し、ディレクトリで複数あればダイアログ左側に一覧（instruction.md・plan.md等）を出して選んだものを表示する
+  （先頭に表示するのは instruction.md → order.md → plan.md → proposal.md の優先順で最初に見つかったもの、無ければ一覧の先頭）。
+  解決できない・`.md` が0件なら「表示できるドキュメントがありません」と通知する。
 
 ### 2.5 セッション（H5・B7・F3・F5・CC2・CC3・UX2・UX4・UX6・UX7）
 
