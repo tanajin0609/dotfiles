@@ -24,6 +24,9 @@ const RATE_LIMITS_PATH = process.env.VIEWER_RATE_LIMITS_PATH
   ? path.resolve(process.env.VIEWER_RATE_LIMITS_PATH)
   : path.join(os.homedir(), '.cache', 'claude-statusline', 'rate-limits.json');
 const LAUNCH_SETTINGS_PATH = path.join(DATA_DIR, 'launch-settings.json');
+const CLAUDE_CONFIG_PATH = process.env.VIEWER_CLAUDE_CONFIG
+  ? path.resolve(process.env.VIEWER_CLAUDE_CONFIG)
+  : path.join(os.homedir(), '.claude.json');
 // 先頭を英数字に限定し、`--xxx`のような値がclaudeのオプションとして解釈されるのを防ぐ。
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\[\]-]{0,63}$/;
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -212,6 +215,37 @@ function readGlobalClaudeSettings() {
   } catch {
     return null;
   }
+}
+
+function sendLaunchFailure(res, err, cwd) {
+  const stderr = String(err.stderr || '');
+  if (stderr.includes('Workspace not trusted')) {
+    return sendJson(res, 403, { error: 'workspace not trusted', cwd });
+  }
+  return sendJson(res, 500, { error: 'launch failed', detail: String(err.stderr || err.message || err) });
+}
+
+function isTrustableCwd(cwd) {
+  if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return false;
+  let real;
+  try {
+    real = fs.realpathSync(cwd);
+  } catch {
+    return false;
+  }
+  const root = fs.realpathSync(PROJECTS_ROOT);
+  return (real === root || real.startsWith(root + path.sep)) && fs.statSync(real).isDirectory();
+}
+
+// ~/.claude.jsonはClaude Code CLI本体も書き換えるため、読んだ直後に書いて競合の窓を狭め、
+// 一時ファイル→renameで途中書きの壊れたJSONを残さない。
+function markWorkspaceTrusted(cwd) {
+  const config = fs.existsSync(CLAUDE_CONFIG_PATH) ? JSON.parse(fs.readFileSync(CLAUDE_CONFIG_PATH, 'utf-8')) : {};
+  config.projects = config.projects || {};
+  config.projects[cwd] = { ...config.projects[cwd], hasTrustDialogAccepted: true };
+  const tmpPath = `${CLAUDE_CONFIG_PATH}.viewer-${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2));
+  fs.renameSync(tmpPath, CLAUDE_CONFIG_PATH);
 }
 
 function readLaunchSettings() {
@@ -705,7 +739,7 @@ function parseAggLine(line) {
   return { done: task[1] === 'x', number: numMatch ? parseInt(numMatch[1], 10) : null, core, notionId: notion ? notion[1] : null };
 }
 
-// `## columnName` 節を backlog.md から作り直した md を返す（規則は spec 1.11）。
+// `## columnName` 節を backlog.md から作り直した md を返す（規則は spec 1.14）。
 function syncColumnSection(md, columnName, columnDir) {
   const sources = findBacklogFiles(columnDir).map((p) => {
     const projectDir = path.dirname(path.dirname(path.dirname(p)));
@@ -786,6 +820,40 @@ function syncColumnSection(md, columnName, columnDir) {
   const before = lines.slice(0, start);
   if (end === lines.length && before.length && before[before.length - 1].trim() !== '') before.push('');
   return { md: [...before, ...section, ...lines.slice(end)].join('\n'), items: openCount };
+}
+
+function isUnderProjectsRoot(p) {
+  return fs.realpathSync(p).startsWith(fs.realpathSync(PROJECTS_ROOT) + path.sep);
+}
+
+function listMarkdownFiles(dir, depth, out) {
+  if (depth < 0 || out.length >= 100) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) listMarkdownFiles(full, depth - 1, out);
+    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md') && out.length < 100) out.push(full);
+  }
+  return out;
+}
+
+// タスク本文のパス表記は書いた場所（サブプロジェクト・その親・projects直下）によって基準が違うため、
+// 出典のディレクトリから上へさかのぼって最初に実在したものを採る。
+function resolveDocRef(ref, base) {
+  if (!ref || path.isAbsolute(ref)) return null;
+  let dir = fs.existsSync(base) && fs.statSync(base).isDirectory() ? base : path.dirname(base);
+  while (dir.startsWith(PROJECTS_ROOT)) {
+    const candidate = path.resolve(dir, ref);
+    if (fs.existsSync(candidate) && isUnderProjectsRoot(candidate)) {
+      if (fs.statSync(candidate).isDirectory()) {
+        return { path: candidate, kind: 'dir', docs: listMarkdownFiles(candidate, 2, []) };
+      }
+      return { path: candidate, kind: 'file', docs: candidate.toLowerCase().endsWith('.md') ? [candidate] : [] };
+    }
+    if (dir === PROJECTS_ROOT) break;
+    dir = path.dirname(dir);
+  }
+  return null;
 }
 
 // `claude --bg` の標準出力（`backgrounded · <id> · <name>`、ANSIカラーコード付き）から短縮IDを取り出す。
@@ -994,8 +1062,47 @@ function readBody(req) {
   });
 }
 
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+// 上限を超えたら読み捨てて null を返す（途中で接続を切るとクライアントが413を受け取れないため最後まで受信する）。
+function readBinaryBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size <= limit) chunks.push(chunk);
+    });
+    req.on('end', () => resolve(size > limit ? null : Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function sanitizeAttachmentName(name) {
+  const base = path.basename(String(name || '').replace(/\\/g, '/'));
+  const cleaned = base.replace(/[\x00-\x1f/:*?"<>|]/g, '_').replace(/^\.+/, '');
+  return cleaned.slice(-120) || 'file';
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (url.pathname === '/api/attachments' && req.method === 'POST') {
+    const file = url.searchParams.get('file') || '';
+    const groupId = url.searchParams.get('groupId') || '';
+    if (!isValidTodoFile(file) || !/^[\w-]+$/.test(groupId)) {
+      req.resume();
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const body = await readBinaryBody(req, MAX_ATTACHMENT_BYTES);
+    if (body === null) return sendJson(res, 413, { error: 'too large' });
+    if (body.length === 0) return sendJson(res, 400, { error: 'empty body' });
+    const dir = path.join(DATA_DIR, 'attachments', file.replace(/\.md$/, ''), groupId);
+    fs.mkdirSync(dir, { recursive: true });
+    const saved = path.join(dir, `${Date.now()}-${sanitizeAttachmentName(url.searchParams.get('name'))}`);
+    fs.writeFileSync(saved, body);
+    return sendJson(res, 200, { path: saved });
+  }
 
   if (url.pathname === '/api/files') {
     return sendJson(res, 200, listTodoFiles());
@@ -1327,6 +1434,20 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { override: { model, effort } });
   }
 
+  if (url.pathname === '/api/workspace/trust' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    if (!isTrustableCwd(payload && payload.cwd)) {
+      return sendJson(res, 400, { error: 'invalid cwd' });
+    }
+    markWorkspaceTrusted(payload.cwd);
+    return sendJson(res, 200, { trusted: true });
+  }
+
   if (url.pathname === '/api/session/launch' && req.method === 'POST') {
     const body = await readBody(req);
     let payload;
@@ -1335,7 +1456,7 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJson(res, 400, { error: 'invalid json' });
     }
-    const { file, groupId, columnName, groupTitle, text } = payload;
+    const { file, groupId, columnName, groupTitle, text, newSession } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof columnName !== 'string' ||
         typeof groupTitle !== 'string' || !trimmed) {
@@ -1348,7 +1469,8 @@ const server = http.createServer(async (req, res) => {
     activeLaunchKeys.add(lockKey);
     try {
       const sessionsMap = readSessionsMap(file);
-      const existing = sessionsMap[groupId];
+      // 同じカードの別タスクの指示を前の会話に混ぜないため、newSessionでは既存セッションを見ずに新規起動する。
+      const existing = newSession === true ? null : sessionsMap[groupId];
       if (existing && isSessionBusy(existing.jobId)) {
         return sendJson(res, 200, { launched: false, reason: 'already-running', jobId: existing.jobId });
       }
@@ -1383,7 +1505,7 @@ const server = http.createServer(async (req, res) => {
       try {
         ({ stdout } = await execFileAsync('claude', args, { cwd, timeout: 20000 }));
       } catch (err) {
-        return sendJson(res, 500, { error: 'launch failed', detail: String(err.stderr || err.message || err) });
+        return sendLaunchFailure(res, err, cwd);
       }
       const jobId = parseBackgroundedId(stdout);
       if (!jobId) {
@@ -1396,6 +1518,31 @@ const server = http.createServer(async (req, res) => {
     } finally {
       activeLaunchKeys.delete(lockKey);
     }
+  }
+
+  if (url.pathname === '/api/doc/resolve' && req.method === 'GET') {
+    const ref = url.searchParams.get('ref') || '';
+    const base = path.resolve(url.searchParams.get('base') || PROJECTS_ROOT);
+    const found = resolveDocRef(ref, base);
+    if (!found) return sendJson(res, 404, { error: 'not found' });
+    return sendJson(res, 200, found);
+  }
+
+  if (url.pathname === '/api/doc' && req.method === 'GET') {
+    const requested = path.resolve(url.searchParams.get('path') || '/');
+    if (path.extname(requested).toLowerCase() !== '.md') {
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+    if (!fs.existsSync(requested)) {
+      return sendJson(res, 404, { error: 'not found' });
+    }
+    // symlinkで配下外を指していても読めないよう、解決後の実体パスで判定する。
+    const realRoot = fs.realpathSync(PROJECTS_ROOT);
+    if (!fs.realpathSync(requested).startsWith(realRoot + path.sep)) {
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+    res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' });
+    return res.end(fs.readFileSync(requested));
   }
 
   if ((url.pathname === '/api/session/artifacts' || url.pathname === '/api/session/artifact') && req.method === 'GET') {
@@ -1469,7 +1616,7 @@ const server = http.createServer(async (req, res) => {
       try {
         ({ stdout } = await execFileAsync('claude', ['--bg', ...buildLaunchSettingArgs(), '--resume', sessionId, '-n', name, prompt], { cwd, timeout: 20000 }));
       } catch (err) {
-        return sendJson(res, 500, { error: 'launch failed', detail: String(err.stderr || err.message || err) });
+        return sendLaunchFailure(res, err, cwd);
       }
       const jobId = parseBackgroundedId(stdout);
       if (!jobId) {
