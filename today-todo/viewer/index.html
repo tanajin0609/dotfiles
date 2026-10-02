@@ -1464,6 +1464,42 @@ function findElementByFocusKey(focusKey) {
   return focusKey ? document.querySelector(`[data-focus-key="${CSS.escape(focusKey)}"]`) : null;
 }
 
+function insertAtCursor(input, text) {
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0, start) + text + input.value.slice(end);
+  input.focus();
+  const pos = start + text.length;
+  input.setSelectionRange(pos, pos);
+}
+
+// Claudeにはファイル本体を渡せないため、サーバーに保存した絶対パスを本文に書き、セッション側に読ませる。
+async function attachDroppedFiles(input, groupId, fileList) {
+  const files = [...fileList];
+  const dismiss = showToast(`添付中…（${files.length}件）`, { key: 'attachments', durationMs: null });
+  const lines = [];
+  for (const file of files) {
+    const query = new URLSearchParams({ file: currentFile, groupId, name: file.name });
+    let response;
+    try {
+      response = await fetch(`/api/attachments?${query}`, { method: 'POST', body: file });
+    } catch {
+      response = null;
+    }
+    if (!response || !response.ok) {
+      const reason = !response ? '通信に失敗しました' : response.status === 413 ? '20MBを超えています' : `HTTP ${response.status}`;
+      showToast(`「${file.name}」を添付できませんでした: ${reason}`, { kind: 'error' });
+      continue;
+    }
+    lines.push(`[添付] ${(await response.json()).path}\n`);
+  }
+  dismiss();
+  if (lines.length === 0) return;
+  const needsBreak = input.value && !input.value.slice(0, input.selectionStart ?? input.value.length).endsWith('\n');
+  insertAtCursor(input, (needsBreak ? '\n' : '') + lines.join(''));
+  showToast(`${lines.length}件添付しました`);
+}
+
 // Notionの読み物レイアウトに寄せた本文用スタイル。iframe内はviewerのテーマ変数が届かないため固定色で持つ。
 const DOC_FRAME_STYLE = `
   body { margin: 0; background: #fff; color: #37352f; font: 16px/1.75 ui-sans-serif, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif; }
@@ -4486,6 +4522,24 @@ async function init() {
     if (e.target === sessionLogDialog) closeSessionLogModal();
   });
 
+  const sessionLogReplyInput = document.getElementById('sessionLogReplyInput');
+  sessionLogReplyInput.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    sessionLogReplyInput.classList.add('drag-over');
+  });
+  sessionLogReplyInput.addEventListener('dragleave', () => sessionLogReplyInput.classList.remove('drag-over'));
+  sessionLogReplyInput.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files.length === 0) return;
+    e.preventDefault();
+    sessionLogReplyInput.classList.remove('drag-over');
+    if (!sessionLogGroupId || !findGroupById(sessionLogGroupId)) {
+      showToast('添付は表示中のtodoファイルのセッションだけが対象です');
+      return;
+    }
+    attachDroppedFiles(sessionLogReplyInput, sessionLogGroupId, e.dataTransfer.files);
+  });
+
   const commentInput = document.getElementById('modalCommentInput');
   commentInput.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -4495,6 +4549,10 @@ async function init() {
   commentInput.addEventListener('drop', (e) => {
     e.preventDefault();
     commentInput.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) {
+      if (modalGroup) attachDroppedFiles(commentInput, modalGroup.id, e.dataTransfer.files);
+      return;
+    }
     const text = e.dataTransfer.getData('text/plain');
     if (!text) return;
     const quote = `> ${text}\n`;
