@@ -276,7 +276,7 @@
   }
 
   .ghost-btn, .solid-btn, .tool-btn,
-  #globalCommentSubmit, #newCardSubmit, #modalCommentSaveBtn, #modalTaskSubmit, #modelSettingsSubmit,
+  #globalCommentSubmit, #newCardSubmit, #modalCommentSaveBtn, #modalCommentNewSessionBtn, #modalTaskSubmit, #modelSettingsSubmit,
   #modalCommentLaunchBtn, #sessionLogReplyBtn, #reloadBtn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     height: 32px; padding: 0 12px; border-radius: var(--radius);
@@ -294,10 +294,10 @@
   }
   .solid-btn:hover, #globalCommentSubmit:hover, #newCardSubmit:hover, #modalTaskSubmit:hover, #modelSettingsSubmit:hover,
   #modalCommentLaunchBtn:hover, #sessionLogReplyBtn:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
-  #modalCommentSaveBtn {
+  #modalCommentSaveBtn, #modalCommentNewSessionBtn {
     border: 1px solid var(--input-line); background: var(--raised); color: var(--ink);
   }
-  #modalCommentSaveBtn:hover { background: var(--hover-bg); }
+  #modalCommentSaveBtn:hover, #modalCommentNewSessionBtn:hover { background: var(--hover-bg); }
   .tool-btn, #reloadBtn {
     width: 32px; padding: 0; border: 1px solid transparent; background: transparent; color: var(--ink-sub);
   }
@@ -306,7 +306,7 @@
   .ghost-btn:disabled:hover { background: var(--chip-bg); }
   .solid-btn:disabled:hover, #globalCommentSubmit:disabled:hover, #newCardSubmit:disabled:hover,
   #modalTaskSubmit:disabled:hover, #modalCommentLaunchBtn:disabled:hover, #sessionLogReplyBtn:disabled:hover { background: var(--accent); }
-  #modalCommentSaveBtn:disabled:hover { background: var(--raised); }
+  #modalCommentSaveBtn:disabled:hover, #modalCommentNewSessionBtn:disabled:hover { background: var(--raised); }
   .share-btn:disabled:hover { background: transparent; color: var(--ink-sub); }
   .copy-empty-reason { font-size: var(--fs-xs); color: var(--ink-mute); white-space: nowrap; }
   .copy-empty-reason[hidden] { display: none; }
@@ -659,6 +659,18 @@
   .card-panel .modal-box { width: 100%; height: 100%; border-radius: 0; border-width: 0 0 0 1px; }
   .session-log-dialog { width: min(720px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
   .session-log-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
+  .doc-dialog { width: min(900px, calc(100vw - 56px)); height: calc(100vh - 56px); }
+  .doc-dialog .modal-box { width: 100%; height: 100%; display: flex; flex-direction: column; }
+  .doc-path { font-size: 12px; color: var(--ink-3, var(--ink)); overflow-wrap: anywhere; }
+  .doc-status:empty { display: none; }
+  .doc-status { padding: 12px 20px; }
+  .doc-body { flex: 1; display: flex; min-height: 0; }
+  .doc-nav { width: 200px; flex: none; overflow-y: auto; padding: 8px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+  .doc-nav button { text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; cursor: pointer; }
+  .doc-nav button:hover { background: var(--hover-bg); }
+  .doc-nav button[aria-current="true"] { background: var(--hover-bg); font-weight: 600; }
+  .doc-frame { flex: 1; min-width: 0; width: 100%; border: 0; background: #fff; border-radius: 0 0 var(--radius) var(--radius); }
+  .doc-ref { cursor: pointer; text-decoration: underline dotted; }
   .shortcut-dialog { width: min(560px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
   .shortcut-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
   .global-comments-dialog { width: min(560px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
@@ -1027,12 +1039,31 @@
         <div class="modal-comment-actions">
           <button id="modalCommentSaveBtn" type="button">メモ保存</button>
           <button id="modalCommentLaunchBtn" type="button">Claudeに依頼</button>
+          <button id="modalCommentNewSessionBtn" type="button" title="このカードの既存セッションを引き継がず、新しいセッションで依頼します">新規セッションで依頼</button>
         </div>
       </div>
     </div>
   </div>
 </dialog>
 
+<dialog id="docDialog" class="app-dialog doc-dialog" aria-labelledby="docTitle">
+  <div class="modal-box doc-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="docTitle"></h2>
+        <code class="doc-path" id="docPath"></code>
+      </div>
+      <div class="modal-header-actions">
+        <button id="docCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+    <div id="docStatus" class="doc-status" role="status"></div>
+    <div class="doc-body">
+      <nav id="docNav" class="doc-nav" aria-label="ドキュメント一覧" hidden></nav>
+      <iframe id="docFrame" class="doc-frame" sandbox title="ドキュメント本文"></iframe>
+    </div>
+  </div>
+</dialog>
 <dialog id="sessionLogDialog" class="app-dialog session-log-dialog" aria-labelledby="sessionLogTitle">
   <div class="modal-box session-log-box">
     <div class="modal-header">
@@ -1453,6 +1484,185 @@ function findTaskById(taskId) {
 
 function findElementByFocusKey(focusKey) {
   return focusKey ? document.querySelector(`[data-focus-key="${CSS.escape(focusKey)}"]`) : null;
+}
+
+function insertAtCursor(input, text) {
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0, start) + text + input.value.slice(end);
+  input.focus();
+  const pos = start + text.length;
+  input.setSelectionRange(pos, pos);
+}
+
+// Claudeにはファイル本体を渡せないため、サーバーに保存した絶対パスを本文に書き、セッション側に読ませる。
+async function attachDroppedFiles(input, groupId, fileList) {
+  const files = [...fileList];
+  const dismiss = showToast(`添付中…（${files.length}件）`, { key: 'attachments', durationMs: null });
+  const lines = [];
+  for (const file of files) {
+    const query = new URLSearchParams({ file: currentFile, groupId, name: file.name });
+    let response;
+    try {
+      response = await fetch(`/api/attachments?${query}`, { method: 'POST', body: file });
+    } catch {
+      response = null;
+    }
+    if (!response || !response.ok) {
+      const reason = !response ? '通信に失敗しました' : response.status === 413 ? '20MBを超えています' : `HTTP ${response.status}`;
+      showToast(`「${file.name}」を添付できませんでした: ${reason}`, { kind: 'error' });
+      continue;
+    }
+    lines.push(`[添付] ${(await response.json()).path}\n`);
+  }
+  dismiss();
+  if (lines.length === 0) return;
+  const needsBreak = input.value && !input.value.slice(0, input.selectionStart ?? input.value.length).endsWith('\n');
+  insertAtCursor(input, (needsBreak ? '\n' : '') + lines.join(''));
+  showToast(`${lines.length}件添付しました`);
+}
+
+// Notionの読み物レイアウトに寄せた本文用スタイル。iframe内はviewerのテーマ変数が届かないため固定色で持つ。
+const DOC_FRAME_STYLE = `
+  body { margin: 0; background: #fff; color: #37352f; font: 16px/1.75 ui-sans-serif, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 56px 96px; overflow-wrap: anywhere; }
+  h1 { font-size: 2em; line-height: 1.25; margin: 0 0 .6em; font-weight: 700; }
+  h2 { font-size: 1.5em; line-height: 1.3; margin: 1.8em 0 .4em; font-weight: 600; }
+  h3 { font-size: 1.25em; margin: 1.4em 0 .3em; font-weight: 600; }
+  p, ul, ol, table, pre, blockquote { margin: .4em 0 .9em; }
+  ul, ol { padding-left: 1.6em; }
+  li { margin: .15em 0; }
+  li:has(> input[type=checkbox]) { list-style: none; margin-left: -1.4em; }
+  input[type=checkbox] { margin-right: .5em; accent-color: #2383e2; }
+  a { color: inherit; text-decoration: underline; text-decoration-color: rgba(55,53,47,.4); text-underline-offset: 2px; }
+  code { font: .85em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(135,131,120,.15); color: #eb5757; padding: .15em .4em; border-radius: 4px; }
+  pre { background: #f7f6f3; padding: 16px 20px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; color: #37352f; padding: 0; }
+  blockquote { border-left: 3px solid #37352f; padding: 0 0 0 14px; margin-left: 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .9em; display: block; overflow-x: auto; }
+  th, td { border: 1px solid #e9e9e7; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f6f3; font-weight: 600; }
+  hr { border: 0; border-top: 1px solid #e9e9e7; margin: 2em 0; }
+  img { max-width: 100%; }
+`;
+
+let docFocusReturn = null;
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// 一覧から開くとき最初に見せたい順。ops系はinstruction→order→plan、dev系はproposal。
+const DOC_PREFERRED_NAMES = ['instruction.md', 'order.md', 'plan.md', 'proposal.md'];
+
+function renderDocNav(docs, baseDir, currentPath) {
+  const nav = document.getElementById('docNav');
+  nav.replaceChildren();
+  nav.hidden = docs.length < 2;
+  for (const docPath of docs) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = docPath.startsWith(baseDir + '/') ? docPath.slice(baseDir.length + 1) : docPath;
+    btn.title = docPath;
+    btn.setAttribute('aria-current', String(docPath === currentPath));
+    btn.addEventListener('click', () => {
+      for (const other of nav.children) other.setAttribute('aria-current', String(other === btn));
+      openDocDialog(docPath, { keepNav: true });
+    });
+    nav.appendChild(btn);
+  }
+}
+
+async function openDocRef(ref, sourcePath) {
+  let response;
+  try {
+    response = await fetch(`/api/doc/resolve?ref=${encodeURIComponent(ref)}&base=${encodeURIComponent(sourcePath || '')}`);
+  } catch {
+    response = null;
+  }
+  const found = response && response.ok ? await response.json() : null;
+  if (!found || found.docs.length === 0) {
+    showToast('表示できるドキュメントがありません');
+    return;
+  }
+  const first = DOC_PREFERRED_NAMES.map((name) => found.docs.find((d) => d.endsWith(`/${name}`))).find(Boolean) || found.docs[0];
+  renderDocNav(found.docs, found.path, first);
+  openDocDialog(first, { keepNav: true });
+}
+
+async function openDocDialog(absPath, { keepNav = false } = {}) {
+  const dialog = document.getElementById('docDialog');
+  if (!dialog.open) docFocusReturn = captureFocusReturn();
+  if (!keepNav) renderDocNav([], '', absPath);
+  document.getElementById('docTitle').textContent = absPath.split('/').pop();
+  document.getElementById('docPath').textContent = absPath;
+  const status = document.getElementById('docStatus');
+  const frame = document.getElementById('docFrame');
+  status.textContent = '読み込み中…';
+  frame.srcdoc = '';
+  if (!dialog.open) dialog.showModal();
+  attachToastRegionToTopmostDialog();
+  let response;
+  try {
+    response = await fetch(`/api/doc?path=${encodeURIComponent(absPath)}`);
+  } catch (err) {
+    status.textContent = `読み込みに失敗しました: ${err.message}`;
+    return;
+  }
+  if (!response.ok) {
+    status.textContent = response.status === 404 ? 'ファイルが見つかりません' : `このファイルは表示できません（${response.status}）`;
+    return;
+  }
+  const markdown = await response.text();
+  // markedはCDN読み込みのため、取得に失敗しても原文で読めるようにする。
+  const html = typeof marked === 'undefined' ? `<pre>${escapeHtml(markdown)}</pre>` : marked.parse(markdown);
+  status.textContent = '';
+  frame.srcdoc = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>${DOC_FRAME_STYLE}</style></head><body><main>${html}</main></body></html>`;
+}
+
+function onDocDialogClosed() {
+  document.getElementById('docFrame').srcdoc = '';
+  attachToastRegionToTopmostDialog();
+  restoreFocusReturn(docFocusReturn);
+  docFocusReturn = null;
+}
+
+// タスク本文のリンクはbacklog.mdからの相対パスで書かれているため、出典パスのディレクトリを基準に解決する。
+function resolveDocLink(href, sourcePath) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return null;
+  const [pathPart] = href.split('#');
+  if (!/\.md$/i.test(pathPart)) return null;
+  if (pathPart.startsWith('/')) return decodeURIComponent(pathPart);
+  if (!sourcePath) return null;
+  const baseDir = sourcePath.slice(0, sourcePath.lastIndexOf('/') + 1);
+  return decodeURIComponent(new URL(pathPart, `file://${baseDir}`).pathname);
+}
+
+function bindDocLinks(container, sourcePath) {
+  for (const link of container.querySelectorAll('a[href]')) {
+    const absPath = resolveDocLink(link.getAttribute('href'), sourcePath);
+    if (!absPath) continue;
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openDocDialog(absPath);
+    });
+  }
+  for (const code of container.querySelectorAll('code')) {
+    const ref = code.textContent.trim();
+    if (!/^[\w.-]+(\/[\w.-]+)+\/?$/.test(ref) || code.closest('a')) continue;
+    code.classList.add('doc-ref');
+    code.tabIndex = 0;
+    code.setAttribute('role', 'button');
+    code.title = 'このパスのドキュメントを開く';
+    const open = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openDocRef(ref, sourcePath);
+    };
+    code.addEventListener('click', open);
+    code.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); });
+  }
 }
 
 function captureFocusReturn() {
@@ -3340,9 +3550,14 @@ function completeFirstOpenTask(group) {
   toggleTaskDone(task, group);
 }
 
+// `#<連番>`はtodoファイル内だけの番号で、起動先セッションのbacklogとは一致しないため本文も必ず添える。
+function formatTaskQuote(task) {
+  return task.number != null ? `#${task.number} ${task.text}` : task.text;
+}
+
 function insertQuote(task) {
   const commentInput = document.getElementById('modalCommentInput');
-  const quote = task.number != null ? `#${task.number} ` : `> ${task.text}\n`;
+  const quote = `> ${formatTaskQuote(task)}\n`;
   const start = commentInput.selectionStart ?? commentInput.value.length;
   const end = commentInput.selectionEnd ?? commentInput.value.length;
   commentInput.value = commentInput.value.slice(0, start) + quote + commentInput.value.slice(end);
@@ -3357,7 +3572,7 @@ function insertGlobalQuote(columnName, groupTitle, task) {
   openGlobalCommentsDialog();
   const input = document.getElementById('globalCommentInput');
   const label = `[${columnName} ▸ ${groupTitle}]`;
-  const quote = task.number != null ? `${label} #${task.number} ` : `${label} > ${task.text}\n`;
+  const quote = `${label} > ${formatTaskQuote(task)}\n`;
   const start = input.selectionStart ?? input.value.length;
   const end = input.selectionEnd ?? input.value.length;
   input.value = input.value.slice(0, start) + quote + input.value.slice(end);
@@ -3458,6 +3673,7 @@ function buildModalTaskRow(column, group, task) {
   body.className = 'task-text';
   body.id = `task-${task.id}-text`;
   renderInlineMarkdown(body, taskBody);
+  bindDocLinks(body, sourcePath);
   checkbox.setAttribute('aria-labelledby', body.id);
   main.appendChild(body);
   row.appendChild(main);
@@ -3465,9 +3681,7 @@ function buildModalTaskRow(column, group, task) {
 
   row.addEventListener('dragstart', (e) => {
     row.classList.add('dragging');
-    const quoteText = task.number != null ? `#${task.number}` : task.text;
-    e.dataTransfer.setData('text/plain', quoteText);
-    e.dataTransfer.setData('application/x-todo-quote', task.number != null ? 'number' : 'text');
+    e.dataTransfer.setData('text/plain', formatTaskQuote(task));
   });
   row.addEventListener('dragend', () => row.classList.remove('dragging'));
 
@@ -3574,7 +3788,7 @@ async function addTaskToCard(target, text) {
 }
 
 const COMMENT_BUSY_LABELS = { memo: '保存中…', launch: '起動中…' };
-const COMMENT_IDLE_LABELS = { memo: 'メモ保存', launch: 'Claudeに依頼' };
+const COMMENT_IDLE_LABELS = { memo: 'メモ保存', launch: 'Claudeに依頼', newSession: '新規セッションで依頼' };
 
 // 送信中の表示は、閉じて別カードを開き直したときに持ち越さないようカードIDで判定する。
 function renderModalCommentControls() {
@@ -3582,12 +3796,15 @@ function renderModalCommentControls() {
   const isBusy = !!busy;
   const saveBtn = document.getElementById('modalCommentSaveBtn');
   const launchBtn = document.getElementById('modalCommentLaunchBtn');
+  const newSessionBtn = document.getElementById('modalCommentNewSessionBtn');
   const input = document.getElementById('modalCommentInput');
   saveBtn.disabled = isBusy;
   launchBtn.disabled = isBusy;
+  newSessionBtn.disabled = isBusy;
   input.disabled = isBusy;
   saveBtn.textContent = isBusy && busy.mode === 'memo' ? COMMENT_BUSY_LABELS.memo : COMMENT_IDLE_LABELS.memo;
   launchBtn.textContent = isBusy && busy.mode === 'launch' ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.launch;
+  newSessionBtn.textContent = isBusy && busy.mode === 'newSession' ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.newSession;
 }
 
 // セッションログダイアログの返信欄も、同じbusyCommentsByGroupIdをsessionLogGroupIdで参照するだけなので
@@ -3639,11 +3856,15 @@ function saveModalCommentAndLaunch() {
   submitModalComment(true);
 }
 
-function submitModalComment(shouldLaunch) {
+function saveModalCommentAndLaunchNewSession() {
+  submitModalComment(true, { newSession: true });
+}
+
+function submitModalComment(shouldLaunch, launchOptions = {}) {
   const text = document.getElementById('modalCommentInput').value.trim();
   if (!text || !modalGroup || busyCommentsByGroupId.has(modalGroup.id)) return;
   const target = { file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title };
-  sendCardComment(target, text, shouldLaunch);
+  sendCardComment(target, text, shouldLaunch, launchOptions);
 }
 
 function submitSessionLogReply() {
@@ -3690,13 +3911,14 @@ function branchSessionFromEntry(uuid) {
   });
 }
 
-function sendCardComment(target, text, shouldLaunch) {
-  return runWithCommentBusy(target.groupId, shouldLaunch ? 'launch' : 'memo', async () => {
+function sendCardComment(target, text, shouldLaunch, launchOptions = {}) {
+  const mode = !shouldLaunch ? 'memo' : launchOptions.newSession ? 'newSession' : 'launch';
+  return runWithCommentBusy(target.groupId, mode, async () => {
     const response = await postJson('/api/comments', { file: target.file, groupId: target.groupId, text });
     if (!response.ok) {
       showFailureToast(
         `コメントの保存に失敗しました: ${formatFailureReason(response)}`,
-        () => sendCardComment(target, text, shouldLaunch),
+        () => sendCardComment(target, text, shouldLaunch, launchOptions),
       );
       return;
     }
@@ -3716,17 +3938,17 @@ function sendCardComment(target, text, shouldLaunch) {
       showToast('メモを保存しました');
       return;
     }
-    await launchCardSession(target, text);
+    await launchCardSession(target, text, launchOptions);
   });
 }
 
-function retryCardSessionLaunch(target, text) {
-  return runWithCommentBusy(target.groupId, 'launch', () => launchCardSession(target, text));
+function retryCardSessionLaunch(target, text, launchOptions) {
+  return runWithCommentBusy(target.groupId, launchOptions.newSession ? 'newSession' : 'launch', () => launchCardSession(target, text, launchOptions));
 }
 
-async function launchCardSession(target, text) {
+async function launchCardSession(target, text, launchOptions = {}) {
   const { file, groupId, columnName, groupTitle } = target;
-  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text });
+  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text, newSession: launchOptions.newSession === true });
   if (response.status === 409) {
     showToast('このカードは起動処理中です（コメントは保存しました）');
   } else if (isUntrustedWorkspace(response)) {
@@ -3734,7 +3956,7 @@ async function launchCardSession(target, text) {
   } else if (!response.ok) {
     showFailureToast(
       `セッション起動に失敗しました（コメントは保存済み）: ${formatFailureReason(response)}`,
-      () => retryCardSessionLaunch(target, text),
+      () => retryCardSessionLaunch(target, text, launchOptions),
     );
   } else if (response.data.launched === false) {
     showToast('このカードは既にセッションが稼働中です（コメントのみ保存しました）');
@@ -4292,6 +4514,7 @@ async function init() {
   });
   document.getElementById('modalCommentSaveBtn').addEventListener('click', saveModalComment);
   document.getElementById('modalCommentLaunchBtn').addEventListener('click', saveModalCommentAndLaunch);
+  document.getElementById('modalCommentNewSessionBtn').addEventListener('click', saveModalCommentAndLaunchNewSession);
   document.getElementById('modalTaskSubmit').addEventListener('click', submitModalTask);
   document.getElementById('globalCommentSubmit').addEventListener('click', submitGlobalComment);
   document.getElementById('globalCommentsCopyBtn').addEventListener('click', copyGlobalComments);
@@ -4318,11 +4541,31 @@ async function init() {
     globalCommentsDialogFocusReturn = null;
   });
   document.getElementById('sessionLogCloseBtn').addEventListener('click', closeSessionLogModal);
+  document.getElementById('docCloseBtn').addEventListener('click', () => document.getElementById('docDialog').close());
+  document.getElementById('docDialog').addEventListener('close', onDocDialogClosed);
   document.getElementById('sessionLogReplyBtn').addEventListener('click', submitSessionLogReply);
   const sessionLogDialog = document.getElementById('sessionLogDialog');
   sessionLogDialog.addEventListener('close', onSessionLogDialogClosed);
   sessionLogDialog.addEventListener('click', (e) => {
     if (e.target === sessionLogDialog) closeSessionLogModal();
+  });
+
+  const sessionLogReplyInput = document.getElementById('sessionLogReplyInput');
+  sessionLogReplyInput.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    sessionLogReplyInput.classList.add('drag-over');
+  });
+  sessionLogReplyInput.addEventListener('dragleave', () => sessionLogReplyInput.classList.remove('drag-over'));
+  sessionLogReplyInput.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files.length === 0) return;
+    e.preventDefault();
+    sessionLogReplyInput.classList.remove('drag-over');
+    if (!sessionLogGroupId || !findGroupById(sessionLogGroupId)) {
+      showToast('添付は表示中のtodoファイルのセッションだけが対象です');
+      return;
+    }
+    attachDroppedFiles(sessionLogReplyInput, sessionLogGroupId, e.dataTransfer.files);
   });
 
   const commentInput = document.getElementById('modalCommentInput');
@@ -4334,10 +4577,13 @@ async function init() {
   commentInput.addEventListener('drop', (e) => {
     e.preventDefault();
     commentInput.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) {
+      if (modalGroup) attachDroppedFiles(commentInput, modalGroup.id, e.dataTransfer.files);
+      return;
+    }
     const text = e.dataTransfer.getData('text/plain');
     if (!text) return;
-    const kind = e.dataTransfer.getData('application/x-todo-quote');
-    const quote = kind === 'number' ? `${text} ` : `> ${text}\n`;
+    const quote = `> ${text}\n`;
     const start = commentInput.selectionStart ?? commentInput.value.length;
     const end = commentInput.selectionEnd ?? commentInput.value.length;
     commentInput.value = commentInput.value.slice(0, start) + quote + commentInput.value.slice(end);

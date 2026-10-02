@@ -679,6 +679,40 @@ function insertStandaloneTaskAfterColumnHeading(md, columnName, newLine) {
   return `${md}${sep}\n## ${columnName}\n${newLine}\n`;
 }
 
+function isUnderProjectsRoot(p) {
+  return fs.realpathSync(p).startsWith(fs.realpathSync(PROJECTS_ROOT) + path.sep);
+}
+
+function listMarkdownFiles(dir, depth, out) {
+  if (depth < 0 || out.length >= 100) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) listMarkdownFiles(full, depth - 1, out);
+    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md') && out.length < 100) out.push(full);
+  }
+  return out;
+}
+
+// タスク本文のパス表記は書いた場所（サブプロジェクト・その親・projects直下）によって基準が違うため、
+// 出典のディレクトリから上へさかのぼって最初に実在したものを採る。
+function resolveDocRef(ref, base) {
+  if (!ref || path.isAbsolute(ref)) return null;
+  let dir = fs.existsSync(base) && fs.statSync(base).isDirectory() ? base : path.dirname(base);
+  while (dir.startsWith(PROJECTS_ROOT)) {
+    const candidate = path.resolve(dir, ref);
+    if (fs.existsSync(candidate) && isUnderProjectsRoot(candidate)) {
+      if (fs.statSync(candidate).isDirectory()) {
+        return { path: candidate, kind: 'dir', docs: listMarkdownFiles(candidate, 2, []) };
+      }
+      return { path: candidate, kind: 'file', docs: candidate.toLowerCase().endsWith('.md') ? [candidate] : [] };
+    }
+    if (dir === PROJECTS_ROOT) break;
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+
 // `claude --bg` の標準出力（`backgrounded · <id> · <name>`、ANSIカラーコード付き）から短縮IDを取り出す。
 function parseBackgroundedId(output) {
   const stripped = output.replace(/\x1b\[[0-9;]*m/g, '');
@@ -885,8 +919,47 @@ function readBody(req) {
   });
 }
 
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+// 上限を超えたら読み捨てて null を返す（途中で接続を切るとクライアントが413を受け取れないため最後まで受信する）。
+function readBinaryBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size <= limit) chunks.push(chunk);
+    });
+    req.on('end', () => resolve(size > limit ? null : Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function sanitizeAttachmentName(name) {
+  const base = path.basename(String(name || '').replace(/\\/g, '/'));
+  const cleaned = base.replace(/[\x00-\x1f/:*?"<>|]/g, '_').replace(/^\.+/, '');
+  return cleaned.slice(-120) || 'file';
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (url.pathname === '/api/attachments' && req.method === 'POST') {
+    const file = url.searchParams.get('file') || '';
+    const groupId = url.searchParams.get('groupId') || '';
+    if (!isValidTodoFile(file) || !/^[\w-]+$/.test(groupId)) {
+      req.resume();
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const body = await readBinaryBody(req, MAX_ATTACHMENT_BYTES);
+    if (body === null) return sendJson(res, 413, { error: 'too large' });
+    if (body.length === 0) return sendJson(res, 400, { error: 'empty body' });
+    const dir = path.join(DATA_DIR, 'attachments', file.replace(/\.md$/, ''), groupId);
+    fs.mkdirSync(dir, { recursive: true });
+    const saved = path.join(dir, `${Date.now()}-${sanitizeAttachmentName(url.searchParams.get('name'))}`);
+    fs.writeFileSync(saved, body);
+    return sendJson(res, 200, { path: saved });
+  }
 
   if (url.pathname === '/api/files') {
     return sendJson(res, 200, listTodoFiles());
@@ -1219,7 +1292,7 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJson(res, 400, { error: 'invalid json' });
     }
-    const { file, groupId, columnName, groupTitle, text } = payload;
+    const { file, groupId, columnName, groupTitle, text, newSession } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof columnName !== 'string' ||
         typeof groupTitle !== 'string' || !trimmed) {
@@ -1232,7 +1305,8 @@ const server = http.createServer(async (req, res) => {
     activeLaunchKeys.add(lockKey);
     try {
       const sessionsMap = readSessionsMap(file);
-      const existing = sessionsMap[groupId];
+      // 同じカードの別タスクの指示を前の会話に混ぜないため、newSessionでは既存セッションを見ずに新規起動する。
+      const existing = newSession === true ? null : sessionsMap[groupId];
       if (existing && isSessionBusy(existing.jobId)) {
         return sendJson(res, 200, { launched: false, reason: 'already-running', jobId: existing.jobId });
       }
@@ -1280,6 +1354,31 @@ const server = http.createServer(async (req, res) => {
     } finally {
       activeLaunchKeys.delete(lockKey);
     }
+  }
+
+  if (url.pathname === '/api/doc/resolve' && req.method === 'GET') {
+    const ref = url.searchParams.get('ref') || '';
+    const base = path.resolve(url.searchParams.get('base') || PROJECTS_ROOT);
+    const found = resolveDocRef(ref, base);
+    if (!found) return sendJson(res, 404, { error: 'not found' });
+    return sendJson(res, 200, found);
+  }
+
+  if (url.pathname === '/api/doc' && req.method === 'GET') {
+    const requested = path.resolve(url.searchParams.get('path') || '/');
+    if (path.extname(requested).toLowerCase() !== '.md') {
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+    if (!fs.existsSync(requested)) {
+      return sendJson(res, 404, { error: 'not found' });
+    }
+    // symlinkで配下外を指していても読めないよう、解決後の実体パスで判定する。
+    const realRoot = fs.realpathSync(PROJECTS_ROOT);
+    if (!fs.realpathSync(requested).startsWith(realRoot + path.sep)) {
+      return sendJson(res, 403, { error: 'forbidden' });
+    }
+    res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' });
+    return res.end(fs.readFileSync(requested));
   }
 
   if ((url.pathname === '/api/session/artifacts' || url.pathname === '/api/session/artifact') && req.method === 'GET') {
