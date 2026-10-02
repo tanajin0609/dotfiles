@@ -20,7 +20,7 @@ today-todo-viewer
 - `### 見出し` の無いタスクは、そのタスク自身を単独カードとして扱う。
 - カードの並び順は `data/order-<todoファイル名>.json` に保存される（`POST /api/order`）。
 - カードへのコメントは `data/comments-<todoファイル名>.json` に保存される（`POST /api/comments`）。
-- ポートは既定で3131。環境変数 `VIEWER_PORT`・`VIEWER_TODO_DIR`・`VIEWER_DATA_DIR`・`VIEWER_CLAUDE_SETTINGS`・`VIEWER_CLAUDE_PROJECTS_DIR`・`VIEWER_RATE_LIMITS_PATH` で上書きできる（テスト用）。
+- ポートは既定で3131。環境変数 `VIEWER_PORT`・`VIEWER_TODO_DIR`・`VIEWER_DATA_DIR`・`VIEWER_CLAUDE_SETTINGS`・`VIEWER_CLAUDE_CONFIG`・`VIEWER_CLAUDE_PROJECTS_DIR`・`VIEWER_RATE_LIMITS_PATH` で上書きできる（テスト用）。
 - viewerから起動するセッションのmodel/effortは `data/launch-settings.json` に保存される（ヘッダー「モデル設定」、`POST /api/claude-settings`）。
 - 受け入れ条件は `docs/specs/viewer.md`。
 

@@ -24,6 +24,9 @@ const RATE_LIMITS_PATH = process.env.VIEWER_RATE_LIMITS_PATH
   ? path.resolve(process.env.VIEWER_RATE_LIMITS_PATH)
   : path.join(os.homedir(), '.cache', 'claude-statusline', 'rate-limits.json');
 const LAUNCH_SETTINGS_PATH = path.join(DATA_DIR, 'launch-settings.json');
+const CLAUDE_CONFIG_PATH = process.env.VIEWER_CLAUDE_CONFIG
+  ? path.resolve(process.env.VIEWER_CLAUDE_CONFIG)
+  : path.join(os.homedir(), '.claude.json');
 // 先頭を英数字に限定し、`--xxx`のような値がclaudeのオプションとして解釈されるのを防ぐ。
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\[\]-]{0,63}$/;
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -212,6 +215,37 @@ function readGlobalClaudeSettings() {
   } catch {
     return null;
   }
+}
+
+function sendLaunchFailure(res, err, cwd) {
+  const stderr = String(err.stderr || '');
+  if (stderr.includes('Workspace not trusted')) {
+    return sendJson(res, 403, { error: 'workspace not trusted', cwd });
+  }
+  return sendJson(res, 500, { error: 'launch failed', detail: String(err.stderr || err.message || err) });
+}
+
+function isTrustableCwd(cwd) {
+  if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return false;
+  let real;
+  try {
+    real = fs.realpathSync(cwd);
+  } catch {
+    return false;
+  }
+  const root = fs.realpathSync(PROJECTS_ROOT);
+  return (real === root || real.startsWith(root + path.sep)) && fs.statSync(real).isDirectory();
+}
+
+// ~/.claude.jsonはClaude Code CLI本体も書き換えるため、読んだ直後に書いて競合の窓を狭め、
+// 一時ファイル→renameで途中書きの壊れたJSONを残さない。
+function markWorkspaceTrusted(cwd) {
+  const config = fs.existsSync(CLAUDE_CONFIG_PATH) ? JSON.parse(fs.readFileSync(CLAUDE_CONFIG_PATH, 'utf-8')) : {};
+  config.projects = config.projects || {};
+  config.projects[cwd] = { ...config.projects[cwd], hasTrustDialogAccepted: true };
+  const tmpPath = `${CLAUDE_CONFIG_PATH}.viewer-${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2));
+  fs.renameSync(tmpPath, CLAUDE_CONFIG_PATH);
 }
 
 function readLaunchSettings() {
@@ -1236,6 +1270,20 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { override: { model, effort } });
   }
 
+  if (url.pathname === '/api/workspace/trust' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    if (!isTrustableCwd(payload && payload.cwd)) {
+      return sendJson(res, 400, { error: 'invalid cwd' });
+    }
+    markWorkspaceTrusted(payload.cwd);
+    return sendJson(res, 200, { trusted: true });
+  }
+
   if (url.pathname === '/api/session/launch' && req.method === 'POST') {
     const body = await readBody(req);
     let payload;
@@ -1293,7 +1341,7 @@ const server = http.createServer(async (req, res) => {
       try {
         ({ stdout } = await execFileAsync('claude', args, { cwd, timeout: 20000 }));
       } catch (err) {
-        return sendJson(res, 500, { error: 'launch failed', detail: String(err.stderr || err.message || err) });
+        return sendLaunchFailure(res, err, cwd);
       }
       const jobId = parseBackgroundedId(stdout);
       if (!jobId) {
@@ -1404,7 +1452,7 @@ const server = http.createServer(async (req, res) => {
       try {
         ({ stdout } = await execFileAsync('claude', ['--bg', ...buildLaunchSettingArgs(), '--resume', sessionId, '-n', name, prompt], { cwd, timeout: 20000 }));
       } catch (err) {
-        return sendJson(res, 500, { error: 'launch failed', detail: String(err.stderr || err.message || err) });
+        return sendLaunchFailure(res, err, cwd);
       }
       const jobId = parseBackgroundedId(stdout);
       if (!jobId) {
