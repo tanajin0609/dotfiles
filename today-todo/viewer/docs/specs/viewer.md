@@ -142,6 +142,11 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-CS-SRV-3: 新規項目の番号は、同じプロジェクトの既存番号の最大値+1。backlog 行に `#N` があればそれを使う。
 - AC-CS-SRV-4: `file` が不正なら400、todoファイルが無い・列名のディレクトリが無いなら404。列名に `/` や `..` を含む場合は400。
 
+### 1.15 チェックの書き戻し（CB）
+
+- AC-CB-SRV-1: `POST /api/checkbox` は todoファイルの行を切り替えたうえで、行末に埋め込まれた `→ <絶対パス>/docs/tasks/backlog.md` の該当行
+  （本文の前方一致で1件に絞れた場合のみ）も同じ状態にし、`sourceUpdated: true` を返す。「+」でのタスク・カード追加の書き込み先も同じ `docs/tasks/backlog.md`。
+
 ## 2. 画面
 
 画面の状態は `localStorage`（キーは `viewer:` 接頭辞）とURLの `#` 以降にだけ保持し、`data/` には保存しない。
