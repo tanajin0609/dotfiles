@@ -679,6 +679,149 @@ function insertStandaloneTaskAfterColumnHeading(md, columnName, newLine) {
   return `${md}${sep}\n## ${columnName}\n${newLine}\n`;
 }
 
+const SYNC_SKIP_DIRS = new Set(['node_modules', '.git', 'archives']);
+
+// todo-import の `find -maxdepth 6 -path "*/docs/tasks/backlog.md"` と同じ範囲を列ディレクトリ配下で探す。
+function findBacklogFiles(dir, depth = 0) {
+  if (depth > 6) return [];
+  const found = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || SYNC_SKIP_DIRS.has(entry.name)) continue;
+    const child = path.join(dir, entry.name);
+    const candidate = path.join(child, 'tasks', 'backlog.md');
+    if (entry.name === 'docs' && fs.existsSync(candidate)) found.push(candidate);
+    found.push(...findBacklogFiles(child, depth + 1));
+  }
+  return found.sort();
+}
+
+const NOTION_RE = /\s*<!--\s*notion:([^>\s]*)\s*-->/;
+
+// todo-import Step1 と同じ規則で backlog.md の項目を取り出す（継続行は空白で連結して1行にする）。
+function parseBacklogItems(md) {
+  const items = [];
+  let heading = '';
+  let current = null;
+  for (const line of md.split('\n')) {
+    const h = line.match(/^#{2,3} (.+)/);
+    const task = line.match(/^\s*- \[([ x])\] (.+)/);
+    if (h || task || line.trim() === '' || /^# /.test(line)) current = null;
+    if (h) {
+      heading = h[1].trim();
+    } else if (task) {
+      const numMatch = task[2].match(/^#(\d+)\s+(.+)/);
+      const first = numMatch ? numMatch[2] : task[2];
+      const notion = first.match(NOTION_RE);
+      current = {
+        done: task[1] === 'x',
+        heading,
+        number: numMatch ? parseInt(numMatch[1], 10) : null,
+        first: first.replace(NOTION_RE, '').trim(),
+        rest: [],
+        notionId: notion ? notion[1] : null,
+      };
+      items.push(current);
+    } else if (current) {
+      current.rest.push(line.trim());
+    }
+  }
+  return items;
+}
+
+// 集約行（`- [ ] #N 本文 → /abs/backlog.md <!-- notion:id -->`）を突合用に分解する。
+function parseAggLine(line) {
+  const task = line.match(/^- \[([ x])\] (.+)$/);
+  if (!task) return null;
+  const numMatch = task[2].match(/^#(\d+)\s+(.+)/);
+  const body = numMatch ? numMatch[2] : task[2];
+  const notion = body.match(NOTION_RE);
+  const core = body.replace(NOTION_RE, '').replace(/ → \/\S+\/docs\/tasks\/backlog\.md\s*$/, '').trim();
+  return { done: task[1] === 'x', number: numMatch ? parseInt(numMatch[1], 10) : null, core, notionId: notion ? notion[1] : null };
+}
+
+// `## columnName` 節を backlog.md から作り直した md を返す（規則は spec 1.14）。
+function syncColumnSection(md, columnName, columnDir) {
+  const sources = findBacklogFiles(columnDir).map((p) => {
+    const projectDir = path.dirname(path.dirname(path.dirname(p)));
+    return { path: p, project: path.basename(projectDir), parent: path.basename(path.dirname(projectDir)) };
+  });
+  const nameCount = new Map();
+  for (const s of sources) nameCount.set(s.project, (nameCount.get(s.project) || 0) + 1);
+
+  const lines = md.split('\n');
+  let start = lines.indexOf(`## ${columnName}`);
+  let end;
+  if (start === -1) {
+    start = lines.length;
+    end = lines.length;
+  } else {
+    end = lines.findIndex((l, i) => i > start && /^## /.test(l));
+    if (end === -1) end = lines.length;
+  }
+
+  // 見出しの外の行はカード名 '' として扱う。
+  const existing = [];
+  let card = '';
+  for (const line of lines.slice(start + 1, end)) {
+    const h3 = line.match(/^### (.+)/);
+    if (h3) { card = h3[1]; continue; }
+    if (line.trim() === '') continue;
+    existing.push({ card, line, agg: parseAggLine(line), state: null });
+  }
+  const maxNumber = new Map();
+  for (const e of existing) {
+    if (!e.agg || e.agg.number == null) continue;
+    const p = e.card.split(' ▸ ')[0];
+    maxNumber.set(p, Math.max(maxNumber.get(p) || 0, e.agg.number));
+  }
+
+  // 見出し無しの行は `###` より前に置かないと直前のカードに吸収されるため、'' を先頭に確保する。
+  const out = new Map([['', []]]);
+  const push = (cardTitle, line) => {
+    if (!out.has(cardTitle)) out.set(cardTitle, []);
+    out.get(cardTitle).push(line);
+  };
+  let openCount = 0;
+  for (const src of sources) {
+    const project = nameCount.get(src.project) > 1 ? `${src.project}（${src.parent}）` : src.project;
+    for (const item of parseBacklogItems(fs.readFileSync(src.path, 'utf-8'))) {
+      const match = existing.find((e) => !e.state && e.agg &&
+        ((item.notionId && e.agg.notionId === item.notionId) || (item.first && e.agg.core.startsWith(item.first))));
+      if (item.done) {
+        if (match) match.state = 'done';
+        continue;
+      }
+      // ボード上で完了にした行は、backlog.md への書き戻しが漏れていても未完了に戻さない。
+      if (match && match.agg.done) {
+        match.state = 'done';
+        continue;
+      }
+      if (match) match.state = 'replaced';
+      openCount++;
+      let number = item.number ?? (match && match.agg.number);
+      if (number == null) number = (maxNumber.get(project) || 0) + 1;
+      maxNumber.set(project, Math.max(maxNumber.get(project) || 0, number));
+      const text = [item.first, ...item.rest].filter(Boolean).join(' ');
+      const notion = item.notionId ? ` <!-- notion:${item.notionId} -->` : '';
+      push(item.heading ? `${project} ▸ ${item.heading}` : project, `- [ ] #${number} ${text} → ${src.path}${notion}`);
+    }
+  }
+  for (const e of existing) {
+    if (e.state === 'replaced') continue;
+    push(e.card, e.state === 'done' ? e.line.replace(/^- \[ \]/, '- [x]') : e.line);
+  }
+
+  const section = [`## ${columnName}`, ''];
+  for (const [cardTitle, cardLines] of out) {
+    if (cardLines.length === 0) continue;
+    if (cardTitle) section.push(`### ${cardTitle}`);
+    section.push(...cardLines, '');
+  }
+  const before = lines.slice(0, start);
+  if (end === lines.length && before.length && before[before.length - 1].trim() !== '') before.push('');
+  return { md: [...before, ...section, ...lines.slice(end)].join('\n'), items: openCount };
+}
+
 function isUnderProjectsRoot(p) {
   return fs.realpathSync(p).startsWith(fs.realpathSync(PROJECTS_ROOT) + path.sep);
 }
@@ -994,6 +1137,27 @@ const server = http.createServer(async (req, res) => {
       board.columns = board.columns.filter((c) => c.name === columnFilter);
     }
     return sendJson(res, 200, board);
+  }
+
+  if (url.pathname === '/api/board/sync-column' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const { file, column } = payload;
+    if (!isValidTodoFile(file) || typeof column !== 'string' || !column || /[\\/]|\.\./.test(column)) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const filePath = path.join(TODO_DIR, file);
+    const columnDir = path.join(PROJECTS_ROOT, column);
+    if (!fs.existsSync(filePath) || !fs.existsSync(columnDir)) {
+      return sendJson(res, 404, { error: 'not found' });
+    }
+    const { md, items } = syncColumnSection(fs.readFileSync(filePath, 'utf-8'), column, columnDir);
+    fs.writeFileSync(filePath, md);
+    return sendJson(res, 200, { items });
   }
 
   if (url.pathname === '/api/board/version' && req.method === 'GET') {

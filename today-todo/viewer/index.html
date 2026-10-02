@@ -1828,7 +1828,12 @@ async function fetchPreviousFileGroupIds(file) {
 async function refreshColumn(columnName) {
   let res;
   try {
-    res = await fetch(`/api/board?file=${encodeURIComponent(currentFile)}&column=${encodeURIComponent(columnName)}`);
+    res = await fetch('/api/board/sync-column', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: currentFile, column: columnName }),
+    });
+    if (res.ok) res = await fetch(`/api/board?file=${encodeURIComponent(currentFile)}&column=${encodeURIComponent(columnName)}`);
   } catch {
     res = null;
   }
@@ -1843,7 +1848,7 @@ async function refreshColumn(columnName) {
   if (index === -1) return;
   boardData.columns[index] = updated;
   renderBoard();
-  showToast(`「${columnName}」を再取得しました`);
+  showToast(`「${columnName}」をbacklog.mdから同期しました`);
 }
 
 function countProgress(columns) {
