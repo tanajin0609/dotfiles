@@ -1487,10 +1487,10 @@ const server = http.createServer(async (req, res) => {
       // （削除済みIDへの--resumeはCLIが曖昧一致とみなし対話的ピッカーで固まるため）。
       const existingState = existing ? readJobState(existing.jobId) : null;
       const resumeId = existingState && existingState.sessionId ? existingState.sessionId : null;
-      // 入力待ち（blocked）のセッションはプロセスが生きたままなので、そのまま--resumeすると
-      // `claude`はコピー（別jobId）を起動してしまう。先にstopして会話を保持したまま止めることで、
+      // 入力待ち（blocked）だけでなく完了（done）のセッションもプロセスが生きたままなので、そのまま
+      // --resumeすると`claude`はコピー（別jobId）を起動してしまう。先にstopして会話を保持したまま止めることで、
       // 直後の--resumeが同一IDで継続するようにする（stop失敗は握りつぶし、resumeへ進む）。
-      if (resumeId && existingState.state === 'blocked') {
+      if (resumeId && (existingState.state === 'blocked' || existingState.state === 'done')) {
         try {
           await execFileAsync('claude', ['stop', existing.jobId], { timeout: 20000 });
         } catch {

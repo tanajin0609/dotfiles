@@ -176,8 +176,8 @@ test('入力待ち(blocked)セッションへの再起動は、stopしてから-
   }
 });
 
-// AC-CC2-2（doneセッションへの返信ではstopを呼ばない）
-test('完了済み(done)セッションへの再起動では、stopを呼ばずそのまま--resumeする', async () => {
+// AC-CC2-2（doneセッションもプロセスが残るため、stopを挟んで同一IDで継続する）
+test('完了済み(done)セッションへの再起動も、stopしてから--resumeする', async () => {
   const fixture = setupFixture();
   const jobId = 'bbbb2222';
   const jobDir = makeTestJobDir(jobId);
@@ -200,8 +200,9 @@ test('完了済み(done)セッションへの再起動では、stopを呼ばず�
     assert.equal(res.status, 200);
     assert.equal(res.body.launched, true);
     const calls = fs.readFileSync(callLog, 'utf-8').trim().split('\n');
-    assert.equal(calls.length, 1, 'stopは呼ばれず--resumeのみ1回であること');
-    assert.match(calls[0], /^--bg --resume full-session-uuid-0002 -n /);
+    assert.equal(calls.length, 2, 'stopと--resumeの2回呼ばれること');
+    assert.equal(calls[0].trim(), `stop ${jobId}`);
+    assert.match(calls[1], /^--bg --resume full-session-uuid-0002 -n /);
   } finally {
     await server.stop();
     fs.rmSync(jobDir, { recursive: true, force: true });
