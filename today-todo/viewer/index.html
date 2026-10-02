@@ -1388,6 +1388,28 @@ function showFailureToast(message, onRetry) {
   return showToast(message, { kind: 'error', actionLabel: '再試行', onAction: onRetry });
 }
 
+function isUntrustedWorkspace(response) {
+  return response.status === 403 && response.data && response.data.error === 'workspace not trusted';
+}
+
+function showUntrustedWorkspaceToast(cwd, onRetry) {
+  return showToast(
+    `${cwd} はClaude Codeで未信頼です。\`cd ${cwd} && claude\` で一度承認するか、『信頼して再試行』を押してください`,
+    {
+      kind: 'error',
+      actionLabel: '信頼して再試行',
+      onAction: async () => {
+        const response = await postJson('/api/workspace/trust', { cwd });
+        if (!response.ok) {
+          showFailureToast(`ワークスペースの信頼設定に失敗しました: ${formatFailureReason(response)}`, () => showUntrustedWorkspaceToast(cwd, onRetry));
+          return;
+        }
+        onRetry();
+      },
+    },
+  );
+}
+
 // 通信失敗も含めて例外を投げず、呼び出し側が `ok` だけで分岐できる形にそろえる。
 async function postJson(url, body) {
   try {
@@ -3653,6 +3675,10 @@ function branchSessionFromEntry(uuid) {
       showToast('このカードは起動処理中です');
       return;
     }
+    if (isUntrustedWorkspace(response)) {
+      showUntrustedWorkspaceToast(response.data.cwd, () => branchSessionFromEntry(uuid));
+      return;
+    }
     if (!response.ok) {
       showFailureToast(`分岐に失敗しました: ${formatFailureReason(response)}`, () => branchSessionFromEntry(uuid));
       return;
@@ -3703,6 +3729,8 @@ async function launchCardSession(target, text) {
   const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text });
   if (response.status === 409) {
     showToast('このカードは起動処理中です（コメントは保存しました）');
+  } else if (isUntrustedWorkspace(response)) {
+    showUntrustedWorkspaceToast(response.data.cwd, () => retryCardSessionLaunch(target, text));
   } else if (!response.ok) {
     showFailureToast(
       `セッション起動に失敗しました（コメントは保存済み）: ${formatFailureReason(response)}`,

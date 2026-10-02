@@ -105,6 +105,15 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   `Content-Type` で返す。それ以外は403（ロック・一覧外）または404（ファイルが無い）。HTML・SVGには `Content-Security-Policy: sandbox` を付け、viewerのオリジンで
   スクリプトを実行させない。
 
+### 1.11 未信頼ワークスペース（WT）
+
+- AC-WT-SRV-1: `POST /api/session/launch`・`POST /api/session/branch` で `claude --bg` が stderr に `Workspace not trusted` を出して失敗した場合、
+  500ではなく `403 { "error": "workspace not trusted", "cwd": "<起動ディレクトリ>" }` を返す。
+- AC-WT-SRV-2: `POST /api/workspace/trust` に `{ "cwd": "<絶対パス>" }` を送ると、Claude Codeの設定ファイル（既定 `~/.claude.json`、
+  環境変数 `VIEWER_CLAUDE_CONFIG` で上書き可）の `projects["<cwd>"].hasTrustDialogAccepted` を `true` にして `200 { "trusted": true }` を返す。
+  他のキーは保持する。`cwd` が `PROJECTS_ROOT` 配下の実在ディレクトリでなければ400で、設定ファイルを変更しない。
+  この設定ファイルはClaude Codeの非公開の内部形式のため、CLIの更新で効かなくなりうる（その場合もAC-WT-1の手動手順は有効）。
+
 ## 2. 画面
 
 画面の状態は `localStorage`（キーは `viewer:` 接頭辞）とURLの `#` 以降にだけ保持し、`data/` には保存しない。
@@ -237,6 +246,9 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   エントリが増えただけなら増えた分を追記し、既存の行は作り直さない。それ以外は全体を描き直し、再描画前にフォーカスしていた
   「ここから分岐」ボタンへフォーカスを戻す。いずれの場合もフォーカスは失われない。ログ末尾への自動スクロールは、そのジョブの初回描画時と、
   描画前にログの最下部付近（残り40px未満）にいたときだけ行い、読み返し中のスクロール位置は保つ。
+- AC-WT-1: セッション起動・返信・分岐がAC-WT-SRV-1の403になった場合、トーストに「<cwd> はClaude Codeで未信頼です。
+  `cd <cwd> && claude` で一度承認するか、『信頼して再試行』を押してください」と出す。『信頼して再試行』は押したときだけ
+  `/api/workspace/trust` を呼び、成功したら同じ送信を再試行する。失敗時はAC-H2-2に従い通知する。
 - AC-UX4-1: 入力待ち・稼働中のセッションがどちらも0件のとき、左側パネルに「稼働中・入力待ちのセッションはありません」と
   「カード詳細のコメント欄で『Claudeに依頼』すると、ここに表示されます」を表示する。1件以上あれば表示しない。
 - AC-UX6-1: AC-CC3-1の選択肢に `description` があれば、ボタンの直下に可視テキストで表示し、ボタンの `aria-describedby` で紐付ける
