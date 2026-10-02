@@ -851,8 +851,47 @@ function readBody(req) {
   });
 }
 
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+// 上限を超えたら読み捨てて null を返す（途中で接続を切るとクライアントが413を受け取れないため最後まで受信する）。
+function readBinaryBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size <= limit) chunks.push(chunk);
+    });
+    req.on('end', () => resolve(size > limit ? null : Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function sanitizeAttachmentName(name) {
+  const base = path.basename(String(name || '').replace(/\\/g, '/'));
+  const cleaned = base.replace(/[\x00-\x1f/:*?"<>|]/g, '_').replace(/^\.+/, '');
+  return cleaned.slice(-120) || 'file';
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (url.pathname === '/api/attachments' && req.method === 'POST') {
+    const file = url.searchParams.get('file') || '';
+    const groupId = url.searchParams.get('groupId') || '';
+    if (!isValidTodoFile(file) || !/^[\w-]+$/.test(groupId)) {
+      req.resume();
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const body = await readBinaryBody(req, MAX_ATTACHMENT_BYTES);
+    if (body === null) return sendJson(res, 413, { error: 'too large' });
+    if (body.length === 0) return sendJson(res, 400, { error: 'empty body' });
+    const dir = path.join(DATA_DIR, 'attachments', file.replace(/\.md$/, ''), groupId);
+    fs.mkdirSync(dir, { recursive: true });
+    const saved = path.join(dir, `${Date.now()}-${sanitizeAttachmentName(url.searchParams.get('name'))}`);
+    fs.writeFileSync(saved, body);
+    return sendJson(res, 200, { path: saved });
+  }
 
   if (url.pathname === '/api/files') {
     return sendJson(res, 200, listTodoFiles());
