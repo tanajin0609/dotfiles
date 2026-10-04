@@ -32,11 +32,11 @@ skill / command は出自と内容によって4つに分類し、このリポジ
 | --- | --- | --- |
 | 1. 自作の汎用 skill / command | 自分で書いたワークフロー。業務語を含まない | このリポジトリ（`.claude/skills/`, `.claude/commands/`） |
 | 2. 他人の skill | skills CLI等で入れるもの | skills CLI側の管理に任せる（ここに置かない） |
-| 3. 業務横断の業務ルール | 複数案件に共通する運用ルール | `/home/igpf-2500009/.claude/local/`（symlink 対象外・git 管理外） |
+| 3. 業務横断の業務ルール | 複数案件に共通する運用ルール | `~/.claude/local/`（symlink 対象外・git 管理外） |
 | 4. 案件固有のルール | 特定プロジェクトの規約・ワークフロー | そのプロジェクトのrepo側（`.claude/`） |
 
 ```
-/home/igpf-2500009/.claude/
+~/.claude/
 ├── CLAUDE.md   ─┐
 ├── commands/    ├─ symlink → このリポジトリ（共有される）
 ├── skills/     ─┘
@@ -71,7 +71,7 @@ skill / command 側にはこう書きます:
 このコマンド自体には案件固有のルールを書かない。実行時に以下を確認し、
 **存在すれば読み込んで本フローに上書き適用する。存在しなければ黙って続行する。**
 
-1. `/home/igpf-2500009/.claude/local/<領域>/RULES.md` — 領域横断の業務ルール
+1. `~/.claude/local/<領域>/RULES.md` — 領域横断の業務ルール
 2. 対象リポジトリの `.claude/` 配下 — その案件固有のルール
 ```
 
@@ -112,7 +112,7 @@ Windows ネイティブの Claude Code も使う場合にのみ実行してく�
 ## 新しい skill を追加する
 
 ```bash
-cd /mnt/c/Users/IGPF-2500009/dotfiles   # 他マシンではそのクローン先
+cd /mnt/c/Users/<user>/dotfiles   # 他マシンではそのクローン先
 mkdir -p .claude/skills/<skill-name>
 
 # SKILL.md を新規作成する（frontmatter は name / description の2つ）
@@ -129,9 +129,9 @@ description: <どんな時に使うか。Claude はこの説明文を見て起�
 EOF
 
 # コミット前チェック: 業務ドメインが混ざっていないか
-# （パターン自体が業務語なので、リストは git 管理外の /home/igpf-2500009/.claude/local/ngwords.txt に置く）
-grep -rniEf /home/igpf-2500009/.claude/local/ngwords.txt .claude/ \
-  && echo "!! 業務語が混入している。/home/igpf-2500009/.claude/local/ へ退避して任意参照に置き換えること" \
+# （パターン自体が業務語なので、リストは git 管理外の ~/.claude/local/ngwords.txt に置く）
+grep -rniEf ~/.claude/local/ngwords.txt .claude/ \
+  && echo "!! 業務語が混入している。~/.claude/local/ へ退避して任意参照に置き換えること" \
   || echo "OK"
 
 git add .claude/skills/<skill-name>

@@ -73,14 +73,14 @@ LLMコーディングでよくあるミスを減らすための行動指針。�
 
 ## 6. 業務ドメインを共有設定に混入させない
 
-**`/home/igpf-2500009/.claude/{CLAUDE.md, commands, skills}` は共有dotfilesリポジトリへのsymlink。ここに書いたものはすべてpushされる。**
+**`~/.claude/{CLAUDE.md, commands, skills}` は共有dotfilesリポジトリへのsymlink。ここに書いたものはすべてpushされる。**
 
 skill、スラッシュコマンド、CLAUDE.mdのセクションを書く/編集する際：
 
 - 顧客名/プロジェクト名/プロダクト名/リポジトリ名、テーブル名やカラム名、APIフィールド名、ホスト名、エンドポイント、環境名、社内固有の名詞は書かない。
 - テスト方法：固有名詞を`<placeholder>`に置き換えてみる。それでも文章が価値を保つなら、placeholder化して共有ファイルに残してよい。固有名詞そのものが情報だった場合は、外に出す。
-- 移動先は`/home/igpf-2500009/.claude/local/<area>/RULES.md`（symlink対象外、git-ignore済み）か、対象プロジェクト自身の`.claude/`。共有ファイルには参照だけ残す：存在すれば読む、なければ何も言わず続行する。
-- コミット前に：`grep -rniEf /home/igpf-2500009/.claude/local/ngwords.txt .claude/`
+- 移動先は`~/.claude/local/<area>/RULES.md`（symlink対象外、git-ignore済み）か、対象プロジェクト自身の`.claude/`。共有ファイルには参照だけ残す：存在すれば読む、なければ何も言わず続行する。
+- コミット前に：`grep -rniEf ~/.claude/local/ngwords.txt .claude/`
 
 詳細ルール：dotfiles READMEの「共有する範囲 — 業務ドメインを混入させない」節を参照。
 
