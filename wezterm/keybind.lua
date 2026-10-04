@@ -9,6 +9,8 @@ M.leader = { key = 'a', mods = 'CTRL', timeout_milliseconds = 1000 }
 local LOCAL = { DomainName = 'local' }
 -- Windows ユーザープロファイル（C:\Users\<user>）を環境変数から解決
 local PS_CWD = os.getenv('USERPROFILE')
+-- WSL から見た Windows ユーザープロファイル（/mnt/c/Users/<user>）
+local WIN_HOME_IN_WSL = '/mnt/c/Users/' .. (os.getenv('USERNAME') or '')
 
 -- WSL ドメイン定義（domain には DomainName のみを含める）
 local WSL = { DomainName = 'WSL:Ubuntu-26.04' }
@@ -24,8 +26,8 @@ M.keys = {
   
   -- 新規タブで開く
   { key = 'w', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = WSL, cwd = WSL_CWD } },
-  -- WSL を /mnt/c/Users/IGPF-2500009 ディレクトリで開く
-  { key = 'h', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = WSL, cwd = '/mnt/c/Users/IGPF-2500009' } },
+  -- WSL を Windows ユーザープロファイル（/mnt/c/Users/<user>）で開く
+  { key = 'h', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = WSL, cwd = WIN_HOME_IN_WSL } },
   { key = 'p', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = LOCAL, args = { 'powershell.exe' }, cwd = PS_CWD } },
   -- Git Bash を新規タブで開く
   { key = 'g', mods = 'LEADER', action = act.SpawnCommandInNewTab { domain = LOCAL, args = GIT_BASH, cwd = PS_CWD } },
