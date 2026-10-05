@@ -142,19 +142,23 @@ test('別groupIdまたは別fileへの同時起動要求はロックの影響を
   }
 });
 
-// AC-CC2-2（stopを挟んでの同一ID継続）
-test('入力待ち(blocked)セッションへの再起動は、stopしてから--resumeし、jobIdが変わらない', async () => {
+// AC-CC2-2（--resumeは別jobIdで継続するため、元ジョブをrmして一覧に残さない）
+async function launchResumeFromBlocked({ transcriptLines }) {
   const fixture = setupFixture();
-  const jobId = 'aaaa1111';
+  const jobId = crypto.randomBytes(16).toString('hex');
+  const resumedJobId = crypto.randomBytes(16).toString('hex');
   const jobDir = makeTestJobDir(jobId);
   const callLog = path.join(fixture.root, 'claude-calls.log');
-  writeFakeClaude(path.join(fixture.root, 'bin'), { jobId, callLogPath: callLog, delayMs: 20 });
+  const transcriptPath = path.join(fixture.root, 'transcript.jsonl');
+  fs.writeFileSync(transcriptPath, transcriptLines.map((l) => JSON.stringify(l)).join('\n'));
+  writeFakeClaude(path.join(fixture.root, 'bin'), { jobId: resumedJobId, callLogPath: callLog, delayMs: 20 });
   writeSessionsMap(fixture.dataDir, buildLaunchPayload().file, {
     'group-a': { jobId, name: 'demo-project ▸ demo-project', launchedAt: new Date().toISOString() },
   });
   fs.writeFileSync(path.join(jobDir, 'state.json'), JSON.stringify({
     state: 'blocked',
     sessionId: 'full-session-uuid-0001',
+    linkScanPath: transcriptPath,
   }));
   const server = await startViewerServer({
     VIEWER_TODO_DIR: fixture.todoDir,
@@ -163,17 +167,34 @@ test('入力待ち(blocked)セッションへの再起動は、stopしてから-
   });
   try {
     const res = await postLaunch(server.baseUrl, buildLaunchPayload());
-    assert.equal(res.status, 200);
-    assert.equal(res.body.launched, true);
-    assert.equal(res.body.jobId, jobId, '同一jobIdで継続すること');
-    const calls = fs.readFileSync(callLog, 'utf-8').trim().split('\n');
-    assert.equal(calls.length, 2, 'stopと--resumeの2回呼ばれること');
-    assert.equal(calls[0].trim(), `stop ${jobId}`);
-    assert.match(calls[1], /^--bg --resume full-session-uuid-0001 -n /);
+    const calls = fs.readFileSync(callLog, 'utf-8').trim().split('\n').map((c) => c.trim());
+    const sessionsMap = JSON.parse(fs.readFileSync(path.join(fixture.dataDir, 'sessions-todo-2026-01-01.json'), 'utf-8'));
+    return { res, calls, jobId, resumedJobId, sessionsMap };
   } finally {
     await server.stop();
     fs.rmSync(jobDir, { recursive: true, force: true });
   }
+}
+
+test('入力待ち(blocked)セッションへの再起動は、stop→--resume後に元ジョブをrmし、カードを継続先jobIdに付け替える', async () => {
+  const { res, calls, jobId, resumedJobId, sessionsMap } = await launchResumeFromBlocked({
+    transcriptLines: [{ type: 'user', message: { content: 'hi' } }],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.jobId, resumedJobId);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0], `stop ${jobId}`);
+  assert.match(calls[1], /^--bg --resume full-session-uuid-0001 -n /);
+  assert.equal(calls[2], `rm ${jobId}`);
+  assert.equal(sessionsMap['group-a'].jobId, resumedJobId);
+});
+
+test('元ジョブがworktreeに入っていた場合はrmしない（継続先が同じworktreeを使うため）', async () => {
+  const { res, calls } = await launchResumeFromBlocked({
+    transcriptLines: [{ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'EnterWorktree', input: {} }] } }],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(calls.length, 2, 'stopと--resumeだけでrmしないこと');
 });
 
 // AC-CC2-2（CLIによっては稼働中を`running`と書くため、working同様にコピー起動しない）

@@ -4166,8 +4166,7 @@ async function launchCardSession(target, text, launchOptions = {}) {
   } else {
     showToast(`セッションを起動しました（id: ${response.data.jobId}）`);
     await refreshSessions();
-    // 入力待ちからの返信は`claude stop`を挟んで同一jobIdで継続するため通常はIDが変わらないが、
-    // 念のためログダイアログを開いたままなら最新のセッション情報へ追従させる（同一IDならno-op）。
+    // --resumeでの継続はjobIdが変わるため、ログダイアログを開いたままなら継続先へ追従させる。
     const sessionLogDialogEl = document.getElementById('sessionLogDialog');
     if (sessionLogDialogEl.open && sessionLogGroupId === groupId) {
       const found = file === currentFile ? findGroupById(groupId) : null;

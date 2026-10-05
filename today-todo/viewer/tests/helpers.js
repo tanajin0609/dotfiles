@@ -91,7 +91,7 @@ function writeFakeClaude(binDir, { jobId = 'a1b2c3', delayMs = 200, callLogPath 
   const script = `#!/bin/sh
 echo "$@" | tr '\\n' ' ' >> "${callLogPath}"
 echo >> "${callLogPath}"
-if [ "$1" = "stop" ]; then
+if [ "$1" = "stop" ] || [ "$1" = "rm" ]; then
   exit 0
 fi
 sleep ${(delayMs / 1000).toFixed(3)}

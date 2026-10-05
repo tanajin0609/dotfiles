@@ -607,9 +607,17 @@ function readJobState(jobId) {
   return jobState.state === 'running' ? { ...jobState, state: 'working' } : jobState;
 }
 
+// `claude rm`はworktreeも消すが、継続先のジョブが同じworktreeで作業を続けるため、worktreeに入ったジョブは消さない。
+function transcriptUsedWorktree(transcriptPath) {
+  try {
+    return fs.readFileSync(transcriptPath, 'utf-8').includes('"name":"EnterWorktree"');
+  } catch {
+    return false;
+  }
+}
+
 // working中（ツール実行等の最中）だけを「新規起動をブロックすべき」とみなす。
-// blockedは対象外（起動処理側で`claude stop`を挟んでから`--resume`し、コピーを作らず
-// 同一IDで継続させる。詳細は`POST /api/session/launch`内のコメント参照）。
+// blocked・doneは起動処理側で`claude stop`してから`--resume`する（`POST /api/session/launch`内のコメント参照）。
 function isSessionBusy(jobId) {
   const jobState = readJobState(jobId);
   return !!jobState && jobState.state === 'working';
@@ -1513,9 +1521,7 @@ const server = http.createServer(async (req, res) => {
       // （削除済みIDへの--resumeはCLIが曖昧一致とみなし対話的ピッカーで固まるため）。
       const existingState = existing ? readJobState(existing.jobId) : null;
       const resumeId = existingState && existingState.sessionId ? existingState.sessionId : null;
-      // 入力待ち（blocked）だけでなく完了（done）のセッションもプロセスが生きたままなので、そのまま
-      // --resumeすると`claude`はコピー（別jobId）を起動してしまう。先にstopして会話を保持したまま止めることで、
-      // 直後の--resumeが同一IDで継続するようにする（stop失敗は握りつぶし、resumeへ進む）。
+      // --resumeは常に履歴をコピーした別jobIdを起動するため、元ジョブはstopしておき、起動成功後にrmして一覧に残さない。
       if (resumeId && (existingState.state === 'blocked' || existingState.state === 'done')) {
         try {
           await execFileAsync('claude', ['stop', existing.jobId], { timeout: 20000 });
@@ -1540,6 +1546,13 @@ const server = http.createServer(async (req, res) => {
       fs.mkdirSync(DATA_DIR, { recursive: true });
       sessionsMap[groupId] = { jobId, name, launchedAt: new Date().toISOString() };
       fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
+      if (resumeId && jobId !== existing.jobId && !transcriptUsedWorktree(existingState.linkScanPath)) {
+        try {
+          await execFileAsync('claude', ['rm', existing.jobId], { timeout: 20000 });
+        } catch {
+          // 片付けに失敗しても継続先は起動済みなので、旧ジョブが一覧に残るだけに留める。
+        }
+      }
       return sendJson(res, 200, { launched: true, jobId });
     } finally {
       activeLaunchKeys.delete(lockKey);
