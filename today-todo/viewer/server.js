@@ -695,6 +695,7 @@ function findBacklogFiles(dir, depth = 0) {
   return found.sort();
 }
 
+const STATUS_HEADING_RE = /^(進行中|未着手|保留|完了)/;
 const NOTION_RE = /\s*<!--\s*notion:([^>\s]*)\s*-->/;
 
 // todo-import Step1 と同じ規則で backlog.md の項目を取り出す（継続行は空白で連結して1行にする）。
@@ -707,7 +708,9 @@ function parseBacklogItems(md) {
     const task = line.match(/^\s*- \[([ x])\] (.+)/);
     if (h || task || line.trim() === '' || /^# /.test(line)) current = null;
     if (h) {
-      heading = h[1].trim();
+      // 状態名（進行中・未着手等）だけのカード名では中身が分からないため、状態見出しは見出し文脈にしない。
+      const text = h[1].trim();
+      heading = STATUS_HEADING_RE.test(text) ? '' : text;
     } else if (task) {
       const numMatch = task[2].match(/^#(\d+)\s+(.+)/);
       const first = numMatch ? numMatch[2] : task[2];
