@@ -859,6 +859,25 @@ function resolveDocRef(ref, base) {
   return null;
 }
 
+// 開いているドキュメントから、同じ変更ディレクトリの資料とサブプロジェクトの大本specへ移れるようにする。
+function findRelatedDocs(target) {
+  let dir = path.dirname(target);
+  while (dir.startsWith(PROJECTS_ROOT + path.sep)) {
+    const specsDir = path.join(dir, 'docs', 'specs');
+    if (fs.existsSync(specsDir) && fs.statSync(specsDir).isDirectory()) {
+      const docs = [];
+      const rel = path.relative(path.join(dir, 'docs', 'changes'), target).split(path.sep);
+      const depth = rel[0] === 'archives' ? 2 : 1;
+      if (rel[0] !== '..' && rel.length > depth) {
+        listMarkdownFiles(path.join(dir, 'docs', 'changes', ...rel.slice(0, depth)), 2, docs);
+      }
+      return { root: dir, docs: docs.concat(listMarkdownFiles(specsDir, 0, [])) };
+    }
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+
 // `claude --bg` の標準出力（`backgrounded · <id> · <name>`、ANSIカラーコード付き）から短縮IDを取り出す。
 function parseBackgroundedId(output) {
   const stripped = output.replace(/\x1b\[[0-9;]*m/g, '');
@@ -1531,6 +1550,14 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, found);
   }
 
+  if (url.pathname === '/api/doc/related' && req.method === 'GET') {
+    const requested = path.resolve(url.searchParams.get('path') || '/');
+    if (!fs.existsSync(requested)) return sendJson(res, 404, { error: 'not found' });
+    if (!isUnderProjectsRoot(requested)) return sendJson(res, 403, { error: 'forbidden' });
+    const found = findRelatedDocs(requested);
+    if (!found) return sendJson(res, 404, { error: 'not found' });
+    return sendJson(res, 200, found);
+  }
   if (url.pathname === '/api/doc' && req.method === 'GET') {
     const requested = path.resolve(url.searchParams.get('path') || '/');
     if (path.extname(requested).toLowerCase() !== '.md') {

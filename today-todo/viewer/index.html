@@ -1613,10 +1613,37 @@ async function openDocRef(ref, sourcePath) {
   openDocDialog(first, { keepNav: true });
 }
 
+async function fetchRelatedDocs(absPath) {
+  try {
+    const response = await fetch(`/api/doc/related?path=${encodeURIComponent(absPath)}`);
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function openRelatedDocs(absPath) {
+  const found = await fetchRelatedDocs(absPath);
+  if (!found || found.docs.length === 0) {
+    showToast('表示できるドキュメントがありません');
+    return;
+  }
+  const first = (found.docs.includes(absPath) && absPath)
+    || DOC_PREFERRED_NAMES.map((name) => found.docs.find((d) => d.endsWith(`/${name}`))).find(Boolean)
+    || found.docs[0];
+  renderDocNav(found.docs, found.root, first);
+  openDocDialog(first, { keepNav: true });
+}
+
 async function openDocDialog(absPath, { keepNav = false } = {}) {
   const dialog = document.getElementById('docDialog');
   if (!dialog.open) docFocusReturn = captureFocusReturn();
-  if (!keepNav) renderDocNav([], '', absPath);
+  if (!keepNav) {
+    renderDocNav([], '', absPath);
+    fetchRelatedDocs(absPath).then((found) => {
+      if (found && dialog.open && document.getElementById('docPath').textContent === absPath) renderDocNav(found.docs, found.root, absPath);
+    });
+  }
   document.getElementById('docTitle').textContent = absPath.split('/').pop();
   document.getElementById('docPath').textContent = absPath;
   const status = document.getElementById('docStatus');
@@ -3835,6 +3862,19 @@ function buildModalTaskRow(column, group, task) {
       sourceBtn.setAttribute('aria-expanded', String(!sourceEl.hidden));
     });
     row.appendChild(sourceBtn);
+    const relatedBtn = document.createElement('button');
+    relatedBtn.type = 'button';
+    relatedBtn.className = 'quote-btn';
+    relatedBtn.textContent = '仕様・設計';
+    relatedBtn.title = 'このタスクの変更ディレクトリの資料と大本specを開く';
+    relatedBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const changeDoc = [...body.querySelectorAll('a[href]')]
+        .map((link) => resolveDocLink(link.getAttribute('href'), sourcePath))
+        .find((p) => p && p.includes('/docs/changes/'));
+      openRelatedDocs(changeDoc || sourcePath);
+    });
+    row.appendChild(relatedBtn);
   }
 
   const quoteBtn = document.createElement('button');

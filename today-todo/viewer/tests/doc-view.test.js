@@ -66,3 +66,44 @@ test('GET /api/doc/resolveは出典のディレクトリから上へさかのぼ
     await server.stop();
   }
 });
+
+// AC-DV-SRV-3
+test('GET /api/doc/relatedは変更ディレクトリの.mdとサブプロジェクトのdocs/specs直下の.mdを返す', async () => {
+  const fixture = setupFixture();
+  const projectsRoot = path.resolve(fixture.todoDir, '..');
+  const root = path.join(projectsRoot, 'group', 'sub');
+  const changeDir = path.join(root, 'docs', 'changes', 'v1.0.0-feat-x');
+  const archivedDir = path.join(root, 'docs', 'changes', 'archives', 'v0.9.0-feat-y');
+  for (const dir of [path.join(changeDir, 'specs'), archivedDir, path.join(root, 'docs', 'specs', 'old'), path.join(root, 'docs', 'tasks')]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  for (const f of ['proposal.md', 'design.md', 'specs/README.md']) fs.writeFileSync(path.join(changeDir, f), '#');
+  fs.writeFileSync(path.join(archivedDir, 'design.md'), '#');
+  fs.writeFileSync(path.join(root, 'docs', 'specs', 'viewer.md'), '#');
+  fs.writeFileSync(path.join(root, 'docs', 'specs', 'VERSION'), '1.0.0');
+  fs.writeFileSync(path.join(root, 'docs', 'specs', 'old', 'nested.md'), '#');
+  const backlog = path.join(root, 'docs', 'tasks', 'backlog.md');
+  fs.writeFileSync(backlog, '');
+  fs.mkdirSync(path.join(projectsRoot, 'nospec'), { recursive: true });
+  fs.writeFileSync(path.join(projectsRoot, 'nospec', 'a.md'), '#');
+  const spec = path.join(root, 'docs', 'specs', 'viewer.md');
+  const outside = path.join(path.dirname(projectsRoot), `related-outside-${process.pid}.md`);
+  fs.writeFileSync(outside, '#');
+  const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
+  const related = (p) => fetch(`${server.baseUrl}/api/doc/related?path=${encodeURIComponent(p)}`);
+  try {
+    const fromChange = await related(path.join(changeDir, 'proposal.md'));
+    assert.equal(fromChange.status, 200);
+    assert.deepEqual(await fromChange.json(), {
+      root,
+      docs: [path.join(changeDir, 'design.md'), path.join(changeDir, 'proposal.md'), path.join(changeDir, 'specs', 'README.md'), spec],
+    });
+    assert.deepEqual((await (await related(path.join(archivedDir, 'design.md'))).json()).docs, [path.join(archivedDir, 'design.md'), spec]);
+    assert.deepEqual((await (await related(backlog)).json()).docs, [spec]);
+    assert.equal((await related(path.join(projectsRoot, 'nospec', 'a.md'))).status, 404);
+    assert.equal((await related(outside)).status, 403);
+  } finally {
+    await server.stop();
+    fs.rmSync(outside, { force: true });
+  }
+});
