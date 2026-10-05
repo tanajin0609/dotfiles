@@ -1635,6 +1635,17 @@ async function openRelatedDocs(absPath) {
   openDocDialog(first, { keepNav: true });
 }
 
+let docLoadSeq = 0;
+
+// 同じiframeのsrcdocを続けて書き換えると、先の空ページの読み込みが後から勝って本文が消えることがあるため、毎回作り直す。
+function replaceDocFrame(srcdoc) {
+  const old = document.getElementById('docFrame');
+  const frame = old.cloneNode(false);
+  frame.removeAttribute('srcdoc');
+  if (srcdoc) frame.srcdoc = srcdoc;
+  old.replaceWith(frame);
+}
+
 async function openDocDialog(absPath, { keepNav = false } = {}) {
   const dialog = document.getElementById('docDialog');
   if (!dialog.open) docFocusReturn = captureFocusReturn();
@@ -1647,31 +1658,34 @@ async function openDocDialog(absPath, { keepNav = false } = {}) {
   document.getElementById('docTitle').textContent = absPath.split('/').pop();
   document.getElementById('docPath').textContent = absPath;
   const status = document.getElementById('docStatus');
-  const frame = document.getElementById('docFrame');
+  const loadId = ++docLoadSeq;
   status.textContent = '読み込み中…';
-  frame.srcdoc = '';
+  replaceDocFrame('');
   if (!dialog.open) dialog.showModal();
   attachToastRegionToTopmostDialog();
   let response;
   try {
     response = await fetch(`/api/doc?path=${encodeURIComponent(absPath)}`);
   } catch (err) {
-    status.textContent = `読み込みに失敗しました: ${err.message}`;
+    if (loadId === docLoadSeq) status.textContent = `読み込みに失敗しました: ${err.message}`;
     return;
   }
+  if (loadId !== docLoadSeq) return;
   if (!response.ok) {
     status.textContent = response.status === 404 ? 'ファイルが見つかりません' : `このファイルは表示できません（${response.status}）`;
     return;
   }
   const markdown = await response.text();
+  if (loadId !== docLoadSeq) return;
   // markedはCDN読み込みのため、取得に失敗しても原文で読めるようにする。
   const html = typeof marked === 'undefined' ? `<pre>${escapeHtml(markdown)}</pre>` : marked.parse(markdown);
   status.textContent = '';
-  frame.srcdoc = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>${DOC_FRAME_STYLE}</style></head><body><main>${html}</main></body></html>`;
+  replaceDocFrame(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>${DOC_FRAME_STYLE}</style></head><body><main>${html}</main></body></html>`);
 }
 
 function onDocDialogClosed() {
-  document.getElementById('docFrame').srcdoc = '';
+  docLoadSeq++;
+  replaceDocFrame('');
   attachToastRegionToTopmostDialog();
   restoreFocusReturn(docFocusReturn);
   docFocusReturn = null;
