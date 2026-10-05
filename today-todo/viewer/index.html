@@ -385,7 +385,7 @@
     z-index: 200; width: min(480px, calc(100vw - 32px));
     display: flex; flex-direction: column; gap: 8px; pointer-events: none;
   }
-  .card-panel .toast-region { left: calc((100vw - min(540px, 100vw)) / 2); }
+  .card-panel .toast-region { left: calc((100vw - min(var(--card-panel-w, 540px), 100vw)) / 2); }
   .toast-list { display: flex; flex-direction: column; gap: 8px; }
   .toast {
     pointer-events: auto; display: flex; align-items: center; gap: 10px;
@@ -660,7 +660,9 @@
     box-shadow: 0 24px 64px var(--shadow);
     overflow: hidden;
   }
-  .card-panel { inset: 0 0 0 auto; margin: 0; width: min(540px, 100vw); height: 100vh; }
+  .card-panel { inset: 0 0 0 auto; margin: 0; width: min(var(--card-panel-w, 540px), 100vw); height: 100vh; }
+  .panel-resize-handle { position: absolute; top: 0; bottom: 0; left: 0; width: 6px; cursor: ew-resize; z-index: 2; touch-action: none; }
+  .panel-resize-handle:hover, .panel-resize-handle.is-dragging { background: color-mix(in srgb, var(--accent) 35%, transparent); }
   .card-panel::backdrop { background: color-mix(in srgb, var(--overlay) 45%, transparent); backdrop-filter: none; }
   .card-panel .modal-box { width: 100%; height: 100%; border-radius: 0; border-width: 0 0 0 1px; }
   .session-log-dialog { width: min(720px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
@@ -1019,6 +1021,7 @@
 </main>
 
 <dialog id="cardDialog" class="app-dialog card-panel" aria-labelledby="modalTitle">
+  <div class="panel-resize-handle" id="cardPanelResizeHandle" title="ドラッグで幅を変更"></div>
   <div class="modal-box">
     <div class="modal-header">
       <div class="modal-header-text">
@@ -3913,6 +3916,39 @@ function buildModalTaskRow(column, group, task) {
   return row;
 }
 
+const CARD_PANEL_WIDTH_KEY = 'viewer:cardPanelWidth';
+const CARD_PANEL_MIN_W = 420;
+// ボードが左に見えたまま残るよう、サイドバー幅ぶんは常に空ける
+const CARD_PANEL_BOARD_RESERVE = 320;
+
+function clampCardPanelWidth(width) {
+  return Math.max(CARD_PANEL_MIN_W, Math.min(width, window.innerWidth - CARD_PANEL_BOARD_RESERVE));
+}
+
+function applyCardPanelWidth(width) {
+  document.documentElement.style.setProperty('--card-panel-w', `${clampCardPanelWidth(width)}px`);
+}
+
+function setupCardPanelResize() {
+  const saved = Number(localStorage.getItem(CARD_PANEL_WIDTH_KEY));
+  if (saved) applyCardPanelWidth(saved);
+  const handle = document.getElementById('cardPanelResizeHandle');
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add('is-dragging');
+    const onMove = (ev) => applyCardPanelWidth(window.innerWidth - ev.clientX);
+    const onUp = (ev) => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.classList.remove('is-dragging');
+      localStorage.setItem(CARD_PANEL_WIDTH_KEY, String(clampCardPanelWidth(window.innerWidth - ev.clientX)));
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+  });
+}
+
 function closeModal() {
   document.getElementById('cardDialog').close();
 }
@@ -4551,6 +4587,7 @@ function bindLaunchOnEnter(textarea, launch) {
 
 async function init() {
   observeHeaderHeight();
+  setupCardPanelResize();
   const themeSelect = document.getElementById('themeSelect');
   themeSelect.value = document.documentElement.dataset.theme;
   themeSelect.addEventListener('change', () => applyAndSaveTheme(themeSelect.value));
