@@ -45,41 +45,54 @@ function setupFixture() {
   return { root, todoDir, dataDir, projectDir, todoFile };
 }
 
-async function waitUntilReady(baseUrl, child, stderrChunks, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      throw new Error(`viewer server exited early: ${stderrChunks.join('')}`);
-    }
-    try {
-      const res = await fetch(`${baseUrl}/api/files`);
-      if (res.ok) return;
-    } catch {
-      // まだ起動していない。リトライする。
-    }
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error(`viewer server did not become ready: ${stderrChunks.join('')}`);
-}
-
-// server.jsを子プロセスで起動し、`/api/files`が応答するまで待って返す。
-async function startViewerServer(env) {
-  const port = await findFreePort();
+// findFreePortで空きを確認してから子プロセスがlistenするまでの間に、並列実行中の別テストファイルが
+// 同じポートを取ることがある。その場合/api/filesのポーリングは別テストのサーバーに当たって成功してしまうため、
+// 自分の子プロセスがlisten成功時に出す1行で起動を判定し、EADDRINUSEで落ちたら別ポートで起動し直す。
+function spawnAndWaitListening(port, env, timeoutMs) {
   const child = spawn(process.execPath, [SERVER_PATH], {
     env: { ...process.env, VIEWER_PORT: String(port), ...env },
   });
   const stderrChunks = [];
   child.stderr.on('data', (chunk) => stderrChunks.push(chunk.toString()));
-  const baseUrl = `http://127.0.0.1:${port}`;
-  await waitUntilReady(baseUrl, child, stderrChunks, 5000);
-  return {
-    baseUrl,
-    child,
-    async stop() {
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    const timer = setTimeout(() => {
       child.kill();
-      await new Promise((resolve) => child.once('exit', resolve));
-    },
-  };
+      reject(new Error(`viewer server did not become ready: ${stderrChunks.join('')}`));
+    }, timeoutMs);
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+      if (stdout.includes(`todo viewer: http://localhost:${port}`)) {
+        clearTimeout(timer);
+        resolve({ child, addrInUse: false });
+      }
+    });
+    child.once('exit', () => {
+      clearTimeout(timer);
+      const stderr = stderrChunks.join('');
+      if (stderr.includes('EADDRINUSE')) return resolve({ child, addrInUse: true });
+      reject(new Error(`viewer server exited early: ${stderr}`));
+    });
+  });
+}
+
+// server.jsを子プロセスで起動し、listenが成功するまで待って返す。
+async function startViewerServer(env) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const port = await findFreePort();
+    const { child, addrInUse } = await spawnAndWaitListening(port, env, 5000);
+    if (addrInUse) continue;
+    return {
+      baseUrl: `http://127.0.0.1:${port}`,
+      child,
+      async stop() {
+        if (child.exitCode !== null) return;
+        child.kill();
+        await new Promise((resolve) => child.once('exit', resolve));
+      },
+    };
+  }
+  throw new Error('viewer server could not find a free port after 5 attempts');
 }
 
 // `claude --bg`互換の1行（`backgrounded · <id> · <name>`）を返す偽実行ファイルを作る。
