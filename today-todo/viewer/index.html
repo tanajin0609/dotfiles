@@ -708,6 +708,11 @@
   }
   .modal-header-actions button:hover { background: var(--hover-bg); color: var(--ink); }
   .modal-header-actions .close-btn { padding: 0; }
+  .status-segment { display: flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .status-segment[hidden] { display: none; }
+  .modal-header-actions .status-segment button { border-radius: 0; }
+  .modal-header-actions .status-segment button[aria-pressed="true"] { background: var(--hover-bg); color: var(--ink); font-weight: 600; }
+  .modal-header-actions .status-segment button.status-today[aria-pressed="true"] { color: var(--accent); }
   .new-card-form { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; }
   .new-card-form > button { align-self: flex-end; }
 
@@ -1023,7 +1028,7 @@
         <div class="modal-ratio" id="modalCost" hidden></div>
       </div>
       <div class="modal-header-actions">
-        <button id="modalStatusBtn" type="button" class="status-btn"></button>
+        <div id="modalStatusGroup" class="status-segment" role="group" aria-label="このカードのステータス"></div>
         <button id="modalStarBtn" type="button" class="star-btn"></button>
         <button id="modalCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
@@ -1333,7 +1338,7 @@ const FOCUS_TARGET_ALL_OPEN = 'all-open';
 const FOCUS_TARGET_STARRED = 'starred';
 const FOCUS_TARGET_TODAY = 'status-today';
 const STATUS_KEY_PREFIX = 'viewer:status:';
-const STATUS_CYCLE = ['', 'today', 'hold'];
+const STATUS_ORDER = ['', 'today', 'hold'];
 const STATUS_LABELS = { '': '未着手', today: '今日やる', hold: '保留' };
 const STATUS_ICONS = { '': '○', today: '▶', hold: '⏸' };
 const FOCUS_TARGET_COLUMN_PREFIX = 'column:';
@@ -3307,9 +3312,7 @@ function statusOf(group) {
   return STATUS_LABELS[groupStatuses[group.id]] ? groupStatuses[group.id] : '';
 }
 
-function cycleGroupStatus(group) {
-  const current = statusOf(group);
-  const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
+function setGroupStatus(group, next) {
   if (next) groupStatuses[group.id] = next;
   else delete groupStatuses[group.id];
   localStorage.setItem(STATUS_KEY_PREFIX + currentFile, JSON.stringify(groupStatuses));
@@ -3317,9 +3320,14 @@ function cycleGroupStatus(group) {
   renderModalStatusButton();
 }
 
+// 3状態を1ボタンで巡回させると、今日やるを取り消すつもりの再押下で保留に化けるため、○は今日やるの付け外しに限る。
+function nextTodayToggleStatus(group) {
+  return statusOf(group) === 'today' ? '' : 'today';
+}
+
 function describeStatusButton(group, subject) {
   const current = statusOf(group);
-  const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
+  const next = nextTodayToggleStatus(group);
   return `${subject}のステータス: ${STATUS_LABELS[current]}（押すと${STATUS_LABELS[next]}にする）`;
 }
 
@@ -3331,9 +3339,18 @@ function toggleGroupStar(groupId) {
   renderModalStarButton();
 }
 
-function buildCardMenuItems(column, group, { index, count }) {
+function buildCardMenuItems(column, group, orderPosition) {
   const { main } = splitGroupTitle(group.title);
+  const isHold = statusOf(group) === 'hold';
+  const holdItem = {
+    label: isHold ? '保留を解除' : '保留にする',
+    ariaLabel: isHold ? `${main} の保留を解除` : `${main} を保留にする`,
+    onSelect: () => setGroupStatus(group, isHold ? '' : 'hold'),
+  };
+  if (!orderPosition) return [holdItem];
+  const { index, count } = orderPosition;
   return [
+    holdItem,
     {
       label: '上へ',
       ariaLabel: `${main} を上へ移動（Alt+↑）`,
@@ -3370,11 +3387,11 @@ function buildCardActions(column, group, orderPosition) {
     statusBtn.dataset.focusKey = `card-status:${group.id}`;
     statusBtn.textContent = STATUS_ICONS[status];
     statusBtn.setAttribute('aria-label', describeStatusButton(group, `${main} `));
-    statusBtn.addEventListener('click', () => cycleGroupStatus(group));
+    statusBtn.addEventListener('click', () => setGroupStatus(group, nextTodayToggleStatus(group)));
     actions.appendChild(statusBtn);
   }
   actions.appendChild(starBtn);
-  if (orderPosition) {
+  if (!group.done) {
     const menu = buildActionMenu(`card-${group.id}-menu`, `${main} の操作`, buildCardMenuItems(column, group, orderPosition));
     const menuBtn = buildActionMenuButton(menu, 'share-btn card-action-btn');
     menuBtn.dataset.focusKey = `card-menu:${group.id}`;
@@ -3714,12 +3731,20 @@ function openModal(column, group) {
 
 function renderModalStatusButton() {
   if (!modalGroup) return;
-  const statusBtn = document.getElementById('modalStatusBtn');
-  statusBtn.hidden = !!modalGroup.done;
-  const status = statusOf(modalGroup);
-  statusBtn.textContent = `${STATUS_ICONS[status]} ${STATUS_LABELS[status]}`;
-  statusBtn.setAttribute('aria-label', describeStatusButton(modalGroup, 'このカード'));
-  statusBtn.className = `status-btn status-${status || 'none'}`;
+  const segment = document.getElementById('modalStatusGroup');
+  segment.hidden = !!modalGroup.done;
+  const current = statusOf(modalGroup);
+  segment.replaceChildren(...STATUS_ORDER.map((status) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `status-btn status-${status || 'none'}`;
+    btn.textContent = `${STATUS_ICONS[status]} ${STATUS_LABELS[status]}`;
+    btn.setAttribute('aria-pressed', String(status === current));
+    btn.addEventListener('click', () => {
+      if (modalGroup) setGroupStatus(modalGroup, status);
+    });
+    return btn;
+  }));
 }
 
 function renderModalStarButton() {
@@ -4552,9 +4577,6 @@ async function init() {
   }
   document.getElementById('loadErrorRetryBtn').addEventListener('click', () => {
     if (failedBoardFile) loadBoard(failedBoardFile);
-  });
-  document.getElementById('modalStatusBtn').addEventListener('click', () => {
-    if (modalGroup) cycleGroupStatus(modalGroup);
   });
   document.getElementById('modalStarBtn').addEventListener('click', () => {
     if (modalGroup) toggleGroupStar(modalGroup.id);
