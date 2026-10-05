@@ -176,6 +176,36 @@ test('入力待ち(blocked)セッションへの再起動は、stopしてから-
   }
 });
 
+// AC-CC2-2（CLIによっては稼働中を`running`と書くため、working同様にコピー起動しない）
+test('稼働中(running)セッションへの依頼はclaudeを呼ばずlaunched:falseを返し、一覧ではworkingとして見える', async () => {
+  const fixture = setupFixture();
+  const jobId = crypto.randomBytes(16).toString('hex');
+  const jobDir = makeTestJobDir(jobId);
+  const callLog = path.join(fixture.root, 'claude-calls.log');
+  writeFakeClaude(path.join(fixture.root, 'bin'), { jobId, callLogPath: callLog, delayMs: 20 });
+  writeSessionsMap(fixture.dataDir, buildLaunchPayload().file, {
+    'group-a': { jobId, name: 'demo-project ▸ demo-project', launchedAt: new Date().toISOString() },
+  });
+  fs.writeFileSync(path.join(jobDir, 'state.json'), JSON.stringify({ state: 'running', sessionId: 'full-session-uuid-0003' }));
+  const server = await startViewerServer({
+    VIEWER_TODO_DIR: fixture.todoDir,
+    VIEWER_DATA_DIR: fixture.dataDir,
+    PATH: `${path.join(fixture.root, 'bin')}:${process.env.PATH}`,
+  });
+  try {
+    const res = await postLaunch(server.baseUrl, buildLaunchPayload());
+    assert.equal(res.status, 200);
+    assert.equal(res.body.launched, false);
+    assert.equal(res.body.reason, 'already-running');
+    assert.equal(fs.existsSync(callLog), false, 'claudeを呼ばないこと');
+    const sessions = await (await fetch(`${server.baseUrl}/api/sessions?file=${buildLaunchPayload().file}`)).json();
+    assert.equal(sessions['group-a'].state, 'working');
+  } finally {
+    await server.stop();
+    fs.rmSync(jobDir, { recursive: true, force: true });
+  }
+});
+
 // AC-CC2-2（doneセッションもプロセスが残るため、stopを挟んで同一IDで継続する）
 test('完了済み(done)セッションへの再起動も、stopしてから--resumeする', async () => {
   const fixture = setupFixture();

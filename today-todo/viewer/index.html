@@ -277,7 +277,7 @@
 
   .ghost-btn, .solid-btn, .tool-btn,
   #globalCommentSubmit, #newCardSubmit, #modalCommentSaveBtn, #modalCommentNewSessionBtn, #modalTaskSubmit, #modelSettingsSubmit,
-  #modalCommentLaunchBtn, #sessionLogReplyBtn, #reloadBtn {
+  #modalCommentLaunchBtn, #sessionLogReplyBtn, #sessionLogNewSessionBtn, #reloadBtn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     height: 32px; padding: 0 12px; border-radius: var(--radius);
     font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; cursor: pointer;
@@ -294,10 +294,10 @@
   }
   .solid-btn:hover, #globalCommentSubmit:hover, #newCardSubmit:hover, #modalTaskSubmit:hover, #modelSettingsSubmit:hover,
   #modalCommentLaunchBtn:hover, #sessionLogReplyBtn:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
-  #modalCommentSaveBtn, #modalCommentNewSessionBtn {
+  #modalCommentSaveBtn, #modalCommentNewSessionBtn, #sessionLogNewSessionBtn {
     border: 1px solid var(--input-line); background: var(--raised); color: var(--ink);
   }
-  #modalCommentSaveBtn:hover, #modalCommentNewSessionBtn:hover { background: var(--hover-bg); }
+  #modalCommentSaveBtn:hover, #modalCommentNewSessionBtn:hover, #sessionLogNewSessionBtn:hover { background: var(--hover-bg); }
   .tool-btn, #reloadBtn {
     width: 32px; padding: 0; border: 1px solid transparent; background: transparent; color: var(--ink-sub);
   }
@@ -1101,11 +1101,12 @@
       <div class="field">
         <label for="sessionLogReplyInput" class="field-label">返信</label>
         <textarea id="sessionLogReplyInput" rows="2"
-          placeholder="セッションへの返信・追加の指示を入力（保存後、Claudeに依頼として再開します）"
+          placeholder="セッションへの返信・追加の指示を入力"
           aria-describedby="sessionLogReplyHint"></textarea>
-        <span class="input-hint" id="sessionLogReplyHint"><kbd>Enter</kbd> で「Claudeに依頼」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
+        <span class="input-hint" id="sessionLogReplyHint"><kbd>Enter</kbd> で「このセッションに送信」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
       </div>
-      <button id="sessionLogReplyBtn" type="button">Claudeに依頼</button>
+      <button id="sessionLogNewSessionBtn" type="button" title="ここまでの会話履歴を引き継いだ新しいセッションに依頼します">新しいセッションで依頼</button>
+      <button id="sessionLogReplyBtn" type="button">このセッションに送信</button>
     </div>
   </div>
 </dialog>
@@ -3011,6 +3012,7 @@ function buildSessionCard(column, group) {
 
 let sessionLogTimer = null;
 let sessionLogJobId = null;
+let latestBranchableUuid = null;
 let sessionLogGroupId = null;
 let sessionLogFocusReturn = null;
 let renderedSessionLogEntryKeys = null;
@@ -3029,6 +3031,7 @@ function renderSessionLogMessage(message, session) {
   // 稼働中は5秒ごとに同じ文言で呼ばれるため、作り直して再取得ボタンのフォーカスを落とさない。
   if (shownBox && shownBox.dataset.message === message && shownBox.dataset.retryJobId === retryJobId) return;
   renderedSessionLogEntryKeys = null;
+  latestBranchableUuid = null;
   list.innerHTML = '';
   const box = document.createElement('div');
   box.className = 'session-log-empty';
@@ -3153,6 +3156,8 @@ function renderSessionLogEntries(entries, session) {
   const options = buildPendingAskUserQuestionOptions(entries, session);
   if (options) list.appendChild(options);
   renderedSessionLogEntryKeys = entryKeys;
+  const latestBranchable = entries.findLast((entry) => entry.kind === 'text' && entry.role === 'assistant' && entry.uuid);
+  latestBranchableUuid = latestBranchable ? latestBranchable.uuid : null;
   if (shouldFollow) list.scrollTop = list.scrollHeight;
 }
 
@@ -3299,6 +3304,7 @@ function onSessionLogDialogClosed() {
   sessionLogJobId = null;
   sessionLogGroupId = null;
   renderedSessionLogEntryKeys = null;
+  latestBranchableUuid = null;
   if (sessionLogTimer) {
     clearInterval(sessionLogTimer);
     sessionLogTimer = null;
@@ -4000,9 +4006,12 @@ function renderSessionLogReplyControls() {
   const isBusy = !!busy;
   const replyBtn = document.getElementById('sessionLogReplyBtn');
   const replyInput = document.getElementById('sessionLogReplyInput');
+  const newSessionBtn = document.getElementById('sessionLogNewSessionBtn');
   replyBtn.disabled = isBusy;
   replyInput.disabled = isBusy;
-  replyBtn.textContent = isBusy ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.launch;
+  newSessionBtn.disabled = isBusy;
+  replyBtn.textContent = isBusy && busy.mode === 'launch' ? COMMENT_BUSY_LABELS.launch : 'このセッションに送信';
+  newSessionBtn.textContent = isBusy && busy.mode === 'newSession' ? COMMENT_BUSY_LABELS.launch : '新しいセッションで依頼';
   for (const btn of document.querySelectorAll('#sessionLogList .ask-user-question-buttons button, #sessionLogList .log-branch-btn')) {
     btn.disabled = isBusy;
   }
@@ -4062,7 +4071,15 @@ function submitSessionLogReply() {
   sendCardComment(target, text, true);
 }
 
-function branchSessionFromEntry(uuid) {
+function branchSessionFromLatestEntry() {
+  if (!latestBranchableUuid) {
+    showToast('引き継げる会話がまだありません');
+    return;
+  }
+  branchSessionFromEntry(latestBranchableUuid, 'newSession');
+}
+
+function branchSessionFromEntry(uuid, busyMode = 'launch') {
   const text = document.getElementById('sessionLogReplyInput').value.trim();
   if (!sessionLogGroupId || busyCommentsByGroupId.has(sessionLogGroupId)) return;
   const found = findGroupById(sessionLogGroupId);
@@ -4076,18 +4093,18 @@ function branchSessionFromEntry(uuid) {
     return;
   }
   const target = { file: currentFile, columnName: found.column.name, groupId: sessionLogGroupId, groupTitle: found.group.title };
-  runWithCommentBusy(target.groupId, 'launch', async () => {
+  runWithCommentBusy(target.groupId, busyMode, async () => {
     const response = await postJson('/api/session/branch', { ...target, uuid, text });
     if (response.status === 409) {
       showToast('このカードは起動処理中です');
       return;
     }
     if (isUntrustedWorkspace(response)) {
-      showUntrustedWorkspaceToast(response.data.cwd, () => branchSessionFromEntry(uuid));
+      showUntrustedWorkspaceToast(response.data.cwd, () => branchSessionFromEntry(uuid, busyMode));
       return;
     }
     if (!response.ok) {
-      showFailureToast(`分岐に失敗しました: ${formatFailureReason(response)}`, () => branchSessionFromEntry(uuid));
+      showFailureToast(`分岐に失敗しました: ${formatFailureReason(response)}`, () => branchSessionFromEntry(uuid, busyMode));
       return;
     }
     document.getElementById('sessionLogReplyInput').value = '';
@@ -4730,6 +4747,7 @@ async function init() {
   document.getElementById('docCloseBtn').addEventListener('click', () => document.getElementById('docDialog').close());
   document.getElementById('docDialog').addEventListener('close', onDocDialogClosed);
   document.getElementById('sessionLogReplyBtn').addEventListener('click', submitSessionLogReply);
+  document.getElementById('sessionLogNewSessionBtn').addEventListener('click', branchSessionFromLatestEntry);
   const sessionLogDialog = document.getElementById('sessionLogDialog');
   sessionLogDialog.addEventListener('close', onSessionLogDialogClosed);
   sessionLogDialog.addEventListener('click', (e) => {

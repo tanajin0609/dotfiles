@@ -595,12 +595,16 @@ function readSessionsMap(file) {
   }
 }
 
+// CLIのバージョンによって稼働中の表記が`working`と`running`に分かれるため、ここで`working`に揃える。
+// 揃えないと稼働中のジョブへの依頼が--resumeでコピーを起動してしまう。
 function readJobState(jobId) {
+  let jobState;
   try {
-    return JSON.parse(fs.readFileSync(path.join(CLAUDE_JOBS_DIR, jobId, 'state.json'), 'utf-8'));
+    jobState = JSON.parse(fs.readFileSync(path.join(CLAUDE_JOBS_DIR, jobId, 'state.json'), 'utf-8'));
   } catch {
     return null;
   }
+  return jobState.state === 'running' ? { ...jobState, state: 'working' } : jobState;
 }
 
 // working中（ツール実行等の最中）だけを「新規起動をブロックすべき」とみなす。
