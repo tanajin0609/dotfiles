@@ -4,8 +4,8 @@ model: opus
 description: |
   対象サブプロジェクトの既存資材（コード・spec・過去のバッチ/ブランチ）を調査したうえで、
   dev系（docs/specs/あり）なら docs/changes/<version>-<type>-<短い説明>-<日付>/ の
-  proposal.md・design.md・tasks.md を、ops系（docs/specs/なし）なら order-yyyymmdd/ の
-  order.md・plan.md を埋める。todo.md への同期も行う。対象項目がNotion起源（page_idを持つ）
+  proposal.md・design.md・checklist.md を、ops系（docs/specs/なし）なら order-yyyymmdd/ の
+  order.md・plan.md を埋める。backlog.md への同期も行う。対象項目がNotion起源（page_idを持つ）
   場合は提案書をNotionチケットへ書き戻す（対応するtodo-source-*skillの定義に従う）。
   提案書・作業計画書の作成で必ず停止し、
   実装には進まない（承認後の実装は別途の通常のやり取りで行う）。directry-rules.md 1章が
@@ -22,7 +22,7 @@ description: |
 # /todo-propose — 提案書・作業計画書の作成（実装はしない）
 
 対象サブプロジェクトの性質（dev系 / ops系）を自動判定し、既存資材を調査したうえで
-提案書（dev系: `proposal.md`・`design.md`・`tasks.md`）または作業計画書（ops系: `plan.md`）を
+提案書（dev系: `proposal.md`・`design.md`・`checklist.md`）または作業計画書（ops系: `plan.md`）を
 埋める。**ここで必ず停止する。承認は人間が行い、実装はそのあとの別のやり取りで進める
 （本コマンドは実装フェーズを持たない）。**
 
@@ -82,7 +82,7 @@ description: |
 判定に迷う場合は「新規提案が必要」に倒さず、根拠とともに対象外寄りに分類して理由を明記する
 （過剰生成よりも判断を保留してユーザーに戻す方を優先する）。
 
-**defer項目の回数閾値（2026-09-02追加）**: `docs/tasks/todo.md`の要約行が`defer x<n>`で
+**defer項目の回数閾値（2026-09-02追加）**: `docs/tasks/backlog.md`の要約行が`defer x<n>`で
 `n`が**3以上**の場合は、「次の一手」を機械的に引き継いで再提案することをやめる。代わりに
 「今日のゴールとマイルストーン（提案）」には含めず、まとめ版（3-1）の留保・未確定事項に
 「`<n>`回defer済み、方針から見直すべきでは」と明示するに留める（起票自体はスキップせず提示
@@ -109,7 +109,7 @@ description: |
 - スキップの場合: 理由
 
 todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わない。進捗の一次情報は各サブプロジェクトの
-`todo.md`・変更ディレクトリ側に持たせる（`/todo-import` が次回実行時に反映する）。
+`backlog.md`・変更ディレクトリ側に持たせる（`/todo-import` が次回実行時に反映する）。
 
 ## ワークフロー
 
@@ -151,7 +151,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 | `design.md` | アーキテクチャ | 既存構造のどこに手を入れるか |
 | `design.md` | 実装方針 | 具体的な実装方針。既存資材があればそれをベースにする |
 | `decisions.md` | 論点 | 複数案から選ぶ必要がある事項を、選択肢と決定（初期は未決定）の表として記入 |
-| `tasks.md` | 先頭のチェックリスト | 実装タスクの分解（delta specのチェック項目はテンプレートのまま残す） |
+| `checklist.md` | 先頭のチェックリスト | 実装タスクの分解（delta specのチェック項目はテンプレートのまま残す） |
 
 情報が不足している箇所は推測で埋めず、`decisions.md`の「論点」に選択肢とともに
 明記する（承認時のレビュー観点になる。`proposal.md`・`design.md`本文には質問を書かない）。
@@ -161,7 +161,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 `Grep`/`Read`で裏取りし、この文書一式だけで文脈を持たない別の担当者が実装に着手できるかを
 自問する。着手できないと判断した箇所があれば、埋めるのではなく`decisions.md`の論点に回す。
 
-**A-3.** `docs/tasks/todo.md` の `## 進行中` を確認する。A-1で `/init-change` が既に
+**A-3.** `docs/tasks/backlog.md` の `## 進行中` を確認する。A-1で `/init-change` が既に
 `todo-format` skill の書式で行を追記済みのはずなので、その行を以下の形式に更新する（重複追記しない。
 要約は埋めた proposal.md に合わせて見直す）。行が無ければ（`/init-change` を経由せず
 直接ディレクトリが用意されていた等）ここで新規追記する。
@@ -170,7 +170,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 - [ ] <何をするかの要約>（提案中・承認待ち） → [docs/changes/<version>-<change-name>-<日付>/proposal.md](../changes/<version>-<change-name>-<日付>/proposal.md)
 ```
 
-過去に提案が `todo.md` に一度も反映されず日次棚卸しから漏れた事例があるため
+過去に提案が `backlog.md` に一度も反映されず日次棚卸しから漏れた事例があるため
 （`directry-rules.md` 4.3・4.4）、この確認・追記は省略しない。
 
 **A-4.** `docs/specs/`（大本spec）はこの時点では変更しない（Spec-First: 実装フェーズで直接更新し、
@@ -180,7 +180,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 
 **B-1.** 依頼に対応する `order-yyyymmdd/` が無ければ、
 `$HOME/.claude/commands/init-ops-work.md` のワークフロー（対象ディレクトリ決定・
-依頼ディレクトリ決定・重複チェック・テンプレートコピー・todo.md追記）に従って作成する。
+依頼ディレクトリ決定・重複チェック・テンプレートコピー・backlog.md追記）に従って作成する。
 既にあれば流用する。
 
 **B-2.** `order.md` に依頼内容（何を・いつまでに・誰から）を書く（Notion等の外部ソースが無い、
@@ -202,7 +202,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 業務ルール（履歴レコードの備考欄への記録方式など）が
 `$HOME/.claude/local/ops-work/RULES.md` にあれば読んで従う。無ければ黙って続行する。
 
-**B-4.** `todo.md`（サブプロジェクト直下）への追記は `/init-ops-work` の手順内で行われる前提。
+**B-4.** `backlog.md`（サブプロジェクト直下）への追記は `/init-ops-work` の手順内で行われる前提。
 未追記なら本手順で追記する。
 
 ### C. Notionへの書き戻し（dev/ops共通・page_idがある場合のみ）
@@ -238,7 +238,7 @@ skill（今回の対象なら `todo-source-notion`）が定義する書き戻し
   実在し、記述と一致するか
 - 「対象外」判定が0-3の基準表に照らして妥当か（恣意的な回避でないか）
 - 既存ディレクトリ流用の原則（A-1/B-1）を破って重複作成していないか
-- A-3（dev系）のtodo.md追記が実際に行われているか
+- A-3（dev系）のbacklog.md追記が実際に行われているか
 - proposal.md/design.md/order.md/plan.mdの既存見出しを変更・削除していないか
 - page_idがある項目でNotionへの書き戻し（手順C）が実施されたか、または対象外・失敗の理由が
   明記されているか（黙って省略していないか）
@@ -261,8 +261,8 @@ skill（今回の対象なら `todo-source-notion`）が定義する書き戻し
 
 以下を報告し、**ここで停止する。承認前提で `src/`・実装コードには着手しない。**
 
-- 作成・更新したファイルのパス（`proposal.md`/`design.md`/`tasks.md` または `order.md`/`plan.md`、
-  `todo.md` への追記）
+- 作成・更新したファイルのパス（`proposal.md`/`design.md`/`checklist.md` または `order.md`/`plan.md`、
+  `backlog.md` への追記）
 - 手順2の調査結果の要点
 - 「リスク・確認事項」または質問として残した項目（あれば箇条書きで再掲）
 - Notionへの書き戻し結果（手順C。実施した/対象外（page_id無し）/失敗してスキップ、のいずれか）

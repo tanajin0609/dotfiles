@@ -28,20 +28,20 @@ description: |
 6. データを作成・更新する場合は、監査のための作業起因（いつ・何の対応で発生したか）をレコード側に残す。後から「このデータは何の依頼で変わったのか」を人が追えることが、運用作業の説明責任そのものになる。対象カラム・文言形式・DRYRUN での確認方法は案件ごとに異なるため、「業務ドメイン参照」で読み込んだルールに従う。
 7. 手動作業（本番サーバーへのscp、rails runner実行、DRYRUN確認、本実行など）が発生する場合は、その手順を `instruction.md` に書く（`_templates/ops/instruction.md` をコピーして使う）。
 8. 関係者と共有する資料は `refs/` に置く。
-9. ユーザーが明示的に「完了」と伝えたら、下記「todo.md管理とアーカイブ化」の完了時の手順を実行する。
+9. ユーザーが明示的に「完了」と伝えたら、下記「backlog.md管理とアーカイブ化」の完了時の手順を実行する。
 
-## todo.md管理とアーカイブ化
+## backlog.md管理とアーカイブ化
 
-サブプロジェクト直下（`order-yyyymmdd/` と同じ階層）の `docs/tasks/todo.md` に、依頼の進行状況を管理する
-（2026-08-26変更: `/todo-import`・`check-todos` が拾える形式に揃えるため、bare `todo.md` から
-devテンプレートと同じ `docs/tasks/todo.md` に変更）。
+サブプロジェクト直下（`order-yyyymmdd/` と同じ階層）の `docs/tasks/backlog.md` に、依頼の進行状況を管理する
+（2026-08-26変更: `/todo-import`・`check-todos` が拾える形式に揃えるため、bare `backlog.md` から
+devテンプレートと同じ `docs/tasks/backlog.md` に変更）。
 
-- **依頼作成時**（手順1の前後、下記ワークフロー4）: サブプロジェクト直下に `docs/tasks/todo.md` が無ければ `_templates/ops/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成し、`## 進行中` に今回の `order-yyyymmdd` を1行追記する。
+- **依頼作成時**（手順1の前後、下記ワークフロー4）: サブプロジェクト直下に `docs/tasks/backlog.md` が無ければ `_templates/ops/backlog.md` を `docs/tasks/backlog.md` としてコピーして新規作成し、`## 進行中` に今回の `order-yyyymmdd` を1行追記する。
   形式（`todo-format` skill）: `- [ ] <依頼概要> → order-yyyymmdd/order.md`
 - **完了時**（手順9）: ユーザーが明示的に「完了」と伝えたら以下を行う。
   1. サブプロジェクト直下に `archives/` が無ければ作成する。
   2. `order-yyyymmdd/` を `archives/order-yyyymmdd/` へ `mv` する。
-  3. `docs/tasks/todo.md` の該当行を `## 進行中` から `## 完了（archives/へ移動済み）` に移し、`- [x]` に変更し、リンク先を `archives/order-yyyymmdd/order.md` に更新する。
+  3. `docs/tasks/backlog.md` の該当行を `## 進行中` から `## 完了（archives/へ移動済み）` に移し、`- [x]` に変更し、リンク先を `archives/order-yyyymmdd/order.md` に更新する。
   4. 移動先パスをユーザーに報告する。
 - 「完了」の判定はユーザーの明示的な発言のみによる。本実行完了やrefs共有をもってClaude側が自動的に完了とみなし、確認なしでarchives/へ移動することはしない。
 
@@ -88,10 +88,10 @@ devテンプレートと同じ `docs/tasks/todo.md` に変更）。
    - `.gitkeep` はテンプレート側（dotfilesリポジトリ）で空ディレクトリを保持するためだけの目印なので、コピー後に削除する。
    - `instruction.md`（`_templates/ops/instruction.md`）は手動作業が発生する依頼でのみ、実装フェーズで `order-yyyymmdd/` 直下にコピーして使う（`order.md`・`plan.md`と同じ階層。このタイミングでは無条件にはコピーしない）。
 
-5. **todo.mdへの追記**
-   - 対象ディレクトリ（サブプロジェクト）直下に `docs/tasks/todo.md` が無ければ `mkdir -p docs/tasks` の上、
-     `_templates/ops/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成する。
-   - `## 進行中` に `- [ ] <依頼概要> → order-yyyymmdd/order.md` を1行追記する（書式は `todo-format` skill）（「todo.md管理とアーカイブ化」参照）。
+5. **backlog.mdへの追記**
+   - 対象ディレクトリ（サブプロジェクト）直下に `docs/tasks/backlog.md` が無ければ `mkdir -p docs/tasks` の上、
+     `_templates/ops/backlog.md` を `docs/tasks/backlog.md` としてコピーして新規作成する。
+   - `## 進行中` に `- [ ] <依頼概要> → order-yyyymmdd/order.md` を1行追記する（書式は `todo-format` skill）（「backlog.md管理とアーカイブ化」参照）。
 
 6. **完了報告**
    - 作成・更新したファイル・ディレクトリの一覧をユーザーに報告する。

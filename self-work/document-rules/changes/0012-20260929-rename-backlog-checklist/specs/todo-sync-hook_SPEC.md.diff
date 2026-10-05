@@ -1,0 +1,51 @@
+--- self-work/document-rules/changes/0012-20260929-rename-backlog-checklist/specs/base/todo-sync-hook_SPEC.md	2026-09-29 18:03:47.878580700 +0900
++++ self-work/todo-sync-hook/SPEC.md	2026-09-29 18:04:11.070636622 +0900
+@@ -1,6 +1,6 @@
+ # todo-sync-hook 仕様書
+ 
+-タスク完遂時に `docs/tasks/todo.md` / `docs/changes/*/tasks.md` への反映漏れを検知し、警告する Claude Code フック。
++タスク完遂時に `docs/tasks/backlog.md` / `docs/changes/*/checklist.md` への反映漏れを検知し、警告する Claude Code フック。
+ 
+ ## クイックリファレンス
+ 
+@@ -13,20 +13,20 @@
+ 
+ ## 1. 背景
+ 
+-`/init-change`・`/todo-propose`・`/todo-execute`・`/archive` はいずれも「`docs/tasks/todo.md` への追記・移動は省略不可」と明記しているが、これは prompt レベルの指示であり、過去に実際に漏れて日次棚卸しから抜け落ちた事例がある（`init-change.md` 記載）。本フックはこれに対する機械的な安全網。
++`/init-change`・`/todo-propose`・`/todo-execute`・`/archive` はいずれも「`docs/tasks/backlog.md` への追記・移動は省略不可」と明記しているが、これは prompt レベルの指示であり、過去に実際に漏れて日次棚卸しから抜け落ちた事例がある（`init-change.md` 記載）。本フックはこれに対する機械的な安全網。
+ 
+ ## 2. 対象イベントと検知条件
+ 
+ - 「完遂」= `TaskUpdate`（会話内タスク管理機能）で `status: "completed"` になった時。
+-- 判定: 同一セッション内で、`docs/tasks/todo.md` または `docs/changes/<change>/tasks.md` への `Write`/`Edit`/`MultiEdit` が一度でも記録されていれば OK。一度も記録がなければ警告する。
+-- 「起票」（`TaskCreate`）は対象外。`TaskCreate` は todo.md と無関係な作業にも汎用的に使われるため、これをトリガーにすると誤検知が多くなる。起票時の todo.md 追記は既存コマンドの必須手順に委ねる。
++- 判定: 同一セッション内で、`docs/tasks/backlog.md` または `docs/changes/<change>/checklist.md` への `Write`/`Edit`/`MultiEdit` が一度でも記録されていれば OK。一度も記録がなければ警告する。
++- 「起票」（`TaskCreate`）は対象外。`TaskCreate` は backlog.md と無関係な作業にも汎用的に使われるため、これをトリガーにすると誤検知が多くなる。起票時の backlog.md 追記は既存コマンドの必須手順に委ねる。
+ 
+-セッション内のタスクと todo.md/tasks.md の対応は厳密には取れない（`TaskUpdate` の入力にファイルパス情報が無い）。**タスク単位の対応付けではなく、「このセッションで一度も触っていない」ケースだけを拾う粗い安全網**である。
++セッション内のタスクと backlog.md/checklist.md の対応は厳密には取れない（`TaskUpdate` の入力にファイルパス情報が無い）。**タスク単位の対応付けではなく、「このセッションで一度も触っていない」ケースだけを拾う粗い安全網**である。
+ 
+ ## 3. 受け入れ条件
+ 
+-### AC-1: todo.md/tasks.md への書き込みを記録する
+-- `Edit`/`Write`/`MultiEdit` の `tool_input.file_path` が `.../docs/tasks/todo.md` または `.../docs/changes/<any>/tasks.md` に一致する → セッション状態ファイルを作成する
++### AC-1: backlog.md/checklist.md への書き込みを記録する
++- `Edit`/`Write`/`MultiEdit` の `tool_input.file_path` が `.../docs/tasks/backlog.md` または `.../docs/changes/<any>/checklist.md` に一致する → セッション状態ファイルを作成する
+ - 一致しない任意のパス（例: `src/main.py`）→ 状態ファイルを作成しない
+ 
+ ### AC-2: 完遂時に反映有無を確認する
+@@ -45,11 +45,11 @@
+ 
+ ## 4. 状態管理
+ 
+-`session_id`（stdin payload）ごとに `/tmp/todo-sync-hook-<session_id>.flag` の存在で「このセッションで todo.md/tasks.md に触れたか」を管理する。ファイルは作成後削除しない（セッション中に一度でも触れれば、以降の完遂チェックは常に素通しになる）。プロセス終了後の掃除は不要（`/tmp` のため OS 側で回収される）。
++`session_id`（stdin payload）ごとに `/tmp/todo-sync-hook-<session_id>.flag` の存在で「このセッションで backlog.md/checklist.md に触れたか」を管理する。ファイルは作成後削除しない（セッション中に一度でも触れれば、以降の完遂チェックは常に素通しになる）。プロセス終了後の掃除は不要（`/tmp` のため OS 側で回収される）。
+ 
+ ## 5. 既知の制約
+ 
+-1. タスク単位の対応付けはできない。複数タスクを並行して進めている場合、無関係なタスクの todo.md 更新で別タスクの完遂チェックが誤って素通りする可能性がある。
++1. タスク単位の対応付けはできない。複数タスクを並行して進めている場合、無関係なタスクの backlog.md 更新で別タスクの完遂チェックが誤って素通りする可能性がある。
+ 2. `TaskCreate`（起票）は対象外。起票時の追記漏れはこのフックでは拾えない。
+ 
+ ## 6. 設定

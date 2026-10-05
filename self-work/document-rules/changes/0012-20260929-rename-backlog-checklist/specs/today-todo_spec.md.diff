@@ -1,0 +1,84 @@
+--- self-work/document-rules/changes/0012-20260929-rename-backlog-checklist/specs/base/today-todo_spec.md	2026-09-29 18:03:47.848560200 +0900
++++ self-work/today-todo/docs/specs/spec.md	2026-09-29 18:04:11.066473366 +0900
+@@ -6,7 +6,7 @@
+ 
+ ## 目的
+ 
+-「今日やることは？」「今日のタスクは？」等の発話をトリガーに、`projects/*/docs/tasks/todo.md` の
++「今日やることは？」「今日のタスクは？」等の発話をトリガーに、`projects/*/docs/tasks/backlog.md` の
+ 未完了項目を対話・分類なしで機械的に `projects/today-todo/todo-YYYY-MM-DD.md` へ列挙する。
+ 横断の残タスク一覧をターミナル表示するだけの `check-todos`（read-only）とは異なり、ファイルを
+ 生成する。生成後の絞り込み・優先順位付けはユーザー自身が行う前提（2026-08-18版の初期設計では
+@@ -15,7 +15,7 @@
+ 
+ ## スコープ
+ 
+-- **入力**: `check-todos` と同じく `projects/*/docs/tasks/todo.md` を全プロジェクト横断で対象にする。
++- **入力**: `check-todos` と同じく `projects/*/docs/tasks/backlog.md` を全プロジェクト横断で対象にする。
+ - **外部ソース連携**: `$HOME/projects/.claude/skills/` に `todo-source-` で始まる名前の skill が
+   あれば、抽出処理の前処理として実行する（例: `todo-source-notion`）。無ければ実行せず、本体 skill
+   単体でも成立する。2026-08-18版の初期仕様では「Notion Tasks DB 等の外部ソース連携は対象外」として
+@@ -29,24 +29,24 @@
+ 
+ ## 対象ファイルの検出・抽出ルール（`check-todos` を流用）
+ 
+-`todo.md` の列挙・未完了項目の抽出は `check-todos`（`~/.claude/skills/check-todos/SKILL.md`
++`backlog.md` の列挙・未完了項目の抽出は `check-todos`（`~/.claude/skills/check-todos/SKILL.md`
+ Step1・2）とまったく同じ手順を使う。本skillでは重複して定義しない。
+ 
+ ```bash
+-find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
++find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/backlog.md"
+ ```
+ 
+ - 対象: `- [ ]` の未完了チェックボックス項目のみ。
+ - 対象外: `- [x]` の完了項目、プレーンな箇条書きの運用メモ節。
+ - 複数行にまたがる項目は1項目として扱う。
+ - 見出し（`##`/`###`）は、その項目がどの文脈の残課題かを示す情報として保持する。
+-- プロジェクト名は `todo.md` から2階層上（`docs/tasks/` の親）のディレクトリ名を使う。
++- プロジェクト名は `backlog.md` から2階層上（`docs/tasks/` の親）のディレクトリ名を使う。
+ - グループ名は `$HOME/projects` 直下の第1階層ディレクトリ名を使う（2026-09-16追加。出力の列として
+   使う。単独プロジェクトの場合はプロジェクト名とグループ名が一致する）。
+ - 項目行に `<!-- notion:<page_id> -->` があれば、その `page_id` を保持する（提案書やサブエージェント
+   が元の Notion ページへ直接書き戻す際に使う）。
+ - チェックボックス直後が `#<連番>` で始まっていれば、その番号を保持する。無ければ出力ファイル内での
+-  み新規採番し、元の todo.md へは書き戻さない。
++  み新規採番し、元の backlog.md へは書き戻さない。
+ 
+ ## 下書き生成ルール
+ 
+@@ -67,14 +67,14 @@
+ 
+    ## {グループ名}
+ 
+-   ### {プロジェクト名}（▸ {todo.md内の見出し文脈}。見出しがある場合のみ付ける）
++   ### {プロジェクト名}（▸ {backlog.md内の見出し文脈}。見出しがある場合のみ付ける）
+    - [ ] #{番号} {内容} → {参照リンク} <!-- notion:<page_id> -->
+    ```
+ 
+    同一グループ内で複数プロジェクトが同名になる場合は `{プロジェクト名}（{親ディレクトリ名}）` の
+    ように親ディレクトリ名を括弧書きで補って区別する。未完了項目が0件のプロジェクトは節ごと省略し、
+    グループ内の全プロジェクトが0件になった場合はグループごと省略する。
+-4. **再実行時の更新**: 既存ファイルがある場合、完了扱いになった項目には `- [x]` を付け、todo.md に
++4. **再実行時の更新**: 既存ファイルがある場合、完了扱いになった項目には `- [x]` を付け、backlog.md に
+    ある新規項目を追記する。既存の記述・ユーザーが手で加えた行は消さない。
+ 5. **書き込み先**: `projects/today-todo/` が無ければ作成してから `todo-YYYY-MM-DD.md` に書き込む。
+ 6. **作業ログ**（2026-08-26追加）: `projects/today-todo/work-log-YYYY-MM-DD.md` に実行内容
+@@ -82,7 +82,7 @@
+ 
+ ## 受け入れ条件（Acceptance Criteria）
+ 
+-- [ ] `projects/*/docs/tasks/todo.md` を持つ全プロジェクトを横断的に検出できる（`check-todos` と
++- [ ] `projects/*/docs/tasks/backlog.md` を持つ全プロジェクトを横断的に検出できる（`check-todos` と
+       同じ検出結果になる）
+ - [ ] 出力は `projects/today-todo/todo-YYYY-MM-DD.md` の1ファイルに、対象プロジェクト分がまとまって
+       いる
+@@ -90,7 +90,7 @@
+ - [ ] 対話・分類・優先順位付けを一切行わず、抽出した項目をそのまま列挙する
+ - [ ] 同日に既存ファイルがある場合は上書きではなく、既存内容を踏まえた更新になっている
+ - [ ] 前日以前の `todo-YYYY-MM-DD.md` は実行のたびに `archives/<yyyymmdd>/` へ移動される
+-- [ ] `<!-- notion:<page_id> -->`・`#<連番>` は元の todo.md 行にあれば引き継がれる
++- [ ] `<!-- notion:<page_id> -->`・`#<連番>` は元の backlog.md 行にあれば引き継がれる
+ 
+ ## 除外・未対応（スコープ外として明示）
+ 

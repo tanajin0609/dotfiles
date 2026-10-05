@@ -5,6 +5,7 @@
      再利用しない。既存の未採番タスクへの後付けは不要。 -->
 
 ## 進行中
+<!-- 項目は `### <テーマ名>` でまとめる。todo-import は状態見出しをカード名に使わないため、テーマ見出しが無いとカード名がプロジェクト名だけになる -->
 <!-- docs/changes/<version>-<change-name>-<日付>/ を作成したら1行追記する（/init-change 手順5） -->
 <!-- 形式（todo-format skill）: - [ ] #<連番> <何をするかの要約> → [docs/changes/<version>-<change-name>-<日付>/proposal.md](../changes/<version>-<change-name>-<日付>/proposal.md) -->
 

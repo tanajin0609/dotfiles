@@ -1,0 +1,68 @@
+--- self-work/document-rules/changes/0012-20260929-rename-backlog-checklist/specs/base/document-rules.md	2026-09-29 18:03:47.818128200 +0900
++++ self-work/document-rules/document-rules.md	2026-09-29 18:04:11.126340900 +0900
+@@ -21,7 +21,7 @@
+ [`changes/0008-20260902-defer-format/proposal.md`](./changes/0008-20260902-defer-format/proposal.md)。
+ 2026-09-02にdefer運用の安全装置（Checker打ち切り時の自動defer化・defer回数上限）を追加:
+ [`changes/0009-20260902-defer-loop-safeguards/proposal.md`](./changes/0009-20260902-defer-loop-safeguards/proposal.md)。
+-todo.md・change の tasks.md・today-todo の役割分担と情報の流れは [`todo-management.md`](./todo-management.md) を参照（2026-09-29新設）。
++backlog.md・change の checklist.md・today-todo の役割分担と情報の流れは [`todo-management.md`](./todo-management.md) を参照（2026-09-29新設）。
+ 
+ ---
+ 
+@@ -36,9 +36,9 @@
+ ## `today-todo/`の目的と、正の情報源との更新ペア原則（2026-08-24追加）
+ 
+ `today-todo/`配下（特に`todo-YYYY-MM-DD.md`）の目的は、**`projects/`配下に散らばる各サブプロジェクトの
+-`docs/tasks/todo.md`（正の情報源）を横断的に一元管理・一覧できるようにすること**。したがって：
++`docs/tasks/backlog.md`（正の情報源）を横断的に一元管理・一覧できるようにすること**。したがって：
+ 
+-- いずれかのサブプロジェクトで作業が完了・進捗したら、**正の情報源（`docs/tasks/todo.md`、ops系は
++- いずれかのサブプロジェクトで作業が完了・進捗したら、**正の情報源（`docs/tasks/backlog.md`、ops系は
+   `order-yyyymmdd/plan.md`）と`today-todo/todo-YYYY-MM-DD.md`の両方を更新する。片方だけでは
+   完了とみなさない。**
+ - 順序は「正の情報源 → `today-todo/`」（`today-todo/`は正の情報源の写しであり、逆方向に情報が
+@@ -53,7 +53,7 @@
+ 
+ | 種別 | 置き場所 | 作成者（コマンド/フロー） | 目的 | 実装を含むか |
+ |---|---|---|---|---|
+-| `proposal.md` / `design.md` / `tasks.md` | `<subproject>/docs/changes/<version>-<type>-...-<日付>/` | `/todo-propose`（dev系）、`/init-change`で雛形作成 | 単一サブプロジェクト内の1変更について、着手前に提案・設計を書き起こす | **含まない**（承認後、別途の実装依頼で着手） |
++| `proposal.md` / `design.md` / `checklist.md` | `<subproject>/docs/changes/<version>-<type>-...-<日付>/` | `/todo-propose`（dev系）、`/init-change`で雛形作成 | 単一サブプロジェクト内の1変更について、着手前に提案・設計を書き起こす | **含まない**（承認後、別途の実装依頼で着手） |
+ | `order.md` / `plan.md` | `<subproject>/order-yyyymmdd/` | `/todo-propose`（ops系）、`/init-ops-work`で雛形作成 | 単一サブプロジェクトへの1依頼について、作業計画を書き起こす（承認ゲート） | **含まない**（`plan.md`承認後、`src/`実装に着手） |
+ | `today-todo/plan-YYYY-MM-DD.md`（またはトピック別に`plan-YYYY-MM-DD-<topic>.md`） | `projects/today-todo/` 直下 | `/todo-execute`（2026-08-24追加。それ以前はアドホックなコーディネーターセッション、専用コマンドなし） | **複数サブプロジェクトを横断**して、その場で実装まで進める実行計画（並列サブエージェントへのファイル競合マップ・モデル割当・実行順序）を記録する。`/todo-execute`は`proposal-YYYY-MM-DD.md`のマイルストーンのうちユーザーが指定したものを対象に、この計画を作ってから実行する | **含む**（計画と同じセッションで実装まで進める前提） |
+ | `today-todo/proposal-YYYY-MM-DD.md` | `projects/today-todo/` 直下 | `/todo-propose`（引数なし・today-todoバッチモード）の完了報告ステップ | バッチモードが**複数サブプロジェクトに起票した提案書・作業計画書の横断まとめ**（判定集計・起票パス一覧・発見事項・留保・マイルストーン提案）を1ファイルに残す。散らばった成果物への入口として、承認判断をここから始める | **含まない**（各提案の承認・実装は別途） |
+@@ -138,11 +138,11 @@
+ 
+ - `today-todo/plan-YYYY-MM-DD.md`の該当マイルストーン見出し下に、上記4項目を**詳細に**記録する
+   （実行計画ファイルであり当日以降も参照される前提のため。詳細の一次情報はここに置く）。
+-- 対象サブプロジェクトの`docs/tasks/todo.md`（正の情報源）には、defer理由の**要約1行**と
++- 対象サブプロジェクトの`docs/tasks/backlog.md`（正の情報源）には、defer理由の**要約1行**と
+   `plan-YYYY-MM-DD.md`への参照リンクを追記する（「正の情報源→today-todoへ反映」という
+   既存の一貫性原則に合わせるため）。
+ 
+-次サイクルでの拾い上げは`/todo-propose`バッチモードの一次判定に委ねる。`todo.md`のdefer行が
++次サイクルでの拾い上げは`/todo-propose`バッチモードの一次判定に委ねる。`backlog.md`のdefer行が
+ `today-todo/todo-YYYY-MM-DD.md`に列挙されたら、`/todo-propose`は参照先`plan-YYYY-MM-DD.md`の
+ 詳細（次の一手・推奨モデル）を読み取り、ゼロから調査し直さずマイルストーン再提案に引き継ぐ。
+ 決定の経緯: `changes/0008-20260902-defer-format/proposal.md`。
+@@ -157,7 +157,7 @@
+ 
+ ### defer回数カウントと閾値（2026-09-02追加）
+ 
+-`docs/tasks/todo.md`のdefer要約行には`defer x<n>`の形で回数を持たせる（初回defer時は`x1`、
++`docs/tasks/backlog.md`のdefer要約行には`defer x<n>`の形で回数を持たせる（初回defer時は`x1`、
+ 再度deferされるたびに加算）。`n`が**3**に達した項目は、`/todo-propose`が同じ「次の一手」で
+ 機械的に自動再提案することをやめ、「3回defer済み、方針から見直すべきでは」という一言とともに
+ まとめ版（`proposal-YYYY-MM-DD.md`）に明示する（起票自体はスキップせず提示に留め、黙って
+@@ -209,10 +209,10 @@
+ - `todo-import`・`todo-propose`を実行したら、`work-log-YYYY-MM-DD.md`に実行エントリを追記する
+   （各コマンドのSKILL.md/コマンド定義側の手順に従う。本ファイルでは種別としての位置づけのみ扱う）。
+ - サブエージェント経由か直接作業かを問わず、何らかの作業が完了したら**必ず**対象サブプロジェクトの
+-  `docs/tasks/todo.md`（正の情報源）を更新し、続けて`today-todo/todo-YYYY-MM-DD.md`にも同じ変化を
++  `docs/tasks/backlog.md`（正の情報源）を更新し、続けて`today-todo/todo-YYYY-MM-DD.md`にも同じ変化を
+   反映する（`/todo-import`再実行、または差分が小さければ同等の手動反映）。片方だけで完了報告しない。
+   当日分の`today-todo/proposal-YYYY-MM-DD.md`が存在し、その対象について完了が確定した場合は
+   該当節も同様に更新する（2026-08-31追加）。
+ - `/todo-execute`がマイルストーンを「一部失敗」「スキップ」とした場合は、完了報告と同じ扱いで
+-  `plan-YYYY-MM-DD.md`に詳細defer情報を、`docs/tasks/todo.md`に要約行を書く（2026-09-02追加。
++  `plan-YYYY-MM-DD.md`に詳細defer情報を、`docs/tasks/backlog.md`に要約行を書く（2026-09-02追加。
+   「defer情報の形式化」節参照）。

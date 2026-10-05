@@ -1,0 +1,63 @@
+--- self-work/document-rules/changes/0012-20260929-rename-backlog-checklist/specs/base/check-todos_SPEC.md	2026-09-29 18:03:47.868348500 +0900
++++ self-work/check-todos/SPEC.md	2026-09-29 18:04:11.068490307 +0900
+@@ -6,13 +6,13 @@
+ 
+ ## 目的
+ 
+-`projects/*/docs/tasks/todo.md` に残っている未完了タスクをプロジェクト横断で洗い出し、
++`projects/*/docs/tasks/backlog.md` に残っている未完了タスクをプロジェクト横断で洗い出し、
+ 日次の作業開始時に「今どのプロジェクトに何が残っているか」を俯瞰できるようにする。
+ 
+ ## スコープ決定（ヒアリング結果、2026-08-14）
+ 
+ - **対象範囲**: 自分（担当者）の未完了タスク全体。期限日での絞り込みは行わない。
+-  Notion Tasks DB は使わず、各プロジェクトの `docs/tasks/todo.md` のみを対象とする
++  Notion Tasks DB は使わず、各プロジェクトの `docs/tasks/backlog.md` のみを対象とする
+   （Notion 連携は別スキル・別パイプラインの領域であり、本スキルは無関係）。
+ - **出力**: ターミナル（会話内テキスト）に表示するのみ。ファイルの新規作成・更新は行わない
+   （read-only）。
+@@ -20,12 +20,12 @@
+ ## 対象ファイルの検出
+ 
+ ```bash
+-find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/todo.md"
++find /home/igpf-2500009/projects -maxdepth 6 -path "*/docs/tasks/backlog.md"
+ ```
+ 
+-- `docs/tasks/todo.md` という固定パスのみを対象とする。
++- `docs/tasks/backlog.md` という固定パスのみを対象とする。
+ - `self-work/set-dotfiles/TODO.md` のように命名・配置が異なるファイルは対象外
+-  （プロジェクト直下の `CLAUDE.md` が定める標準構造 `docs/tasks/todo.md` に合わせるため）。
++  （プロジェクト直下の `CLAUDE.md` が定める標準構造 `docs/tasks/backlog.md` に合わせるため）。
+ - 該当ファイルが1件も無い場合はエラー扱いにせず、その旨を伝えて終了する。
+ 
+ ## 抽出ルール
+@@ -37,7 +37,7 @@
+ 
+ ## 要約・出力
+ 
+-- プロジェクト名は `todo.md` から2階層上（`docs/tasks/` の親）のディレクトリ名を使う。
++- プロジェクト名は `backlog.md` から2階層上（`docs/tasks/` の親）のディレクトリ名を使う。
+ - 各プロジェクトの未完了項目を1〜3行程度に要約する。項目数が多い場合はテーマ単位でまとめ、
+   本文の逐語コピーはしない。
+ - 未完了項目が0件（ファイルはあるが空、または全項目が完了済み）のプロジェクトは
+@@ -58,16 +58,16 @@
+ 
+ ## 受け入れ条件（Acceptance Criteria）
+ 
+-- [x] `docs/tasks/todo.md` を持つ全プロジェクトを列挙できる
++- [x] `docs/tasks/backlog.md` を持つ全プロジェクトを列挙できる
+ - [x] `- [ ]` の未完了項目のみを対象とし、`- [x]` 完了項目・「完了した実装」節を含めない
+ - [x] 未完了項目が0件のプロジェクトは「残タスクなし」と表示する
+ - [x] 出力はターミナル表示のみで、ファイルの作成・更新を一切行わない
+-- [x] `docs/tasks/todo.md` 以外の命名のファイル（例: `TODO.md`）は対象に含めない
++- [x] `docs/tasks/backlog.md` 以外の命名のファイル（例: `TODO.md`）は対象に含めない
+ 
+ ## 除外・未対応（スコープ外として明示）
+ 
+ - Notion Tasks DB との連携（担当・期限プロパティでの絞り込み）は行わない。
+ - 複数プロジェクト間の優先順位付けや「何から着手すべきか」の提案はしない。
+   事実（何が残っているか）の列挙に徹し、判断はユーザーに委ねる。
+-- `docs/tasks/todo.md` 以外の命名・配置のファイル（`self-work/set-dotfiles/TODO.md` 等）への対応。
++- `docs/tasks/backlog.md` 以外の命名・配置のファイル（`self-work/set-dotfiles/TODO.md` 等）への対応。
+   対象に含める必要が出た場合は別途検討する。

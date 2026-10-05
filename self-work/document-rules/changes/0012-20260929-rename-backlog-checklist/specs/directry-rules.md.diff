@@ -1,0 +1,228 @@
+--- self-work/document-rules/changes/0012-20260929-rename-backlog-checklist/specs/base/directry-rules.md	2026-09-29 18:03:47.837440300 +0900
++++ self-work/directry-rules/directry-rules.md	2026-09-29 18:04:11.097490700 +0900
+@@ -18,10 +18,10 @@
+ │   └── <change-name>/
+ │       ├── proposal.md
+ │       ├── design.md
+-│       ├── tasks.md
++│       ├── checklist.md
+ │       └── specs/          ← delta spec（変更分の仕様）
+ ├── specs/                  ← 正式なspec（唯一の正解、/archiveで反映）
+-├── tasks/                  ← todo.md / completed.md
++├── tasks/                  ← backlog.md / completed.md
+ └── refs/                   ← 関係者との資料共有用（仕様書ではない）
+ src/                        # 実装コード
+ tests/                      # 受け入れ条件を検証するテスト
+@@ -32,19 +32,19 @@
+ 1. 仕様書 (`docs/specs/`) が Single Source of Truth。仕様にない機能を推測実装しない。
+ 2. コードを触る前に仕様書を更新する（Spec-First）。曖昧・矛盾があればユーザーに確認。
+ 3. 実装後は必ずテストコマンドを実行して検証する。
+-4. 標準ワークフロー: 仕様確認 → タスク整理(`docs/tasks/todo.md`) → テスト作成 → 実装 → 検証・報告。
++4. 標準ワークフロー: 仕様確認 → タスク整理(`docs/tasks/backlog.md`) → テスト作成 → 実装 → 検証・報告。
+ 5. 単一責任の原則、仕様書通りのエラーハンドリング、指示にない設定/一時ファイルの生成禁止。
+ 
+-変更は `docs/changes/<change-name>/` を作業ディレクトリとして進める。`proposal.md`（提案）・`design.md`（設計）・`decisions.md`（意思決定が必要な論点。2026-08-31追加。複数案から選ぶ必要がある事項は`proposal.md`・`design.md`本文ではなくここに集約する）・`tasks.md`（タスク分解）に加え、その変更で大本specに入れた差分を `specs/`（delta spec）に **unified diff** で記録する。大本spec（`docs/specs/`）は作業中に**直接更新**し、delta specは大本の写しを持たずdiffだけを保持するため、内容の二重管理は発生しない（2026-08-17 改定。旧方式＝delta specを先に書いて`/archive`でマージする案からの変更理由は4.2）。`docs/specs/` が唯一の正解である点（コアルール1）は変わらず、`docs/changes/` は「その変更で仕様のどこが動いたか」を後から復元するための履歴として位置づける。
++変更は `docs/changes/<change-name>/` を作業ディレクトリとして進める。`proposal.md`（提案）・`design.md`（設計）・`decisions.md`（意思決定が必要な論点。2026-08-31追加。複数案から選ぶ必要がある事項は`proposal.md`・`design.md`本文ではなくここに集約する）・`checklist.md`（タスク分解）に加え、その変更で大本specに入れた差分を `specs/`（delta spec）に **unified diff** で記録する。大本spec（`docs/specs/`）は作業中に**直接更新**し、delta specは大本の写しを持たずdiffだけを保持するため、内容の二重管理は発生しない（2026-08-17 改定。旧方式＝delta specを先に書いて`/archive`でマージする案からの変更理由は4.2）。`docs/specs/` が唯一の正解である点（コアルール1）は変わらず、`docs/changes/` は「その変更で仕様のどこが動いたか」を後から復元するための履歴として位置づける。
+ 
+ 具体的な進行は以下のフローに従う。
+ 
+ 1. **`/explore`**（想定仕様・未実装）: 既存コードと既存資料の関連箇所を調査する。過去のPRやWikiなど、コード外で管理されている資料の場所を明示的に指定して調査させる。
+-2. **`/todo-propose`**（旧称 `/propose`。2026-08-20に実装・改称。7章参照）: 調査結果をもとに `proposal.md`・`design.md`・`tasks.md`（ops系は `order.md`・`plan.md`）を生成する。着手時の変更ディレクトリ作成は実装済みの `/init-change`・`/init-ops-work` に委譲する。
++2. **`/todo-propose`**（旧称 `/propose`。2026-08-20に実装・改称。7章参照）: 調査結果をもとに `proposal.md`・`design.md`・`checklist.md`（ops系は `order.md`・`plan.md`）を生成する。着手時の変更ディレクトリ作成は実装済みの `/init-change`・`/init-ops-work` に委譲する。
+ 3. **人間レビュー**: 人間が `proposal.md` をレビューし、必要に応じて修正する。実装着手はこのレビュー・承認を経てから進む。
+ 4. **delta spec の記録**: 大本specを直接更新しつつ、その差分を `specs/` にdiffで残す（着手時に予定 → 完了時に確定の2段）。
+ 
+-4の工程は**コマンドではなく**、`projects/CLAUDE.md` の標準ワークフロー（手順2・4・5）と `_templates/dev/docs/changes/<change-name>/` の `specs/README.md`・`tasks.md` 固定チェック項目に載せている（詳細は4.2）。
++4の工程は**コマンドではなく**、`projects/CLAUDE.md` の標準ワークフロー（手順2・4・5）と `_templates/dev/docs/changes/<change-name>/` の `specs/README.md`・`checklist.md` 固定チェック項目に載せている（詳細は4.2）。
+ 
+ 当初は4を `/apply`（delta spec生成）、5を `/archive`（正式specへの反映）という2つの想定コマンドに割り当てていたが、どちらも未実装のまま運用したため delta spec が一件も書かれない状態が続いた。**未実装コマンドに責務を預けない**のが改定後の設計原則である（4.2）。
+ 
+@@ -71,7 +71,7 @@
+ `docs/specs/` `docs/tasks/` 構成が実際にはほとんどのサブプロジェクトで整備されていない（2章参照）ことを受け、初期セットアップを素早く行うための以下のコマンドを追加する。
+ 
+ 1. **`/init-spec`** : プロジェクト全体の初期ディレクトリ構成（トップレベル `CLAUDE.md` が前提とする `docs/specs/`・`docs/tasks/`・`src/`・`tests/` 一式）をスケルトンとして作成する。
+-2. **`/init-change`** : `docs/changes/<version>-<type>-<短い説明>-<日付>/`（例: `v0.2.0-feat-add-login-api-20260812`）配下に `proposal.md`・`design.md`・`decisions.md`・`tasks.md`・`specs/`（delta spec用）の雛形一式を作成する。`/explore` → `/todo-propose` の前段として、または `/todo-propose` を使わず手動で変更作業を始める際の初期化コマンドとして使う。
++2. **`/init-change`** : `docs/changes/<version>-<type>-<短い説明>-<日付>/`（例: `v0.2.0-feat-add-login-api-20260812`）配下に `proposal.md`・`design.md`・`decisions.md`・`checklist.md`・`specs/`（delta spec用）の雛形一式を作成する。`/explore` → `/todo-propose` の前段として、または `/todo-propose` を使わず手動で変更作業を始める際の初期化コマンドとして使う。
+ 
+ ### 4.1 change-nameのバージョニング（2026-08-12 改定）
+ 
+@@ -116,13 +116,13 @@
+ ├── docs/
+ │   ├── specs/
+ │   ├── tasks/
+-│   │   └── todo.md
++│   │   └── backlog.md
+ │   ├── refs/
+ │   └── changes/
+ │       └── <change-name>/
+ │           ├── proposal.md
+ │           ├── design.md
+-│           ├── tasks.md
++│           ├── checklist.md
+ │           └── specs/
+ │               └── README.md   ← delta specの索引・手順（雛形）
+ ├── src/
+@@ -151,7 +151,7 @@
+ 
+ **結果として起きたこと**: 差分は大本spec内のインライン注記でしか残らず、その書式も
+ 「訂正メモ」「変更履歴」「見出しに日付埋め込み」「文末カッコの日付」の4通りに揺れて `grep` での
+-一括抽出が不可能になった。`0004` のように `tasks.md` に「`spec.md` 2章・4章更新」と節番号だけを
++一括抽出が不可能になった。`0004` のように `checklist.md` に「`spec.md` 2章・4章更新」と節番号だけを
+ 記録した変更は、**何をどう変えたか復元できない**。さらに `projects/` 配下は **git管理外**であり、
+ git履歴という代替の追跡手段が存在しない（差分記録は `docs/changes/` にしか置けない）。
+ 
+@@ -169,7 +169,7 @@
+   「判断の結果として書かれていない」と「未着手で空」を区別するため。
+ - **責務の置き場所**: `projects/CLAUDE.md` の最優先原則2および標準ワークフロー手順2・4・5、
+   `_templates/dev/docs/changes/<change-name>/specs/README.md`（書式と生成コマンド）、
+-  同 `tasks.md` の固定チェック項目3つ。**未実装コマンドに責務を預けない**ことが今回の設計原則。
++  同 `checklist.md` の固定チェック項目3つ。**未実装コマンドに責務を預けない**ことが今回の設計原則。
+ - **適用範囲**: 2026-08-17 以降に新規作成するchangeのみ。既存の空 `specs/` は遡って埋めない
+   （4.1「既存ディレクトリは凍結」と同じ扱い）。復元不可能な既存分は負債として扱う。
+ 
+@@ -189,61 +189,61 @@
+   `docs/02-specs/VERSION`（2026-08-17 に `0.7.1` で作成。`v0.6.0`〜`v0.7.1` は自己申告値だったため、
+   到達済みの最新値を現在値として採用した）。
+ 
+-### 4.3 todo.mdとの同期漏れ（2026-08-19発覚）
++### 4.3 backlog.mdとの同期漏れ（2026-08-19発覚）
+ 
+-**発覚した事象**: <project-a> の `docs/tasks/todo.md` に、`0003-admin-web-api-integration` の
++**発覚した事象**: <project-a> の `docs/tasks/backlog.md` に、`0003-admin-web-api-integration` の
+ 残タスク2件（`facilities[]`キー集合の突き合わせ方針、画像配信ドメイン`public_base_url`確定待ち）と、
+ `v0.7.1-chore-save-verify-20260817`（提案・未承認・未実装のまま）が一度も `- [ ]` として
+ 反映されていなかった。`todo-import`（当時の名称は `today-todo`。7章参照）スキルは
+-`docs/tasks/todo.md` の `- [ ]` のみを機械抽出する
++`docs/tasks/backlog.md` の `- [ ]` のみを機械抽出する
+ 仕組みのため、両者は日次の棚卸しから完全に漏れていた。
+ 
+-**原因はルール構造にあり、運用ミスではない**: `todo.md` 末尾の運用メモが「小さい修正依頼は
+-`docs/changes/xxxx-*/` 内に記録し、todo.mdへの実装ログ追記は行わない」とだけ書いており、
++**原因はルール構造にあり、運用ミスではない**: `backlog.md` 末尾の運用メモが「小さい修正依頼は
++`docs/changes/xxxx-*/` 内に記録し、backlog.mdへの実装ログ追記は行わない」とだけ書いており、
+ **完了ログ**と**未解決の残タスク・承認待ち事項**を区別していなかった。結果として、
+-0003はtasks.mdに残タスクを記録した時点で運用メモ上「対応済み」の扱いに見え、v0.7.1は
+-そもそもtodo.mdへ登録するトリガーが最初から存在しなかった（アドホックな申告調査から
++0003はchecklist.mdに残タスクを記録した時点で運用メモ上「対応済み」の扱いに見え、v0.7.1は
++そもそもbacklog.mdへ登録するトリガーが最初から存在しなかった（アドホックな申告調査から
+ 直接proposalを書いたため）。4.2（delta specが誰の責務でもなかった件）と同じ「書く側と
+ 読む側の対象範囲が噛み合っていない」構造。
+ 
+ **採用した方式**: 実装ログ（完了記録）はchangeディレクトリ内のみで良いという原則は維持しつつ、
+-「未解決の残タスク・承認待ち事項・外部ブロッカーが残る場合は `todo.md` にも `- [ ]` で反映する」
+-という区分を<project-a>の `todo.md` 運用メモに明記した（2026-08-19）。責務の起点は
+-change作成・更新のタイミングとし、そのchangeがtodo.mdの既存項目に対応するか、新規に
++「未解決の残タスク・承認待ち事項・外部ブロッカーが残る場合は `backlog.md` にも `- [ ]` で反映する」
++という区分を<project-a>の `backlog.md` 運用メモに明記した（2026-08-19）。責務の起点は
++change作成・更新のタイミングとし、そのchangeがbacklog.mdの既存項目に対応するか、新規に
+ `- [ ]` を追加すべきかをそこで判断する。
+ 
+-**適用範囲**: <project-a>で発見した事象だが、`docs/tasks/todo.md` 運用を前提とする他の
+-devサブプロジェクトにも同じ構造的リスクがある。`_templates/dev/docs/tasks/todo.md` の雛形への
++**適用範囲**: <project-a>で発見した事象だが、`docs/tasks/backlog.md` 運用を前提とする他の
++devサブプロジェクトにも同じ構造的リスクがある。`_templates/dev/docs/tasks/backlog.md` の雛形への
+ 反映は今回は行っていない（未実施・検討課題として残す）。
+ 
+-### 4.4 `/init-change` 単独実行時のtodo.md同期漏れ（2026-09-15発覚・対応）
++### 4.4 `/init-change` 単独実行時のbacklog.md同期漏れ（2026-09-15発覚・対応）
+ 
+ **発覚した事象**: `/archive` のStep1チェックを別のdevサブプロジェクトで実行したところ、
+-`docs/changes/` 配下の変更ディレクトリ7件のうち、`docs/tasks/todo.md` に対応する行が
++`docs/changes/` 配下の変更ディレクトリ7件のうち、`docs/tasks/backlog.md` に対応する行が
+ 1件も存在しなかった。7件はいずれも `decisions.md`・`proposal.md` の中身が埋まっており
+-（`/todo-propose` 由来と見られるものを含む）作業自体は進んでいたが、todo.md側の反映が
++（`/todo-propose` 由来と見られるものを含む）作業自体は進んでいたが、backlog.md側の反映が
+ 一度も行われていなかった。
+ 
+-**原因**: 4.3で追加した「todo.mdへの追記」はA-3として `/todo-propose` 側にのみ実装されており
+-（7章参照）、4.3末尾で「未実施・検討課題」としていた `_templates/dev/docs/tasks/todo.md` の
++**原因**: 4.3で追加した「backlog.mdへの追記」はA-3として `/todo-propose` 側にのみ実装されており
++（7章参照）、4.3末尾で「未実施・検討課題」としていた `_templates/dev/docs/tasks/backlog.md` の
+ 雛形反映も放置されていた。一方 `/init-change` は「`/todo-propose` を使わず手動で変更作業を
+ 始める際にも使う」正式な単独エントリーポイントと文書化されているにもかかわらず、
+-todo.md追記のステップを持っていなかった（`/init-ops-work` は手順5として最初からtodo.md追記を
++backlog.md追記のステップを持っていなかった（`/init-ops-work` は手順5として最初からbacklog.md追記を
+ 内蔵しており、dev側だけがopsに対して手薄だった）。
+ 
+ **採用した方式**: opsとの非対称を解消する形で以下を実施した。
+-- `_templates/dev/docs/tasks/todo.md` に `## 進行中` / `## 完了（archives/へ移動済み）` の
++- `_templates/dev/docs/tasks/backlog.md` に `## 進行中` / `## 完了（archives/へ移動済み）` の
+   2セクションを追加し、opsテンプレートと同じ構造に揃えた（4.3末尾の検討課題を解消）。
+-- `/init-change` のワークフローに手順5「todo.mdへの追記（必須）」を追加し、
++- `/init-change` のワークフローに手順5「backlog.mdへの追記（必須）」を追加し、
+   `/todo-propose` を経由するか否かに関わらず、変更ディレクトリ作成のタイミングで
+   必ず `## 進行中` に1行追記されるようにした（省略不可、注意事項にも明記）。
+ - `/todo-propose` A-3は、`/init-change` が既に追記した行をステータス更新するだけで
+   重複追記しないよう変更した。
+-- `/archive` のStep1は、todo.md対応行が0件であること自体をギャップとして扱うよう変更し、
++- `/archive` のStep1は、backlog.md対応行が0件であること自体をギャップとして扱うよう変更し、
+   Step3は `## 進行中` → `## 完了（archives/へ移動済み）` のセクション移動も行うようにした。
+ 
+ **How to apply**: 新しくSDD系のエントリーポイント（変更・依頼の起点となるコマンド）を
+-追加する際は、そのコマンド単体でtodo.mdへの同期が完結するかを必ず確認する。他コマンド
++追加する際は、そのコマンド単体でbacklog.mdへの同期が完結するかを必ず確認する。他コマンド
+ （`/todo-propose`等）が同期を肩代わりする設計にすると、そのコマンドを経由しない経路
+ （今回の`/init-change`単独利用）で同期漏れが再発する。
+ 
+@@ -365,22 +365,22 @@
+ 
+ 新規サブプロジェクトを作る際は、性質に応じて `/init-spec`（`_templates/dev/`）または `/init-ops-work`（`_templates/ops/`）を使って初期構成とする。
+ 
+-**todo.md管理とアーカイブ化（2026-08-19 追加、2026-08-26 パス形式を修正）**
++**backlog.md管理とアーカイブ化（2026-08-19 追加、2026-08-26 パス形式を修正）**
+ 
+-`order-yyyymmdd/` を直置きするサブプロジェクト直下（`order-yyyymmdd/` と同じ階層）の `docs/tasks/todo.md` に、依頼の進行状況を管理する。粒度はサブプロジェクト単位（`ops-work/docs/tasks/todo.md`のような横断1ファイルや`ops-work/fix-points/docs/tasks/todo.md`のようなカテゴリ単位ではない。`ops-work/fix-points/<tenant-b>/docs/tasks/todo.md`のようにテナント/案件単位まで下りる）。
++`order-yyyymmdd/` を直置きするサブプロジェクト直下（`order-yyyymmdd/` と同じ階層）の `docs/tasks/backlog.md` に、依頼の進行状況を管理する。粒度はサブプロジェクト単位（`ops-work/docs/tasks/backlog.md`のような横断1ファイルや`ops-work/fix-points/docs/tasks/backlog.md`のようなカテゴリ単位ではない。`ops-work/fix-points/<tenant-b>/docs/tasks/backlog.md`のようにテナント/案件単位まで下りる）。
+ 
+-- **依頼作成時**: `docs/tasks/todo.md` が無ければ `_templates/ops/todo.md` を `docs/tasks/todo.md` としてコピーして新規作成し、`## 進行中` に `- [ ] 依頼概要 → order-yyyymmdd/order.md` を1行追記する（書式は `todo-format` skill）（`/init-ops-work` ワークフロー手順5）。
+-- **完了時**: ユーザーが明示的に「完了」と伝えたら、`order-yyyymmdd/` を `archives/order-yyyymmdd/` へ `mv` し、`docs/tasks/todo.md` の該当行を `## 完了（archives/へ移動済み）` へ移して `- [x]` にし、リンク先を更新する（`/init-ops-work` 依頼対応の標準フロー手順9）。
++- **依頼作成時**: `docs/tasks/backlog.md` が無ければ `_templates/ops/backlog.md` を `docs/tasks/backlog.md` としてコピーして新規作成し、`## 進行中` に `- [ ] 依頼概要 → order-yyyymmdd/order.md` を1行追記する（書式は `todo-format` skill）（`/init-ops-work` ワークフロー手順5）。
++- **完了時**: ユーザーが明示的に「完了」と伝えたら、`order-yyyymmdd/` を `archives/order-yyyymmdd/` へ `mv` し、`docs/tasks/backlog.md` の該当行を `## 完了（archives/へ移動済み）` へ移して `- [x]` にし、リンク先を更新する（`/init-ops-work` 依頼対応の標準フロー手順9）。
+ 
+-**Why:** ops-workサブプロジェクトが依頼を継続的に受けていく中で、`order-yyyymmdd/`が増えるほど「今どの依頼が進行中か」が一覧できなくなっていた。todo.mdは`docs/tasks/todo.md`（1章・4章のdevテンプレート）に相当するops版の進行管理として新設した。archives/への移動は、完了済みの依頼を`order-yyyymmdd/`の一覧から分離し、進行中のものだけを見やすくするため。
++**Why:** ops-workサブプロジェクトが依頼を継続的に受けていく中で、`order-yyyymmdd/`が増えるほど「今どの依頼が進行中か」が一覧できなくなっていた。backlog.mdは`docs/tasks/backlog.md`（1章・4章のdevテンプレート）に相当するops版の進行管理として新設した。archives/への移動は、完了済みの依頼を`order-yyyymmdd/`の一覧から分離し、進行中のものだけを見やすくするため。
+ 
+-**パス形式修正の経緯（2026-08-26）**: 当初は`docs/`を挟まないベタ置き`todo.md`として運用していたが、`/todo-import`・`check-todos`の探索が`find -path "*/docs/tasks/todo.md"`である（[[project_notion_task_pipeline]]のtodo_sync.pyと同じ形式）ため、ベタ置き`todo.md`は日次の棚卸しに一切乗らなかった。devテンプレートと同じ`docs/tasks/todo.md`形式に統一し、`find`の`-maxdepth`も4→6に拡張して`ops-work/<カテゴリ>/<テナント>/docs/tasks/todo.md`（6階層）・`self-work/<サブプロジェクト>/docs/tasks/todo.md`（5階層）を拾えるようにした。
++**パス形式修正の経緯（2026-08-26）**: 当初は`docs/`を挟まないベタ置き`backlog.md`として運用していたが、`/todo-import`・`check-todos`の探索が`find -path "*/docs/tasks/backlog.md"`である（[[project_notion_task_pipeline]]のtodo_sync.pyと同じ形式）ため、ベタ置き`backlog.md`は日次の棚卸しに一切乗らなかった。devテンプレートと同じ`docs/tasks/backlog.md`形式に統一し、`find`の`-maxdepth`も4→6に拡張して`ops-work/<カテゴリ>/<テナント>/docs/tasks/backlog.md`（6階層）・`self-work/<サブプロジェクト>/docs/tasks/backlog.md`（5階層）を拾えるようにした。
+ 
+ **How to apply:** 「完了」の判定は厳密な基準（本実行完了・refs共有済み等）を設けず、**ユーザーが都度明示的に「完了」と伝えた時点**とする。本実行完了やrefs共有をもってClaude側が自動的に完了とみなし、確認なしでarchives/へ移動しない（[[feedback_no_unilateral_judgment]]と同根: 完了判定はユーザーの判断であり、Claudeが先回りして決めない）。移動自体はユーザーの完了報告を受けてClaudeが`mv`し、結果を報告する。
+ 
+ **`inbox/` からの正式配置タイミング（2026-09-02 追加）**
+ 
+-`inbox/order-yyyymmdd/`（配置先＝カテゴリ・テナントが未確定のまま仮置きされた依頼）は、`plan.md`が承認された時点でClaudeが機械的に`<category>/<tenant>/order-yyyymmdd/`へ`mv`する（archives/への移動＝完了判定とは別物で、ユーザーの明示確認は不要）。カテゴリ・テナントは本節冒頭のNotionプロパティ判定に従う。移動と同時に`inbox/docs/tasks/todo.md`の該当行を削除し、`<category>/<tenant>/docs/tasks/todo.md`（無ければ`_templates/ops/todo.md`から新規作成）の`## 進行中`へ追記する。プロパティ値が既存カテゴリのいずれにも該当しない場合は新カテゴリを機械的に新設せず、都度ユーザーに確認する。
++`inbox/order-yyyymmdd/`（配置先＝カテゴリ・テナントが未確定のまま仮置きされた依頼）は、`plan.md`が承認された時点でClaudeが機械的に`<category>/<tenant>/order-yyyymmdd/`へ`mv`する（archives/への移動＝完了判定とは別物で、ユーザーの明示確認は不要）。カテゴリ・テナントは本節冒頭のNotionプロパティ判定に従う。移動と同時に`inbox/docs/tasks/backlog.md`の該当行を削除し、`<category>/<tenant>/docs/tasks/backlog.md`（無ければ`_templates/ops/backlog.md`から新規作成）の`## 進行中`へ追記する。プロパティ値が既存カテゴリのいずれにも該当しない場合は新カテゴリを機械的に新設せず、都度ユーザーに確認する。
+ 
+ **Why:** Inbox配下の依頼がplan.md承認後も配置先未確定のまま滞留し続けるケースが発生した（ops-work/inbox配下に長期間残る依頼が出た、2026-09-02）。承認＝カテゴリ・テナントが決まったタイミングであるため、そのタイミングで機械的に配置を確定させることで滞留を防ぐ。承認自体はユーザー判断のままなので[[feedback_no_unilateral_judgment]]とは抵触しない。
+ 
+@@ -420,18 +420,18 @@
+ 命名規則の整理（7.1）に伴い、実装と同日に `/todo-propose` へ改称した。
+ 
+ - 対象サブプロジェクトに `docs/specs/` があるか否かでdev系/ops系を自動判定し、
+-  dev系なら `proposal.md`・`design.md`・`decisions.md`・`tasks.md`、ops系なら `order.md`・`plan.md` を埋める。
++  dev系なら `proposal.md`・`design.md`・`decisions.md`・`checklist.md`、ops系なら `order.md`・`plan.md` を埋める。
+   意思決定が必要な論点は `proposal.md`・`design.md` 本文ではなく `decisions.md` に集約する
+   （2026-08-31追加。責務分離により意思決定を追いやすくする施策）。
+ - ディレクトリの雛形作成は重複させず、既存の `/init-change`・`/init-ops-work` に委譲する
+-  （責務分割。`/todo-propose` の責務は既存資材の調査と内容の執筆・`todo.md`への同期）。
++  （責務分割。`/todo-propose` の責務は既存資材の調査と内容の執筆・`backlog.md`への同期）。
+ - 既存資材の調査（5章の既存バッチ確認、`notion-sync` A-4相当）は省略不可。
+ - **提案書・作業計画書の作成で必ず停止し、実装フェーズは持たない。** 承認後の実装は
+   通常のやり取りに任せる（`notion-sync` のようなステータス駆動のA/B分岐は導入しない。
+   外部ステータスストアが無く承認判定を機械的に行えないことと、スコープを小さく保つため。
+   2026-08-20、ユーザー確認済み）。
+-- 4.3で発覚した「提案が `todo.md` に反映されず日次棚卸しから漏れる」問題への対策として、
+-  dev系では変更ディレクトリ作成時に `docs/tasks/todo.md` への1行追記を必須手順に含めた。
++- 4.3で発覚した「提案が `backlog.md` に反映されず日次棚卸しから漏れる」問題への対策として、
++  dev系では変更ディレクトリ作成時に `docs/tasks/backlog.md` への1行追記を必須手順に含めた。
+ 
+ ### 7.1 スラッシュコマンドの命名規則（2026-08-20 追加）
+ 
+@@ -442,7 +442,7 @@
+ 
+ | 旧称 | 新称 | 役割 |
+ |---|---|---|
+-| `/today-todo`（skill） | `/todo-import` | 各プロジェクトのtodo.mdを集約し、当日の下書きを生成する |
++| `/today-todo`（skill） | `/todo-import` | 各プロジェクトのbacklog.mdを集約し、当日の下書きを生成する |
+ | `/propose`（command） | `/todo-propose` | todoに挙がった依頼から提案書・作業計画書を書き起こす |
+ 
+ - 対象は `$HOME/.claude/skills/today-todo/` → `todo-import/`（ディレクトリ名・`SKILL.md`の`name`・見出し）、
