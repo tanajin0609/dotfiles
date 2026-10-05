@@ -16,7 +16,7 @@
   }
   document.documentElement.dataset.theme = loadThemePreference();
   const SKIN_STORAGE_KEY = 'viewer:skin';
-  const SKIN_NAMES = ['cobalt', 'paper', 'console'];
+  const SKIN_NAMES = ['cobalt', 'paper', 'console', 'sticky'];
   function loadSkinPreference() {
     const saved = localStorage.getItem(SKIN_STORAGE_KEY);
     return SKIN_NAMES.includes(saved) ? saved : 'cobalt';
@@ -142,6 +142,43 @@
     --col-sat: 58%;
     --col-light: 66%;
   }
+  /* 付箋案: 列の色相で列・カード詳細を淡く塗る。--col-* の明度・彩度は全24色相でAAを満たすよう計算した値なので個別に変えない。 */
+  [data-skin="sticky"] {
+    --bg: #e7e9ee;
+    --surface: #f3f4f7;
+    --raised: #ffffff;
+    --line: rgba(30, 34, 48, .08);
+    --input-line: #777d8a;
+    --ink: #1e2230;
+    --ink-sub: #454b5c;
+    --ink-mute: #5c6273;
+    --ink-faint: #c7cad3;
+    --accent: #5b3fd0;
+    --accent-ink: #ffffff;
+    --state-working: #5b3fd0;
+    --state-blocked: #c42f45;
+    --state-done: #186b4a;
+    --track: rgba(30, 34, 48, .14);
+    --chip-bg: rgba(30, 34, 48, .06);
+    --hover-bg: rgba(30, 34, 48, .05);
+    --btn-bg: #5b3fd0;
+    --btn-ink: #ffffff;
+    --overlay: rgba(20, 22, 32, .42);
+    --shadow: rgba(30, 34, 48, .22);
+    --shadow-sm: 0 1px 2px rgba(30, 34, 48, .10);
+    --shadow-md: 0 4px 12px rgba(30, 34, 48, .14);
+    --sidebar-bg: #f3f4f7;
+    --header-bg: rgba(231, 233, 238, .88);
+    --col-sat: 70%;
+    --col-light: 38%;
+    --col-tint-sat: 50%;
+    --col-tint-light: 95.5%;
+    --col-pill-sat: 65%;
+    --col-pill-light: 90%;
+    --col-pill-ink-sat: 65%;
+    --col-pill-ink-light: 24%;
+    --col-shadow-alpha: .16;
+  }
   [data-theme="dark"] {
     color-scheme: dark;
     --bg: #0f1726;
@@ -184,6 +221,44 @@
     --accent-ink: #15141f;
     --state-working: #a596ff;
     --chip-bg: rgba(165, 150, 255, .12);
+  }
+  /* 付箋は地・面の段差と列の淡色が見た目の核なので、ダークでも共通の地を使わず専用に持つ。 */
+  [data-skin="sticky"][data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #14161c;
+    --surface: #1b1e26;
+    --raised: #272b37;
+    --line: rgba(255, 255, 255, .08);
+    --input-line: #7c8291;
+    --ink: #e8e9ee;
+    --ink-sub: #c2c5cf;
+    --ink-mute: #a0a5b2;
+    --ink-faint: #3b404c;
+    --accent: #a898ff;
+    --accent-ink: #14161c;
+    --state-working: #a898ff;
+    --state-blocked: #ff8b9a;
+    --state-done: #5fd49b;
+    --track: rgba(255, 255, 255, .14);
+    --chip-bg: rgba(255, 255, 255, .07);
+    --hover-bg: rgba(232, 233, 238, .06);
+    --btn-bg: #a898ff;
+    --btn-ink: #14161c;
+    --overlay: rgba(0, 0, 0, .6);
+    --shadow: rgba(0, 0, 0, .5);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, .4);
+    --sidebar-bg: #1b1e26;
+    --header-bg: rgba(20, 22, 28, .88);
+    --col-sat: 58%;
+    --col-light: 64%;
+    --col-tint-sat: 24%;
+    --col-tint-light: 12.5%;
+    --col-pill-sat: 32%;
+    --col-pill-light: 24%;
+    --col-pill-ink-sat: 75%;
+    --col-pill-ink-light: 84%;
+    --col-shadow-alpha: .35;
   }
   /* [data-theme="dark"] と同じ値。CSSだけでは宣言を共有できないため二重に持つ。 */
   @media (prefers-color-scheme: dark) {
@@ -228,6 +303,43 @@
       --accent-ink: #15141f;
       --state-working: #a596ff;
       --chip-bg: rgba(165, 150, 255, .12);
+    }
+    [data-skin="sticky"][data-theme="auto"] {
+      color-scheme: dark;
+      --bg: #14161c;
+      --surface: #1b1e26;
+      --raised: #272b37;
+      --line: rgba(255, 255, 255, .08);
+      --input-line: #7c8291;
+      --ink: #e8e9ee;
+      --ink-sub: #c2c5cf;
+      --ink-mute: #a0a5b2;
+      --ink-faint: #3b404c;
+      --accent: #a898ff;
+      --accent-ink: #14161c;
+      --state-working: #a898ff;
+      --state-blocked: #ff8b9a;
+      --state-done: #5fd49b;
+      --track: rgba(255, 255, 255, .14);
+      --chip-bg: rgba(255, 255, 255, .07);
+      --hover-bg: rgba(232, 233, 238, .06);
+      --btn-bg: #a898ff;
+      --btn-ink: #14161c;
+      --overlay: rgba(0, 0, 0, .6);
+      --shadow: rgba(0, 0, 0, .5);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+      --shadow-md: 0 4px 14px rgba(0, 0, 0, .4);
+      --sidebar-bg: #1b1e26;
+      --header-bg: rgba(20, 22, 28, .88);
+      --col-sat: 58%;
+      --col-light: 64%;
+      --col-tint-sat: 24%;
+      --col-tint-light: 12.5%;
+      --col-pill-sat: 32%;
+      --col-pill-light: 24%;
+      --col-pill-ink-sat: 75%;
+      --col-pill-ink-light: 84%;
+      --col-shadow-alpha: .35;
     }
   }
 
@@ -863,6 +975,76 @@
   .card-session.working .session-label { color: var(--state-working); }
   .card-session.blocked .session-label { color: var(--state-blocked); }
   .card-session .session-detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-progress-row { display: contents; }
+  .modal-progress { display: none; }
+  [data-skin="sticky"] .column, [data-skin="sticky"] .column:not([open]) {
+    border-color: transparent; box-shadow: none;
+    background: hsl(var(--col-hue, 0) var(--col-tint-sat) var(--col-tint-light));
+  }
+  [data-skin="sticky"] .column-header .dot { width: 10px; height: 10px; border-radius: 50%; }
+  [data-skin="sticky"] .column-header .name { font-size: var(--fs-md); font-weight: 800; }
+  [data-skin="sticky"] .column-progress .bar span { background: hsl(var(--col-hue, 0) var(--col-sat) var(--col-light)); }
+  [data-skin="sticky"] .column-header .column-count,
+  [data-skin="sticky"] .card-parent,
+  [data-skin="sticky"] .modal-col-label,
+  [data-skin="sticky"] .focus-col-label {
+    display: inline-block; align-self: flex-start; padding: 0 8px; border-radius: 999px;
+    font-size: var(--fs-xs); font-weight: 700; line-height: 1.6;
+    background: hsl(var(--col-hue, 0) var(--col-pill-sat) var(--col-pill-light));
+    color: hsl(var(--col-hue, 0) var(--col-pill-ink-sat) var(--col-pill-ink-light));
+  }
+  [data-skin="sticky"] .card-head { gap: 4px; }
+  [data-skin="sticky"] .group-card {
+    border-color: transparent; border-radius: var(--radius-lg);
+    box-shadow:
+      0 1px 2px hsl(var(--col-hue, 0) 30% 30% / var(--col-shadow-alpha)),
+      0 4px 10px -4px hsl(var(--col-hue, 0) 30% 30% / var(--col-shadow-alpha));
+  }
+  [data-skin="sticky"] .group-card .stripe { display: none; }
+  [data-skin="sticky"] .group-card.done { box-shadow: none; background: color-mix(in srgb, var(--raised) 55%, transparent); }
+  [data-skin="sticky"] .card-title { font-size: var(--fs-md); line-height: 1.5; font-weight: 700; }
+  [data-skin="sticky"] .session-card {
+    border-color: transparent; box-shadow: none;
+    background: hsl(var(--col-hue, 0) var(--col-tint-sat) var(--col-tint-light));
+  }
+  [data-skin="sticky"] .card-panel .modal-box { background: hsl(var(--col-hue, 0) var(--col-tint-sat) var(--col-tint-light)); }
+  [data-skin="sticky"] .card-panel .modal-header { border-bottom: none; }
+  [data-skin="sticky"] .card-panel .modal-header-text h2 { font-weight: 800; margin-top: 8px; }
+  [data-skin="sticky"] .modal-progress-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  [data-skin="sticky"] .modal-progress { display: block; width: 140px; height: 6px; border-radius: 999px; background: var(--track); overflow: hidden; flex: 0 0 auto; }
+  [data-skin="sticky"] .modal-progress span { display: block; height: 100%; background: hsl(var(--col-hue, 0) var(--col-sat) var(--col-light)); }
+  [data-skin="sticky"] .modal-progress-row .modal-ratio { margin-top: 0; }
+  [data-skin="sticky"] .card-panel .modal-tasks { gap: 8px; padding-left: 18px; padding-right: 18px; }
+  [data-skin="sticky"] .card-panel .modal-task {
+    background: var(--raised); padding: 12px 14px; border-radius: var(--radius-lg);
+    box-shadow:
+      0 1px 2px hsl(var(--col-hue, 0) 30% 30% / var(--col-shadow-alpha)),
+      0 4px 10px -4px hsl(var(--col-hue, 0) 30% 30% / var(--col-shadow-alpha));
+  }
+  [data-skin="sticky"] .card-panel .modal-task:hover { background: var(--raised); }
+  [data-skin="sticky"] .card-panel .modal-task.done { background: transparent; box-shadow: none; }
+  [data-skin="sticky"] .card-panel .modal-task .task-number {
+    color: hsl(var(--col-hue, 0) var(--col-pill-ink-sat) var(--col-pill-ink-light));
+    background: hsl(var(--col-hue, 0) var(--col-pill-sat) var(--col-pill-light));
+    padding: 0 7px; border-radius: 999px;
+  }
+  [data-skin="sticky"] .card-panel .modal-task-form {
+    margin: 0 18px 16px; padding: 12px 14px; border-radius: var(--radius-lg);
+    border: 1.5px dashed color-mix(in srgb, hsl(var(--col-hue, 0) var(--col-sat) var(--col-light)) 50%, transparent);
+  }
+  [data-skin="sticky"] .card-panel .modal-comments { background: transparent; border-top: 1px dashed var(--track); }
+  /* 右上を折った付箋。影は切り欠きに沿わせるため box-shadow ではなく drop-shadow。 */
+  [data-skin="sticky"] .card-panel .modal-comment {
+    position: relative; border: none; border-radius: 4px 0 var(--radius-lg) var(--radius-lg);
+    background: linear-gradient(225deg, transparent 10px, hsl(var(--col-hue, 0) var(--col-pill-sat) var(--col-pill-light)) 0);
+    filter: drop-shadow(0 1px 1px hsl(var(--col-hue, 0) 30% 30% / var(--col-shadow-alpha)));
+    padding: 8px 20px 8px 12px;
+  }
+  [data-skin="sticky"] .card-panel .modal-comment::before {
+    content: ""; position: absolute; top: 0; right: 0; width: 14px; height: 14px; border-bottom-left-radius: 3px;
+    background: linear-gradient(45deg, hsl(var(--col-hue, 0) var(--col-pill-sat) calc(var(--col-pill-light) - 10%)) 50%, transparent 50%);
+  }
+  [data-skin="sticky"] .card-panel .modal-comment .at { color: hsl(var(--col-hue, 0) var(--col-pill-ink-sat) var(--col-pill-ink-light)); }
 </style>
 </head>
 <body>
@@ -890,7 +1072,7 @@
       <button id="focusModeBtn" type="button" class="ghost-btn">フォーカス</button>
     </div>
     <div class="hdr-spacer"></div>
-    <div class="hdr-tools">
+    <div class="hdr-tools" role="group" aria-label="ツール">
       <button id="sessionListBtn" type="button" class="tool-btn" aria-label="viewerから起動したセッションの一覧" data-tip="セッション一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
       <button id="costBtn" type="button" class="tool-btn" aria-label="トークンのAPI換算コスト（月間）" data-tip="コスト"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.6 0-4.5 1.3-4.5 3.2 0 4.3 9 2.4 9 6.6 0 1.9-1.9 3.2-4.5 3.2-2.2 0-3.9-.9-4.7-2.2"/></svg></button>
       <button id="modelSettingsBtn" type="button" class="tool-btn" aria-label="Claude Codeのモデル設定（model・effort）" data-tip="モデル設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
@@ -924,6 +1106,7 @@
       <option value="cobalt">Cobalt（白＋コバルト）</option>
       <option value="paper">Paper（生成り＋ティール）</option>
       <option value="console">Console（暗い枠＋明るいボード）</option>
+      <option value="sticky">Sticky（列色の付箋）</option>
     </select>
   </div>
   <div class="field">
@@ -1039,7 +1222,10 @@
         <div class="modal-col-label" id="modalColLabel"></div>
         <h2 id="modalTitle"></h2>
         <div class="modal-hint" id="modalHint" hidden></div>
-        <div class="modal-ratio" id="modalRatio"></div>
+        <div class="modal-progress-row">
+          <span class="modal-progress" aria-hidden="true"><span id="modalProgressFill"></span></span>
+          <div class="modal-ratio" id="modalRatio"></div>
+        </div>
         <div class="modal-ratio" id="modalCost" hidden></div>
       </div>
       <div class="modal-header-actions">
@@ -3015,6 +3201,7 @@ function renderFocusCard() {
 
   const { column, group } = findGroupById(focusQueueIds[focusIndex]);
   document.getElementById('focusColLabel').textContent = column.name;
+  applyColumnHue(document.getElementById('focusCard'), column.name);
   document.getElementById('focusTitle').textContent = group.title;
 
   const tasksEl = document.getElementById('focusTasks');
@@ -3407,6 +3594,7 @@ function openSessionLogModal(column, group) {
   sessionLogJobId = session.jobId;
   sessionLogGroupId = group.id;
   document.getElementById('sessionLogColLabel').textContent = column.name;
+  applyColumnHue(document.getElementById('sessionLogDialog'), column.name);
   document.getElementById('sessionLogTitle').textContent = group.title;
   document.getElementById('sessionLogStateLabel').textContent = sessionStatusLabel(session);
   renderSessionLogMessage('読込中…', null);
@@ -3955,6 +4143,7 @@ function openModal(column, group) {
   modalColumnName = column.name;
   modalGroup = group;
   document.getElementById('modalColLabel').textContent = column.name;
+  applyColumnHue(document.getElementById('cardDialog'), column.name);
   document.getElementById('modalTitle').textContent = group.title;
   const hintEl = document.getElementById('modalHint');
   hintEl.textContent = group.projectHint || '';
@@ -4023,6 +4212,8 @@ function syncModalTaskRows() {
 function renderModalRatio() {
   const doneN = modalGroup.tasks.filter((t) => t.done).length;
   document.getElementById('modalRatio').textContent = `${doneN} / ${modalGroup.tasks.length} 完了`;
+  const ratio = modalGroup.tasks.length > 0 ? doneN / modalGroup.tasks.length : 0;
+  document.getElementById('modalProgressFill').style.width = `${Math.round(ratio * 100)}%`;
 }
 
 function buildModalTaskRow(column, group, task) {
