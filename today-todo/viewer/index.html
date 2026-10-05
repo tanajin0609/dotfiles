@@ -609,6 +609,12 @@
   .card-actions:has(.is-starred) { opacity: 1; }
   .card-action-btn { min-width: 26px; height: 26px; padding: 0 6px; background: var(--raised); }
   .star-btn.is-starred { color: var(--accent); }
+  .card-actions:has(.status-today) { opacity: 1; }
+  .status-btn.status-today { color: var(--accent); }
+  .status-badge { align-self: flex-start; font-size: var(--fs-xs); font-weight: 600; padding: 0 6px; border-radius: 999px; border: 1px solid currentColor; }
+  .status-badge.status-today { color: var(--accent); }
+  .status-badge.status-hold { color: var(--ink-mute); }
+  .hold-section > summary { cursor: pointer; }
   .group-card {
     scroll-margin-top: calc(var(--header-h) + 8px);
     display: flex; border: 1px solid var(--line); border-radius: var(--radius);
@@ -624,7 +630,7 @@
   .group-card.done { box-shadow: none; background: transparent; }
   .group-card.done .stripe { opacity: .4; }
   .group-card.done .card-title { color: var(--ink-mute); text-decoration: line-through; }
-  .card-head { display: flex; flex-direction: column; gap: 1px; padding-right: 56px; }
+  .card-head { display: flex; flex-direction: column; gap: 1px; padding-right: 84px; }
   .card-match {
     margin-top: 4px; font-size: var(--fs-xs); color: var(--ink-sub);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -702,6 +708,11 @@
   }
   .modal-header-actions button:hover { background: var(--hover-bg); color: var(--ink); }
   .modal-header-actions .close-btn { padding: 0; }
+  .status-segment { display: flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .status-segment[hidden] { display: none; }
+  .modal-header-actions .status-segment button { border-radius: 0; }
+  .modal-header-actions .status-segment button[aria-pressed="true"] { background: var(--hover-bg); color: var(--ink); font-weight: 600; }
+  .modal-header-actions .status-segment button.status-today[aria-pressed="true"] { color: var(--accent); }
   .new-card-form { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; }
   .new-card-form > button { align-self: flex-end; }
 
@@ -974,6 +985,9 @@
         <button type="button" class="filter-chip" data-filter-id="working" aria-pressed="false">稼働中</button>
         <button type="button" class="filter-chip" data-filter-id="blocked" aria-pressed="false">入力待ち</button>
         <button type="button" class="filter-chip" data-filter-id="addedToday" aria-pressed="false" hidden>今日追加</button>
+        <button type="button" class="filter-chip" data-filter-id="statusToday" aria-pressed="false">今日やる</button>
+        <button type="button" class="filter-chip" data-filter-id="statusNone" aria-pressed="false">未着手</button>
+        <button type="button" class="filter-chip" data-filter-id="statusHold" aria-pressed="false">保留</button>
       </div>
     </div>
     <div id="boardFilterEmpty" class="empty-state board-empty" role="status" hidden>条件に一致するカードがありません</div>
@@ -1014,6 +1028,7 @@
         <div class="modal-ratio" id="modalCost" hidden></div>
       </div>
       <div class="modal-header-actions">
+        <div id="modalStatusGroup" class="status-segment" role="group" aria-label="このカードのステータス"></div>
         <button id="modalStarBtn" type="button" class="star-btn"></button>
         <button id="modalCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
@@ -1301,6 +1316,9 @@ let renderedBoardFile = null;
 let openedActionMenu = null;
 let todoFiles = [];
 let starredGroupIds = new Set();
+let groupStatuses = {};
+// 5秒ごとの再描画で保留の折りたたみが閉じ直さないよう、開いた列名を覚えておく。
+const openHoldColumns = new Set();
 let searchQuery = '';
 const activeFilterIds = new Set();
 let previousFileGroupIds = null;
@@ -1318,6 +1336,11 @@ const OPEN_COLUMNS_KEY_PREFIX = 'viewer:openColumns:';
 const STARRED_KEY_PREFIX = 'viewer:starred:';
 const FOCUS_TARGET_ALL_OPEN = 'all-open';
 const FOCUS_TARGET_STARRED = 'starred';
+const FOCUS_TARGET_TODAY = 'status-today';
+const STATUS_KEY_PREFIX = 'viewer:status:';
+const STATUS_ORDER = ['', 'today', 'hold'];
+const STATUS_LABELS = { '': '未着手', today: '今日やる', hold: '保留' };
+const STATUS_ICONS = { '': '○', today: '▶', hold: '⏸' };
 const FOCUS_TARGET_COLUMN_PREFIX = 'column:';
 const TASK_TOGGLE_UNDO_DURATION_MS = 10000;
 const TOAST_TASK_TEXT_MAX = 30;
@@ -1738,6 +1761,7 @@ async function loadBoard(file) {
   if (dismissBoardUpdatedToast) dismissBoardUpdatedToast();
   if (!isSameFile) {
     starredGroupIds = loadStarredGroupIds(file);
+    groupStatuses = loadGroupStatuses(file);
     fetchPreviousFileGroupIds(file);
   }
   renderAll();
@@ -2173,6 +2197,9 @@ const BOARD_FILTERS = {
   working: (group) => !!group.session && group.session.state === 'working',
   blocked: (group) => !!group.session && group.session.state === 'blocked',
   addedToday: (group) => !!previousFileGroupIds && !previousFileGroupIds.has(group.id),
+  statusToday: (group) => !group.done && statusOf(group) === 'today',
+  statusNone: (group) => !group.done && statusOf(group) === '',
+  statusHold: (group) => !group.done && statusOf(group) === 'hold',
 };
 
 function isBoardFilterActive() {
@@ -2517,7 +2544,8 @@ function renderBoard() {
     columnEl.addEventListener('toggle', onColumnToggled);
     columnEl.appendChild(buildColumnHeader(column, colIndex));
 
-    const openMatches = visibleMatches.filter((m) => !m.group.done);
+    const openMatches = visibleMatches.filter((m) => !m.group.done && statusOf(m.group) !== 'hold');
+    const holdMatches = visibleMatches.filter((m) => !m.group.done && statusOf(m.group) === 'hold');
     const closedMatches = visibleMatches.filter((m) => m.group.done);
     const closedGroups = closedMatches.map((m) => m.group);
 
@@ -2530,6 +2558,26 @@ function renderBoard() {
       list.appendChild(makeCard(column, group, { matchedTaskText, orderPosition }));
     });
     columnEl.appendChild(list);
+
+    if (holdMatches.length > 0) {
+      const holdSection = document.createElement('details');
+      holdSection.className = 'closed-section hold-section';
+      holdSection.open = openHoldColumns.has(column.name);
+      holdSection.addEventListener('toggle', () => {
+        if (holdSection.open) openHoldColumns.add(column.name); else openHoldColumns.delete(column.name);
+      });
+      const holdHeader = document.createElement('summary');
+      holdHeader.className = 'closed-header';
+      holdHeader.textContent = `保留（${holdMatches.length}）`;
+      holdSection.appendChild(holdHeader);
+      const holdList = document.createElement('div');
+      holdList.className = 'closed-list';
+      for (const { group, matchedTaskText } of holdMatches) {
+        holdList.appendChild(makeCard(column, group, { matchedTaskText, orderPosition: null }));
+      }
+      holdSection.appendChild(holdList);
+      columnEl.appendChild(holdSection);
+    }
 
     if (closedGroups.length > 0) {
       const closedSection = document.createElement('div');
@@ -2582,6 +2630,7 @@ function populateFocusColumnSelect() {
   crossGroup.label = '列をまたいで';
   crossGroup.appendChild(new Option('全列の未完了', FOCUS_TARGET_ALL_OPEN));
   crossGroup.appendChild(new Option('★を付けたカード', FOCUS_TARGET_STARRED));
+  crossGroup.appendChild(new Option('今日やるのカード', FOCUS_TARGET_TODAY));
   select.appendChild(columnGroup);
   select.appendChild(crossGroup);
   if (prev && [...select.options].some((o) => o.value === prev)) select.value = prev;
@@ -2618,6 +2667,7 @@ function listFocusTargetEntries(target) {
   const entries = boardData.columns.flatMap((column) => column.groups.map((group) => ({ column, group })));
   if (target === FOCUS_TARGET_ALL_OPEN) return entries;
   if (target === FOCUS_TARGET_STARRED) return entries.filter((e) => starredGroupIds.has(e.group.id));
+  if (target === FOCUS_TARGET_TODAY) return entries.filter((e) => statusOf(e.group) === 'today');
   if (!target.startsWith(FOCUS_TARGET_COLUMN_PREFIX)) return null;
   const columnName = target.slice(FOCUS_TARGET_COLUMN_PREFIX.length);
   if (!boardData.columns.some((c) => c.name === columnName)) return null;
@@ -3249,6 +3299,38 @@ function loadStarredGroupIds(file) {
   }
 }
 
+function loadGroupStatuses(file) {
+  try {
+    const statuses = JSON.parse(localStorage.getItem(STATUS_KEY_PREFIX + file));
+    return statuses && typeof statuses === 'object' && !Array.isArray(statuses) ? statuses : {};
+  } catch {
+    return {};
+  }
+}
+
+function statusOf(group) {
+  return STATUS_LABELS[groupStatuses[group.id]] ? groupStatuses[group.id] : '';
+}
+
+function setGroupStatus(group, next) {
+  if (next) groupStatuses[group.id] = next;
+  else delete groupStatuses[group.id];
+  localStorage.setItem(STATUS_KEY_PREFIX + currentFile, JSON.stringify(groupStatuses));
+  renderBoard();
+  renderModalStatusButton();
+}
+
+// 3状態を1ボタンで巡回させると、今日やるを取り消すつもりの再押下で保留に化けるため、○は今日やるの付け外しに限る。
+function nextTodayToggleStatus(group) {
+  return statusOf(group) === 'today' ? '' : 'today';
+}
+
+function describeStatusButton(group, subject) {
+  const current = statusOf(group);
+  const next = nextTodayToggleStatus(group);
+  return `${subject}のステータス: ${STATUS_LABELS[current]}（押すと${STATUS_LABELS[next]}にする）`;
+}
+
 function toggleGroupStar(groupId) {
   if (starredGroupIds.has(groupId)) starredGroupIds.delete(groupId);
   else starredGroupIds.add(groupId);
@@ -3257,9 +3339,18 @@ function toggleGroupStar(groupId) {
   renderModalStarButton();
 }
 
-function buildCardMenuItems(column, group, { index, count }) {
+function buildCardMenuItems(column, group, orderPosition) {
   const { main } = splitGroupTitle(group.title);
+  const isHold = statusOf(group) === 'hold';
+  const holdItem = {
+    label: isHold ? '保留を解除' : '保留にする',
+    ariaLabel: isHold ? `${main} の保留を解除` : `${main} を保留にする`,
+    onSelect: () => setGroupStatus(group, isHold ? '' : 'hold'),
+  };
+  if (!orderPosition) return [holdItem];
+  const { index, count } = orderPosition;
   return [
+    holdItem,
     {
       label: '上へ',
       ariaLabel: `${main} を上へ移動（Alt+↑）`,
@@ -3288,8 +3379,19 @@ function buildCardActions(column, group, orderPosition) {
   starBtn.textContent = isStarred ? '★' : '☆';
   starBtn.setAttribute('aria-label', isStarred ? `${main} の★を外す` : `${main} に★を付ける`);
   starBtn.addEventListener('click', () => toggleGroupStar(group.id));
+  if (!group.done) {
+    const status = statusOf(group);
+    const statusBtn = document.createElement('button');
+    statusBtn.type = 'button';
+    statusBtn.className = `share-btn card-action-btn status-btn status-${status || 'none'}`;
+    statusBtn.dataset.focusKey = `card-status:${group.id}`;
+    statusBtn.textContent = STATUS_ICONS[status];
+    statusBtn.setAttribute('aria-label', describeStatusButton(group, `${main} `));
+    statusBtn.addEventListener('click', () => setGroupStatus(group, nextTodayToggleStatus(group)));
+    actions.appendChild(statusBtn);
+  }
   actions.appendChild(starBtn);
-  if (orderPosition) {
+  if (!group.done) {
     const menu = buildActionMenu(`card-${group.id}-menu`, `${main} の操作`, buildCardMenuItems(column, group, orderPosition));
     const menuBtn = buildActionMenuButton(menu, 'share-btn card-action-btn');
     menuBtn.dataset.focusKey = `card-menu:${group.id}`;
@@ -3331,6 +3433,13 @@ function makeCard(column, group, { matchedTaskText = null, orderPosition = null 
   title.className = 'card-title';
   appendHighlightedText(title, main);
   head.appendChild(title);
+  const status = group.done ? '' : statusOf(group);
+  if (status) {
+    const badge = document.createElement('span');
+    badge.className = `status-badge status-${status}`;
+    badge.textContent = STATUS_LABELS[status];
+    head.insertBefore(badge, head.firstChild);
+  }
   body.appendChild(head);
 
   if (matchedTaskText) {
@@ -3618,6 +3727,24 @@ function openModal(column, group) {
     document.getElementById('modalCloseBtn').focus();
   }
   syncUrlHash();
+}
+
+function renderModalStatusButton() {
+  if (!modalGroup) return;
+  const segment = document.getElementById('modalStatusGroup');
+  segment.hidden = !!modalGroup.done;
+  const current = statusOf(modalGroup);
+  segment.replaceChildren(...STATUS_ORDER.map((status) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `status-btn status-${status || 'none'}`;
+    btn.textContent = `${STATUS_ICONS[status]} ${STATUS_LABELS[status]}`;
+    btn.setAttribute('aria-pressed', String(status === current));
+    btn.addEventListener('click', () => {
+      if (modalGroup) setGroupStatus(modalGroup, status);
+    });
+    return btn;
+  }));
 }
 
 function renderModalStarButton() {
