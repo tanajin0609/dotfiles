@@ -1069,13 +1069,14 @@
         <code class="doc-path" id="docPath"></code>
       </div>
       <div class="modal-header-actions">
+        <button id="docQuoteBtn" type="button" title="本文で選択した部分をカードのコメント欄に引用します" hidden>選択部分を引用</button>
         <button id="docCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div id="docStatus" class="doc-status" role="status"></div>
     <div class="doc-body">
       <nav id="docNav" class="doc-nav" aria-label="ドキュメント一覧" hidden></nav>
-      <iframe id="docFrame" class="doc-frame" sandbox title="ドキュメント本文"></iframe>
+      <iframe id="docFrame" class="doc-frame" sandbox="allow-same-origin" title="ドキュメント本文"></iframe>
     </div>
   </div>
 </dialog>
@@ -1657,6 +1658,7 @@ async function openDocDialog(absPath, { keepNav = false } = {}) {
   }
   document.getElementById('docTitle').textContent = absPath.split('/').pop();
   document.getElementById('docPath').textContent = absPath;
+  document.getElementById('docQuoteBtn').hidden = !modalGroup;
   const status = document.getElementById('docStatus');
   const loadId = ++docLoadSeq;
   status.textContent = '読み込み中…';
@@ -1681,6 +1683,21 @@ async function openDocDialog(absPath, { keepNav = false } = {}) {
   const html = typeof marked === 'undefined' ? `<pre>${escapeHtml(markdown)}</pre>` : marked.parse(markdown);
   status.textContent = '';
   replaceDocFrame(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>${DOC_FRAME_STYLE}</style></head><body><main>${html}</main></body></html>`);
+}
+
+function quoteDocSelection() {
+  const frame = document.getElementById('docFrame');
+  const selected = frame.contentDocument ? frame.contentDocument.getSelection().toString().trim() : '';
+  if (!selected) {
+    showToast('引用する範囲を選択してください');
+    return;
+  }
+  const docPath = document.getElementById('docPath').textContent;
+  const quote = [docPath, ...selected.split('\n')].map((line) => `> ${line}`).join('\n') + '\n';
+  // closeイベントは非同期に来るため、開く前の要素へ戻すフォーカス復帰を止めてコメント欄に留める。
+  docFocusReturn = null;
+  document.getElementById('docDialog').close();
+  insertAtCursor(document.getElementById('modalCommentInput'), quote);
 }
 
 function onDocDialogClosed() {
@@ -4728,6 +4745,7 @@ async function init() {
   });
   document.getElementById('sessionLogCloseBtn').addEventListener('click', closeSessionLogModal);
   document.getElementById('docCloseBtn').addEventListener('click', () => document.getElementById('docDialog').close());
+  document.getElementById('docQuoteBtn').addEventListener('click', quoteDocSelection);
   document.getElementById('docDialog').addEventListener('close', onDocDialogClosed);
   document.getElementById('sessionLogReplyBtn').addEventListener('click', submitSessionLogReply);
   const sessionLogDialog = document.getElementById('sessionLogDialog');
