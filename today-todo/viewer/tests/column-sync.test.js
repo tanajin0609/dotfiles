@@ -128,3 +128,38 @@ test('状態見出しはカード名にせず配下の###をカード名にし�
     `- [ ] #3 見出し無しタスク → ${backlog}`, '',
   ].join('\n'));
 });
+
+// AC-CS-SRV-6
+test('backlog.mdに対応行が無くなった旧行は消し、手書き行・完了行・他backlogに残る行は残す', async () => {
+  const fixture = setupFixture();
+  const todoPath = path.join(fixture.todoDir, fixture.todoFile);
+  const inbox = path.join(fixture.root, 'grp', 'inbox', 'docs', 'tasks', 'backlog.md');
+  const other = writeBacklog(fixture.root, 'elsewhere/proj', '- [ ] 他列に残るタスク\n');
+  fs.writeFileSync(todoPath, [
+    '# 2026-01-01', '', '## grp', '', '### inbox',
+    `- [ ] #1 書き換え前の文言 → ${inbox}`,
+    `- [ ] #2 別backlogへ移したタスク → ${inbox}`,
+    '- [ ] #3 旧形式の相対パス行 → inbox/docs/tasks/backlog.md',
+    `- [x] #4 完了済みの旧行 → ${inbox}`,
+    '- [ ] 手で足した行',
+    `- [ ] #5 他列に残るタスク → ${other}`,
+    `- [ ] #6 他列から消えたタスク → ${other}`,
+    '',
+  ].join('\n'));
+  writeBacklog(fixture.root, 'grp/inbox', '- [ ] #1 書き換え後の文言\n');
+  const moved = writeBacklog(fixture.root, 'grp/fix', '- [ ] #2 別backlogへ移したタスク（移動後）\n');
+  await withServer(fixture, async (baseUrl) => {
+    const res = await sync(baseUrl, { file: fixture.todoFile, column: 'grp' });
+    assert.equal(res.status, 200);
+  });
+  assert.equal(fs.readFileSync(todoPath, 'utf-8'), [
+    '# 2026-01-01', '', '## grp', '',
+    '### fix',
+    `- [ ] #2 別backlogへ移したタスク（移動後） → ${moved}`, '',
+    '### inbox',
+    `- [ ] #1 書き換え後の文言 → ${inbox}`,
+    `- [x] #4 完了済みの旧行 → ${inbox}`,
+    '- [ ] 手で足した行',
+    `- [ ] #5 他列に残るタスク → ${other}`, '',
+  ].join('\n'));
+});

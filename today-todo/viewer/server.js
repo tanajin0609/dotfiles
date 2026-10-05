@@ -738,8 +738,13 @@ function parseAggLine(line) {
   const numMatch = task[2].match(/^#(\d+)\s+(.+)/);
   const body = numMatch ? numMatch[2] : task[2];
   const notion = body.match(NOTION_RE);
-  const core = body.replace(NOTION_RE, '').replace(/ → \/\S+\/docs\/tasks\/backlog\.md\s*$/, '').trim();
-  return { done: task[1] === 'x', number: numMatch ? parseInt(numMatch[1], 10) : null, core, notionId: notion ? notion[1] : null };
+  const withoutNotion = body.replace(NOTION_RE, '');
+  const source = withoutNotion.match(/ → (\S*docs\/tasks\/backlog\.md)\s*$/);
+  const core = withoutNotion.replace(/ → \S*docs\/tasks\/backlog\.md\s*$/, '').trim();
+  return {
+    done: task[1] === 'x', number: numMatch ? parseInt(numMatch[1], 10) : null, core,
+    notionId: notion ? notion[1] : null, source: source ? source[1] : null,
+  };
 }
 
 // `## columnName` 節を backlog.md から作り直した md を返す（規則は spec 1.14）。
@@ -809,8 +814,17 @@ function syncColumnSection(md, columnName, columnDir) {
       push(item.heading ? `${project} ▸ ${item.heading}` : project, `- [ ] #${number} ${text} → ${src.path}${notion}`);
     }
   }
+  const syncedPaths = new Set(sources.map((s) => s.path));
+  // 同期対象外の backlog.md は、その中にまだ同じ未完了項目があるかを見て判定する。
+  const isStillInBacklog = (agg) => {
+    const p = path.resolve(columnDir, agg.source);
+    if (syncedPaths.has(p) || !fs.existsSync(p)) return false;
+    return parseBacklogItems(fs.readFileSync(p, 'utf-8')).some((item) => !item.done &&
+      ((item.notionId && agg.notionId === item.notionId) || (item.first && agg.core.startsWith(item.first))));
+  };
   for (const e of existing) {
     if (e.state === 'replaced') continue;
+    if (!e.state && e.agg && !e.agg.done && e.agg.source && !isStillInBacklog(e.agg)) continue;
     push(e.card, e.state === 'done' ? e.line.replace(/^- \[ \]/, '- [x]') : e.line);
   }
 
