@@ -42,7 +42,7 @@ test('列の節だけをbacklog.mdから作り直し、他の列は変えない'
     assert.deepEqual(await res.json(), { items: 1 });
   });
   assert.equal(fs.readFileSync(todoPath, 'utf-8'), [
-    '# 2026-01-01', '', '## grp', '', '### inbox ▸ 進行中',
+    '# 2026-01-01', '', '## grp', '', '### inbox',
     `- [ ] #1 新タスク 継続行 → ${backlog} <!-- notion:abc -->`, '',
     '## other', '', '### x', '- [ ] そのまま', '',
   ].join('\n'));
@@ -103,4 +103,28 @@ test('入力不正は400、todoファイル・列ディレクトリが無けれ�
     assert.equal((await sync(baseUrl, { file: 'todo-2026-01-02.md', column: 'demo-project' })).status, 404);
     assert.equal((await sync(baseUrl, { file: fixture.todoFile, column: 'missing' })).status, 404);
   });
+});
+
+// AC-CS-SRV-5
+test('状態見出しはカード名にせず配下の###をカード名にし、子のチェックボックスは親と別の項目にする', async () => {
+  const fixture = setupFixture();
+  const todoPath = path.join(fixture.todoDir, fixture.todoFile);
+  fs.writeFileSync(todoPath, '# 2026-01-01\n\n## grp\n');
+  const backlog = writeBacklog(fixture.root, 'grp/inbox', [
+    '## 進行中', '', '### テーマA', '', '- [ ] 親タスク', '      親の継続行', '  - [ ] 子タスク', '      子の継続行', '',
+    '## 未着手', '', '- [ ] 見出し無しタスク', '',
+  ].join('\n'));
+  await withServer(fixture, async (baseUrl) => {
+    const res = await sync(baseUrl, { file: fixture.todoFile, column: 'grp' });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { items: 3 });
+  });
+  assert.equal(fs.readFileSync(todoPath, 'utf-8'), [
+    '# 2026-01-01', '', '## grp', '',
+    '### inbox ▸ テーマA',
+    `- [ ] #1 親タスク 親の継続行 → ${backlog}`,
+    `- [ ] #2 子タスク 子の継続行 → ${backlog}`, '',
+    '### inbox',
+    `- [ ] #3 見出し無しタスク → ${backlog}`, '',
+  ].join('\n'));
 });
