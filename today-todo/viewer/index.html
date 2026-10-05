@@ -731,6 +731,7 @@
     white-space: nowrap; align-self: flex-start; margin-top: 2px;
   }
   .modal-task .task-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .task-actions { display: flex; flex-wrap: wrap; gap: 6px; }
   .modal-task .task-text { text-wrap: pretty; overflow-wrap: anywhere; }
   .modal-task .task-text a { word-break: break-all; }
   .modal-task .task-text code { background: var(--chip-bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
@@ -3849,6 +3850,9 @@ function buildModalTaskRow(column, group, task) {
   bindDocLinks(body, sourcePath);
   checkbox.setAttribute('aria-labelledby', body.id);
   main.appendChild(body);
+  const actions = document.createElement('div');
+  actions.className = 'task-actions';
+  main.appendChild(actions);
   row.appendChild(main);
   bindRowClickToCheckbox(row, checkbox);
 
@@ -3875,7 +3879,7 @@ function buildModalTaskRow(column, group, task) {
       sourceEl.hidden = !sourceEl.hidden;
       sourceBtn.setAttribute('aria-expanded', String(!sourceEl.hidden));
     });
-    row.appendChild(sourceBtn);
+    actions.appendChild(sourceBtn);
     const relatedBtn = document.createElement('button');
     relatedBtn.type = 'button';
     relatedBtn.className = 'quote-btn';
@@ -3888,7 +3892,7 @@ function buildModalTaskRow(column, group, task) {
         .find((p) => p && p.includes('/docs/changes/'));
       openRelatedDocs(changeDoc || sourcePath);
     });
-    row.appendChild(relatedBtn);
+    actions.appendChild(relatedBtn);
   }
 
   const quoteBtn = document.createElement('button');
@@ -3897,7 +3901,7 @@ function buildModalTaskRow(column, group, task) {
   quoteBtn.textContent = '引用';
   quoteBtn.setAttribute('aria-label', 'コメント欄に引用を挿入');
   quoteBtn.addEventListener('click', () => insertQuote(task));
-  row.appendChild(quoteBtn);
+  actions.appendChild(quoteBtn);
 
   const globalQuoteBtn = document.createElement('button');
   globalQuoteBtn.type = 'button';
@@ -3905,7 +3909,7 @@ function buildModalTaskRow(column, group, task) {
   globalQuoteBtn.textContent = '全体へ引用';
   globalQuoteBtn.setAttribute('aria-label', '全体コメント欄に列・カード名付きで引用を挿入');
   globalQuoteBtn.addEventListener('click', () => insertGlobalQuote(column.name, group.title, task));
-  row.appendChild(globalQuoteBtn);
+  actions.appendChild(globalQuoteBtn);
   return row;
 }
 
