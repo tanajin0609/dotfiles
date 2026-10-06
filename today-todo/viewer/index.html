@@ -410,6 +410,7 @@
   }
   .btn-icon { width: 32px; padding: 0; background: transparent; color: var(--ink-sub); }
   .btn-icon.btn--sm { width: 28px; }
+  .btn-icon.btn--labeled { width: auto; padding: 0 10px; }
   .btn-icon:not(:disabled):hover { background: var(--hover-bg); color: var(--ink); }
   .btn-icon:not(:disabled):active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
   .btn-icon:is([aria-pressed="true"], [aria-expanded="true"], .is-starred),
@@ -466,7 +467,6 @@
     color: var(--ink-sub); background: var(--chip-bg); border-radius: 999px; padding: 1px 9px;
   }
   .file-controls { display: flex; align-items: center; gap: 4px; }
-  #fileSelect { font-family: var(--font-mono); font-size: var(--fs-xs); max-width: 200px; }
   #focusColumnSelect { max-width: 170px; }
   .search-field { position: relative; display: flex; align-items: center; }
   .search-field .ico { position: absolute; left: 10px; color: var(--ink-mute); pointer-events: none; }
@@ -605,7 +605,6 @@
   /* ---------- ボードのツールバー ---------- */
   .board-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .board-toolbar .seg-group { display: inline-flex; padding: 2px; border-radius: var(--radius); background: var(--chip-bg); }
-  #columnJumpSelect { max-width: 180px; }
   .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: -4px; }
   .filter-bar-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-mute); }
   .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1015,8 +1014,6 @@
       <span class="date-badge" id="dateBadge"></span>
     </div>
     <div class="file-controls">
-      <label for="fileSelect" class="sr-only">表示ファイル</label>
-      <select id="fileSelect"></select>
       <button id="reloadBtn" type="button" class="btn btn-icon" aria-label="再読込" data-tip="再読込"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
     </div>
     <div class="search-field">
@@ -1125,12 +1122,10 @@
         <button id="openAllColumnsBtn" type="button" class="btn btn-icon btn--sm" aria-label="すべて開く" data-tip="すべて開く"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/></svg></button>
         <button id="closeAllColumnsBtn" type="button" class="btn btn-icon btn--sm" aria-label="すべて閉じる" data-tip="すべて閉じる"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/></svg></button>
       </div>
-      <label for="columnJumpSelect" class="sr-only">列へ移動</label>
-      <select id="columnJumpSelect"><option value="">列へ移動…</option></select>
       <div class="hdr-spacer"></div>
-      <button id="globalCommentsOpenBtn" type="button" class="btn btn-icon" aria-label="全体コメント" data-tip="全体コメント"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg></button>
+      <button id="globalCommentsOpenBtn" type="button" class="btn btn-icon btn--labeled" aria-label="全体コメント" data-tip="全体コメント"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg><span>All</span></button>
       <span id="shareAllEmptyReason" class="copy-empty-reason" hidden>コメントがありません</span>
-      <button id="shareAllBtn" type="button" aria-describedby="shareAllEmptyReason" class="btn btn-icon" aria-label="全カードのコメントをまとめてコピー" data-tip="全カードのコメントをまとめてコピー"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></button>
+      <button id="shareAllBtn" type="button" aria-describedby="shareAllEmptyReason" class="btn btn-icon btn--labeled" aria-label="全カードのコメントをまとめてコピー" data-tip="全カードのコメントをまとめてコピー"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span>All</span></button>
     </div>
     <div class="filter-bar">
       <span class="filter-bar-label" aria-hidden="true">絞り込み</span>
@@ -2113,8 +2108,6 @@ function observeHeaderHeight() {
 async function loadFileList() {
   const res = await fetch('/api/files');
   const files = await res.json();
-  const select = document.getElementById('fileSelect');
-  select.innerHTML = files.map(f => `<option value="${f}">${f}</option>`).join('');
   todoFiles = files;
   return files;
 }
@@ -2989,7 +2982,6 @@ function renderBoard() {
   });
   renderedBoardFile = currentFile;
   document.getElementById('boardFilterEmpty').hidden = !(isFiltering && visibleColumnCount === 0);
-  populateColumnJump();
   populateFocusColumnSelect();
   populateNewCardColumnOptions();
   renderSessionPanel();
@@ -3024,25 +3016,9 @@ function populateFocusColumnSelect() {
   if (prev && [...select.options].some((o) => o.value === prev)) select.value = prev;
 }
 
-function populateColumnJump() {
-  const select = document.getElementById('columnJumpSelect');
-  select.innerHTML = '<option value="">列へ移動…</option>' +
-    boardData.columns.map((c, i) => `<option value="col-${i}">${c.name}</option>`).join('');
-}
-
 function populateNewCardColumnOptions() {
   const datalist = document.getElementById('newCardColumnOptions');
   datalist.innerHTML = boardData.columns.map((c) => `<option value="${c.name}">`).join('');
-}
-
-function jumpToColumn(id) {
-  if (!id) return;
-  const details = document.getElementById(id);
-  if (!details) return;
-  details.open = true;
-  const header = details.querySelector('.column-header');
-  header.scrollIntoView({ block: 'start', inline: 'nearest' });
-  header.focus();
 }
 
 function toggleFocusMode() {
@@ -5155,24 +5131,17 @@ async function init() {
   });
 
   const files = await loadFileList();
-  const select = document.getElementById('fileSelect');
   if (files.length === 0) {
     document.getElementById('status').textContent = 'todo-*.md が見つかりません';
     return;
   }
   const hashState = readUrlHashState();
-  const isHashFileKnown = !!hashState && files.includes(hashState.file);
-  select.value = isHashFileKnown ? hashState.file : files[0];
-  if (isHashFileKnown) pendingOpenColumnNames = new Set(hashState.openColumnNames);
-  const isLoaded = await loadBoard(select.value);
-  if (isLoaded && isHashFileKnown) restoreUrlViewState(hashState);
+  const isHashFileLatest = !!hashState && hashState.file === files[0];
+  if (isHashFileLatest) pendingOpenColumnNames = new Set(hashState.openColumnNames);
+  const isLoaded = await loadBoard(files[0]);
+  if (isLoaded && isHashFileLatest) restoreUrlViewState(hashState);
 
-  select.addEventListener('change', () => loadBoard(select.value));
-  document.getElementById('reloadBtn').addEventListener('click', () => loadBoard(select.value));
-  document.getElementById('columnJumpSelect').addEventListener('change', (e) => {
-    jumpToColumn(e.target.value);
-    e.target.value = '';
-  });
+  document.getElementById('reloadBtn').addEventListener('click', () => loadBoard(currentFile));
   document.getElementById('shareAllBtn').addEventListener('click', () => {
     const pairs = [];
     for (const column of boardData.columns) {
