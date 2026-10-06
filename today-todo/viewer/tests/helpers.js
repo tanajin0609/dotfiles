@@ -189,6 +189,7 @@ function consumeRunningAfterStop() {
         id = ${JSON.stringify(newJobId)} || crypto.randomBytes(4).toString('hex');
         const reason = running ? 'is already running in the background, so this started a copy' : 'keeps its own saved options, so the flags you passed started a copy';
         console.log('note: session ' + owner + ' ' + reason + ' as ' + id);
+        meta.copy = true;
         writeJob(id, { state: ${JSON.stringify(newState)}, sessionId: crypto.randomUUID() }, meta);
       } else {
         id = owner;
@@ -207,7 +208,8 @@ function consumeRunningAfterStop() {
   }
   fs.appendFileSync(${JSON.stringify(callLogPath)}, '# prompt: ' + prompt.replace(/\\n/g, '\\\\n') + '\\n');
   if (${Number(hangMs)} > 0) await sleep(${Number(hangMs)});
-  console.log('backgrounded · ' + id + ' · ' + (meta.name || 'fake'));
+  // 実機のCLIはコピーを起動したとき名前を付けない。
+  console.log(meta.copy ? 'backgrounded · ' + id : 'backgrounded · ' + id + ' · ' + (meta.name || 'fake'));
 })();
 `;
   fs.writeFileSync(scriptPath, script);

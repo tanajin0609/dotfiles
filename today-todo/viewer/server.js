@@ -602,11 +602,10 @@ function readSessionsMap(file) {
 
 const BUSY_JOB_STATES = new Set(['working', 'running', 'starting', 'resuming', 'crashed']);
 
-// AskUserQuestionの回答待ちはCLI 2.1.291で`state:"working"`のまま`tempo:"blocked"`になり、
-// worker異常終了からの復帰後は`running`＋`tempo:"idle"`で止まるため、`state`だけでは判定できない。
+// AskUserQuestionの回答待ちはCLI 2.1.291で`state:"working"`のまま`tempo:"blocked"`になるため、`state`だけでは判定できない。
+// `running`＋`tempo:"idle"`はターン途中のバックグラウンドコマンド待ちでも出るので入力待ちとはみなさない（実機で確認）。
 function normalizeJobState(raw) {
   if (raw.tempo === 'blocked' || raw.needs) return 'blocked';
-  if (raw.state === 'running' && raw.tempo === 'idle') return 'blocked';
   if (BUSY_JOB_STATES.has(raw.state)) return 'working';
   if (raw.state === 'failed' || raw.state === 'error') return 'failed';
   if (raw.state === 'stopped') return 'done';
@@ -968,7 +967,8 @@ function findRelatedDocs(target) {
 // `claude --bg` の標準出力（`backgrounded · <id> · <name>`、ANSIカラーコード付き）から短縮IDを取り出す。
 function parseBackgroundedId(output) {
   const stripped = output.replace(/\x1b\[[0-9;]*m/g, '');
-  const m = stripped.match(/backgrounded\s*·\s*([0-9a-f]+)\s*·/);
+  // コピーを起動したときは名前が付かず`backgrounded · <id>`で行が終わる。
+  const m = stripped.match(/backgrounded\s*·\s*([0-9a-f]+)\b/);
   return m ? m[1] : null;
 }
 

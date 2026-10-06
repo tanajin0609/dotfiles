@@ -195,7 +195,7 @@ test('state.json の state/tempo/needs を working・blocked・done・failed に
   const cases = {
     ask: [{ state: 'working', tempo: 'blocked', needs: 'answer: 続行しますか？', detail: '続行しますか？' }, 'blocked'],
     needsOnly: [{ state: 'working', needs: 'answer: x' }, 'blocked'],
-    idleRunning: [{ state: 'running', tempo: 'idle' }, 'blocked'],
+    idleRunning: [{ state: 'running', tempo: 'idle' }, 'working'],
     running: [{ state: 'running', tempo: 'active' }, 'working'],
     crashed: [{ state: 'crashed' }, 'working'],
     resuming: [{ state: 'resuming' }, 'working'],

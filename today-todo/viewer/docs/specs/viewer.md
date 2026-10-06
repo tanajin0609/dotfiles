@@ -85,10 +85,9 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
 - AC-JS-SRV-1: viewerはstate.jsonを次の順で `working`（稼働中）・`blocked`（入力待ち）・`done`（完了）・`failed`（失敗）のどれかに正規化し、
   セッションの状態（`/api/sessions`・`/api/board`・`/api/sessions/all`）、返信の可否（AC-CC2-2）、選択肢の表示（AC-CC3-1）、自動コメント（AC-CC2-3）のすべてで使う。
   1. `tempo` が `blocked`、または `needs` が空でない → `blocked`（CLI 2.1.291ではAskUserQuestionの回答待ちが `state: "working"` のまま `tempo: "blocked"` になる）
-  2. `state` が `running` で `tempo` が `idle` → `blocked`（worker の異常終了から戻った後、指示を待って止まっている）
-  3. `state` が `working`・`running`・`starting`・`resuming`・`crashed` → `working`
-  4. `state` が `failed`・`error` → `failed`、`stopped` → `done`
-  5. それ以外は `state` の値のまま
+  2. `state` が `working`・`running`・`starting`・`resuming`・`crashed` → `working`（`running`＋`tempo: "idle"` はターンの途中でバックグラウンドのコマンドを待っている間にも出るため、入力待ちとは扱わない）
+  3. `state` が `failed`・`error` → `failed`、`stopped` → `done`
+  4. それ以外は `state` の値のまま
 - AC-CC2-3: `GET /api/sessions`・`GET /api/board` は、ジョブが `blocked`/`done` になって `updatedAt` が前回の通知と変わるたびに、
   その `detail` を `[Claude 確認]`/`[Claude 完了]` のコメントとしてカードに1回だけ追加する。`GET /api/sessions` は表示中以外のtodoファイルの
   セッションもこの確認の対象にする（開いていないtodoのカードにもコメントが付く）。5秒のポーリングの間に入力待ちから稼働中へ戻ったものは対象外。
