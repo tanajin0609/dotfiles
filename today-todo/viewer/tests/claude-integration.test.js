@@ -116,6 +116,24 @@ test('stop 直後でまだ running と判定されてコピーになったら、
   }
 });
 
+test('note が出なくても jobId が元と違えばコピーとみなし、片付けて1回だけやり直す', async () => {
+  const t = await setup({ fake: { runningResumesAfterStop: 1, newJobId: 'c1c1c1c1', copyNote: false } });
+  const sid = crypto.randomUUID();
+  t.writeJob('aaaa3334', { state: 'done', sessionId: sid });
+  t.writeSessions({ 'group-a': linked('aaaa3334') });
+  const server = await t.start();
+  try {
+    const res = await postJson(server.baseUrl, '/api/session/launch', payload());
+    assert.equal(res.body.jobId, 'aaaa3334');
+    assert.equal(res.body.copied, undefined);
+    assert.deepEqual(readCalls(t.callLog), [
+      'stop aaaa3334', `--bg --resume ${sid} -- 続けて`, 'stop c1c1c1c1', 'rm c1c1c1c1', `--bg --resume ${sid} -- 続けて`,
+    ]);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('やり直してもコピーなら、コピーを紐付けて copied を返し、元ジョブを rm する', async () => {
   const t = await setup({ fake: { runningResumesAfterStop: 5 } });
   const sid = crypto.randomUUID();

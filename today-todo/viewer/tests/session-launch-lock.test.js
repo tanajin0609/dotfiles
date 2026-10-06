@@ -182,19 +182,21 @@ test('入力待ち(blocked)セッションへの再起動は、stop→--resume�
   });
   assert.equal(res.status, 200);
   assert.equal(res.body.jobId, resumedJobId);
-  assert.equal(calls.length, 3);
+  // 偽CLIは毎回別jobIdを返すため、コピーとみなして1回やり直した後に元ジョブをrmする。
   assert.equal(calls[0], `stop ${jobId}`);
   assert.match(calls[1], /^--bg --resume full-session-uuid-0001 -- /);
-  assert.equal(calls[2], `rm ${jobId}`);
+  assert.deepEqual(calls.slice(2, 4), [`stop ${resumedJobId}`, `rm ${resumedJobId}`]);
+  assert.match(calls[4], /^--bg --resume full-session-uuid-0001 -- /);
+  assert.equal(calls.at(-1), `rm ${jobId}`);
   assert.equal(sessionsMap['group-a'].jobId, resumedJobId);
 });
 
 test('元ジョブがworktreeに入っていた場合はrmしない（継続先が同じworktreeを使うため）', async () => {
-  const { res, calls } = await launchResumeFromBlocked({
+  const { res, calls, jobId } = await launchResumeFromBlocked({
     transcriptLines: [{ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'EnterWorktree', input: {} }] } }],
   });
   assert.equal(res.status, 200);
-  assert.equal(calls.length, 2, 'stopと--resumeだけでrmしないこと');
+  assert.ok(!calls.includes(`rm ${jobId}`), '元ジョブをrmしないこと');
 });
 
 // AC-CC2-2（CLIによっては稼働中を`running`と書くため、working同様にコピー起動しない）

@@ -356,8 +356,8 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   - `working`: `claude` を呼ばずコメント保存のみに留め、`200 { "launched": false, "reason": "already-running" }` を返す（画面はその旨をトースト通知する）。
   - `blocked`・`done`・`failed`: `claude stop <jobId>` の後に `VIEWER_STOP_SETTLE_MS`（既定3000ms）待ってから、`claude --bg --resume <sessionId> <指示>` を実行する
     （`-n`・`--model`・`--effort` を付けない。AC-MS-SRV-3）。stop の直後はCLIがまだ稼働中と判定してコピーを起動することがあるため待つ。
-    出力に `started a copy` があれば、コピーを `claude stop`・`claude rm` して同じだけ待ち、1回だけやり直す。やり直してもコピーなら、それをカードに紐付けて
-    `"copied": true` を返し、元ジョブは `claude rm` する（失敗は無視）。ただし元ジョブが `EnterWorktree` を `tool_use` で呼んでいた場合は、
+    返った jobId が元と違えば（出力に `started a copy` の note が無くてもコピーとみなす。実機で note 無しのコピーが起きたため）、コピーを `claude stop`・`claude rm` して同じだけ待ち、1回だけやり直す。やり直してもコピーなら、それをカードに紐付けて
+    `"copied": true` を返し、元ジョブは `claude rm` する（失敗しても応答は変えず、標準エラーに記録する）。ただし元ジョブが `EnterWorktree` を `tool_use` で呼んでいた場合は、
     `claude rm` がworktreeごと消して継続先の作業場所を失わせるため削除しない。
   - `/api/session/launch`・`/api/session/branch` はどの起動でも指示の直前に `--` を置く（`-` で始まる指示をCLIがオプションと解釈しないため。`--` は返信のコピーの原因にならない）。
   - `sessionId` はstate.jsonの `sessionId`、無ければ `linkScanPath` のファイル名（`<UUID>.jsonl`）から取る。

@@ -118,12 +118,13 @@ echo "backgrounded · ${jobId} · fake-session"
 
 // CLI 2.1.291 の実測（docs/changes/v0.26.1-…/claude-integration-audit.md §5）に合わせて、jobsDir の state.json を読み書きする偽の claude。
 // - 登録済みセッションの `--resume` にプロンプト以外の引数があると own-options のコピーになる
+// - copyNote: false でコピー時の note を出さない（実機で note 無しのままコピーになった事例の再現）
 // - stop していないジョブ、または stop 済みでも最初の runningResumesAfterStop 回の resume は running のコピーになる（stop 直後の判定の再現）
 // - stop は state.json を変えない（印は jobsDir/<id>/.fake-stopped）
 // - 未登録の UUID（分岐・rm 済み）の resume は UUID の先頭8文字を jobId にして起動する
 // hangMs を指定すると `--bg` はジョブを作った後に hangMs 眠る（timeout の再現）。
 function writeStatefulFakeClaude(binDir, {
-  jobsDir, callLogPath, runningResumesAfterStop = 0, newJobId = null, delayMs = 20, hangMs = 0, newState = 'working',
+  jobsDir, callLogPath, runningResumesAfterStop = 0, newJobId = null, delayMs = 20, hangMs = 0, newState = 'working', copyNote = true,
 }) {
   fs.mkdirSync(binDir, { recursive: true });
   fs.mkdirSync(jobsDir, { recursive: true });
@@ -188,7 +189,7 @@ function consumeRunningAfterStop() {
       if (extra.length > 0 || running) {
         id = ${JSON.stringify(newJobId)} || crypto.randomBytes(4).toString('hex');
         const reason = running ? 'is already running in the background, so this started a copy' : 'keeps its own saved options, so the flags you passed started a copy';
-        console.log('note: session ' + owner + ' ' + reason + ' as ' + id);
+        if (${JSON.stringify(copyNote)}) console.log('note: session ' + owner + ' ' + reason + ' as ' + id);
         meta.copy = true;
         writeJob(id, { state: ${JSON.stringify(newState)}, sessionId: crypto.randomUUID() }, meta);
       } else {
