@@ -16,7 +16,12 @@ const PUBLIC_DIR = __dirname;
 const DATA_DIR = process.env.VIEWER_DATA_DIR
   ? path.resolve(process.env.VIEWER_DATA_DIR)
   : path.join(__dirname, 'data');
-const CLAUDE_JOBS_DIR = path.join(os.homedir(), '.claude', 'jobs');
+const CLAUDE_JOBS_DIR = process.env.VIEWER_CLAUDE_JOBS_DIR
+  ? path.resolve(process.env.VIEWER_CLAUDE_JOBS_DIR)
+  : path.join(os.homedir(), '.claude', 'jobs');
+// stop が返った直後の resume は約22%でコピーになり、3秒以上待てば0件だった（claude-integration-audit.md §5 U6）。
+const STOP_SETTLE_MS = process.env.VIEWER_STOP_SETTLE_MS ? Number(process.env.VIEWER_STOP_SETTLE_MS) : 3000;
+const LAUNCH_TIMEOUT_MS = process.env.VIEWER_LAUNCH_TIMEOUT_MS ? Number(process.env.VIEWER_LAUNCH_TIMEOUT_MS) : 20000;
 const CLAUDE_SETTINGS_PATH = process.env.VIEWER_CLAUDE_SETTINGS
   ? path.resolve(process.env.VIEWER_CLAUDE_SETTINGS)
   : path.join(os.homedir(), '.claude', 'settings.json');
@@ -595,8 +600,18 @@ function readSessionsMap(file) {
   }
 }
 
-// CLIのバージョンによって稼働中の表記が`working`と`running`に分かれるため、ここで`working`に揃える。
-// 揃えないと稼働中のジョブへの依頼が--resumeでコピーを起動してしまう。
+const BUSY_JOB_STATES = new Set(['working', 'running', 'starting', 'resuming', 'crashed']);
+
+// AskUserQuestionの回答待ちはCLI 2.1.291で`state:"working"`のまま`tempo:"blocked"`になるため、`state`だけでは判定できない。
+// `running`＋`tempo:"idle"`はターン途中のバックグラウンドコマンド待ちでも出るので入力待ちとはみなさない（実機で確認）。
+function normalizeJobState(raw) {
+  if (raw.tempo === 'blocked' || raw.needs) return 'blocked';
+  if (BUSY_JOB_STATES.has(raw.state)) return 'working';
+  if (raw.state === 'failed' || raw.state === 'error') return 'failed';
+  if (raw.state === 'stopped') return 'done';
+  return raw.state;
+}
+
 function readJobState(jobId) {
   let jobState;
   try {
@@ -604,20 +619,64 @@ function readJobState(jobId) {
   } catch {
     return null;
   }
-  return jobState.state === 'running' ? { ...jobState, state: 'working' } : jobState;
+  return { ...jobState, state: normalizeJobState(jobState) };
+}
+
+const UUID_JSONL_PATTERN = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/;
+
+function sessionIdFromTranscriptPath(transcriptPath) {
+  const m = transcriptPath ? path.basename(transcriptPath).match(UUID_JSONL_PATTERN) : null;
+  return m ? m[1] : null;
+}
+
+// ジョブが消えた後もログ・資料を見られるよう、sessionsに控えたtranscriptPathを探す。
+function findRememberedTranscriptPath(jobId) {
+  if (!fs.existsSync(DATA_DIR)) return null;
+  for (const name of fs.readdirSync(DATA_DIR)) {
+    const m = name.match(/^sessions-(todo-\d{4}-\d{2}-\d{2})\.json$/);
+    if (!m) continue;
+    for (const linked of Object.values(readSessionsMap(`${m[1]}.md`))) {
+      if (linked && linked.jobId === jobId && linked.transcriptPath) return linked.transcriptPath;
+    }
+  }
+  return null;
+}
+
+function resolveTranscriptPath(jobId) {
+  const jobState = readJobState(jobId);
+  const candidate = (jobState && jobState.linkScanPath) || findRememberedTranscriptPath(jobId);
+  return candidate && fs.existsSync(candidate) ? candidate : null;
+}
+
+// CLIを待っている間に別カードの起動やポーリングが同じファイルへ書くため、待った後に読み直して該当カードだけを書き換える。
+function updateSessionEntry(file, groupId, entry) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const sessionsMap = readSessionsMap(file);
+  sessionsMap[groupId] = entry;
+  fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
 }
 
 // `claude rm`はworktreeも消すが、継続先のジョブが同じworktreeで作業を続けるため、worktreeに入ったジョブは消さない。
+// システムプロンプトのツール一覧にも`"name":"EnterWorktree"`が出るため、assistantのtool_useだけを見る。
 function transcriptUsedWorktree(transcriptPath) {
+  let text;
   try {
-    return fs.readFileSync(transcriptPath, 'utf-8').includes('"name":"EnterWorktree"');
+    text = fs.readFileSync(transcriptPath, 'utf-8');
   } catch {
     return false;
   }
+  return text.split('\n').some((line) => {
+    if (!line.includes('EnterWorktree')) return false;
+    try {
+      const obj = JSON.parse(line);
+      const content = obj.type === 'assistant' && obj.message && obj.message.content;
+      return Array.isArray(content) && content.some((b) => b.type === 'tool_use' && b.name === 'EnterWorktree');
+    } catch {
+      return false;
+    }
+  });
 }
 
-// working中（ツール実行等の最中）だけを「新規起動をブロックすべき」とみなす。
-// blocked・doneは起動処理側で`claude stop`してから`--resume`する（`POST /api/session/launch`内のコメント参照）。
 function isSessionBusy(jobId) {
   const jobState = readJobState(jobId);
   return !!jobState && jobState.state === 'working';
@@ -908,16 +967,88 @@ function findRelatedDocs(target) {
 // `claude --bg` の標準出力（`backgrounded · <id> · <name>`、ANSIカラーコード付き）から短縮IDを取り出す。
 function parseBackgroundedId(output) {
   const stripped = output.replace(/\x1b\[[0-9;]*m/g, '');
-  const m = stripped.match(/backgrounded\s*·\s*([0-9a-f]+)\s*·/);
+  // コピーを起動したときは名前が付かず`backgrounded · <id>`で行が終わる。
+  const m = stripped.match(/backgrounded\s*·\s*([0-9a-f]+)\b/);
   return m ? m[1] : null;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// timeoutで子プロセスを殺しても、daemon側ではジョブが既に作られていることがあるため、同じ名前で受付以降に始まったジョブを探す。
+async function findLaunchedJob(cwd, name, startedAt) {
+  try {
+    const { stdout } = await execFileAsync('claude', ['agents', '--json', '--cwd', cwd], { timeout: LAUNCH_TIMEOUT_MS });
+    const found = JSON.parse(stdout)
+      .filter((a) => a.kind === 'background' && a.name === name && Number(a.startedAt) >= startedAt - 1000)
+      .sort((a, b) => b.startedAt - a.startedAt)[0];
+    return found ? found.id : null;
+  } catch {
+    return null;
+  }
+}
+
+async function launchBackground(args, cwd, name) {
+  const startedAt = Date.now();
+  try {
+    const { stdout, stderr } = await execFileAsync('claude', args, { cwd, timeout: LAUNCH_TIMEOUT_MS });
+    return { jobId: parseBackgroundedId(stdout), output: `${stdout}\n${stderr}`, recovered: false };
+  } catch (err) {
+    if (!err.killed) throw err;
+    const jobId = await findLaunchedJob(cwd, name, startedAt);
+    if (!jobId) throw err;
+    return { jobId, output: '', recovered: true };
+  }
+}
+
+async function runClaudeQuietly(args) {
+  try {
+    await execFileAsync('claude', args, { timeout: LAUNCH_TIMEOUT_MS });
+  } catch {
+    // 停止済み・削除済み等の競合は無視する。
+  }
+}
+
+function buildNewSessionPrompt(columnName, groupTitle, text) {
+  return `「${columnName}」の「${groupTitle}」について、以下の指示を実行してください:\n\n${text}`;
+}
+
+// stopを挟むとCLIは答えていないAskUserQuestionを中断扱いにし、素の返信を質問への回答と結び付けないため、質問を添えて送る。
+// 回答待ちのAskUserQuestionはCLIが回答されるまでtranscriptに書かず、state.jsonの`block`にだけ置く（CLI 2.1.291、実機で確認）。
+function pendingQuestionsOf(jobState) {
+  const questions = jobState && jobState.block && jobState.block.questions;
+  return Array.isArray(questions) && questions.length > 0 ? questions : null;
+}
+
+function buildReplyPrompt(jobState, transcriptPath, text) {
+  const pending = pendingQuestionsOf(jobState);
+  let questions;
+  if (pending) {
+    questions = pending.map((q) => q.question).filter(Boolean);
+  } else {
+    let entries;
+    try {
+      entries = parseTranscriptEntries(transcriptPath);
+    } catch {
+      return text;
+    }
+    const last = entries[entries.length - 1];
+    if (!last || last.kind !== 'tool_use' || last.name !== 'AskUserQuestion') return text;
+    questions = [];
+    try {
+      questions = (JSON.parse(last.input).questions || []).map((q) => q.question).filter(Boolean);
+    } catch {
+      // 長すぎて切り詰められたinputは質問文を取り出せない。
+    }
+  }
+  return questions.length ? `直前の質問「${questions.join(' / ')}」への回答: ${text}` : `直前の質問への回答: ${text}`;
 }
 
 function sessionInfoFor(linked) {
   if (!linked) return null;
   const jobState = readJobState(linked.jobId);
   return jobState
-    ? { jobId: linked.jobId, state: jobState.state, tempo: jobState.tempo, detail: jobState.detail, updatedAt: jobState.updatedAt }
-    : { jobId: linked.jobId, state: 'unknown', tempo: null, detail: null, updatedAt: null };
+    ? { jobId: linked.jobId, state: jobState.state, tempo: jobState.tempo, detail: jobState.detail, updatedAt: jobState.updatedAt, questions: pendingQuestionsOf(jobState) }
+    : { jobId: linked.jobId, state: 'unknown', tempo: null, detail: null, updatedAt: null, questions: null };
 }
 
 // セッションの状態がblocked/doneに変わるたびに、その回答（detail要約）を1回だけコメントとして自動追加する。
@@ -941,6 +1072,14 @@ function syncSessionComments(file, sessionsMap) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(commentsFilePath(file), JSON.stringify(commentsMap));
   fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
+}
+
+function syncAllSessionComments() {
+  if (!fs.existsSync(DATA_DIR)) return;
+  for (const name of fs.readdirSync(DATA_DIR)) {
+    const m = name.match(/^sessions-(todo-\d{4}-\d{2}-\d{2})\.json$/);
+    if (m) syncSessionComments(`${m[1]}.md`, readSessionsMap(`${m[1]}.md`));
+  }
 }
 
 function listAllSessions() {
@@ -988,6 +1127,20 @@ function stringifyBlockContent(content) {
     return content.map((c) => (typeof c === 'string' ? c : c.text || '')).join('\n');
   }
   return '';
+}
+
+const transcriptEntriesCache = new Map();
+
+// 稼働中のログは5秒ごとに取得されるため、ファイルが変わっていなければ前回の結果を返して全体の読み直しを避ける。
+function parseTranscriptEntriesCached(jsonlPath) {
+  const { mtimeMs, size } = fs.statSync(jsonlPath);
+  const cached = transcriptEntriesCache.get(jsonlPath);
+  if (cached && cached.mtimeMs === mtimeMs && cached.size === size) return cached.entries;
+  const entries = parseTranscriptEntries(jsonlPath);
+  transcriptEntriesCache.delete(jsonlPath);
+  transcriptEntriesCache.set(jsonlPath, { mtimeMs, size, entries });
+  if (transcriptEntriesCache.size > 20) transcriptEntriesCache.delete(transcriptEntriesCache.keys().next().value);
+  return entries;
 }
 
 // jsonlトランスクリプトの各行から、text/tool_use/tool_result のみを会話ログとして抽出する（thinkingは除外）。
@@ -1421,9 +1574,9 @@ const server = http.createServer(async (req, res) => {
     if (!isValidTodoFile(file)) {
       return sendJson(res, 400, { error: 'invalid file name' });
     }
+    syncAllSessionComments();
     const sessionsMap = readSessionsMap(file);
     rememberTranscriptPaths(file, sessionsMap);
-    syncSessionComments(file, sessionsMap);
     const result = {};
     for (const groupId of Object.keys(sessionsMap)) {
       result[groupId] = sessionInfoFor(sessionsMap[groupId]);
@@ -1444,12 +1597,11 @@ const server = http.createServer(async (req, res) => {
     if (!/^[0-9a-f-]+$/.test(jobId)) {
       return sendJson(res, 400, { error: 'invalid job id' });
     }
-    const jobState = readJobState(jobId);
-    if (!jobState || !jobState.linkScanPath || !fs.existsSync(jobState.linkScanPath)) {
+    const transcriptPath = resolveTranscriptPath(jobId);
+    if (!transcriptPath) {
       return sendJson(res, 404, { error: 'transcript not found' });
     }
-    const entries = parseTranscriptEntries(jobState.linkScanPath);
-    return sendJson(res, 200, { entries });
+    return sendJson(res, 200, { entries: parseTranscriptEntriesCached(transcriptPath) });
   }
 
   if (url.pathname === '/api/costs/monthly' && req.method === 'GET') {
@@ -1528,47 +1680,59 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: 'no matching project directory', columnName });
       }
       const name = `${columnName} ▸ ${groupTitle}`.slice(0, 60);
-      const prompt = `「${columnName}」の「${groupTitle}」について、以下の指示を実行してください:\n\n${trimmed}`;
+      const existingState = existing ? readJobState(existing.jobId) : null;
       // --resumeには短縮jobIdではなくフルセッションUUIDを渡す。短縮IDだと`claude`が曖昧一致とみなし、
       // 非対話実行のはずが対話的なResumeピッカーを開いて固まる（実機で確認済み）。
-      // existingStateがnull＝ジョブが削除済み（`claude rm`等）。この場合は短縮jobIdへの
-      // フォールバックをせず、resumeを諦めて新規セッションとして起動する
-      // （削除済みIDへの--resumeはCLIが曖昧一致とみなし対話的ピッカーで固まるため）。
-      const existingState = existing ? readJobState(existing.jobId) : null;
-      const resumeId = existingState && existingState.sessionId ? existingState.sessionId : null;
-      // --resumeは常に履歴をコピーした別jobIdを起動するため、元ジョブはstopしておき、起動成功後にrmして一覧に残さない。
-      if (resumeId && (existingState.state === 'blocked' || existingState.state === 'done')) {
-        try {
-          await execFileAsync('claude', ['stop', existing.jobId], { timeout: 20000 });
-        } catch {
-          // 停止済み・削除済み等の競合は無視し、resumeの結果に委ねる。
-        }
+      let mode = 'new';
+      let sessionId = null;
+      let transcriptPath = null;
+      if (existingState) {
+        transcriptPath = existingState.linkScanPath || null;
+        sessionId = existingState.sessionId || sessionIdFromTranscriptPath(transcriptPath);
+        if (sessionId) mode = 'reply';
+      } else if (existing && existing.transcriptPath && fs.existsSync(existing.transcriptPath)) {
+        transcriptPath = existing.transcriptPath;
+        sessionId = sessionIdFromTranscriptPath(transcriptPath);
+        if (sessionId) mode = 'revive';
       }
-      const settingArgs = buildLaunchSettingArgs();
-      const args = resumeId
-        ? ['--bg', ...settingArgs, '--resume', resumeId, '-n', name, prompt]
-        : ['--bg', ...settingArgs, '-n', name, prompt];
-      let stdout;
+      const prompt = mode === 'new' ? buildNewSessionPrompt(columnName, groupTitle, trimmed) : buildReplyPrompt(existingState, transcriptPath, trimmed);
+      // `-`で始まる返信（箇条書き等）をCLIがオプションと解釈しないよう`--`で区切る（`--`はコピーの原因にならないことを実機で確認）。
+      // 登録済みのbgセッションへの--resumeにプロンプト以外の引数があると、CLIはコピー（別jobId）を起動する。
+      // 削除済みのセッションには保存済みのオプションが無いため、revive では付けて補う。
+      const args = mode === 'reply'
+        ? ['--bg', '--resume', sessionId, '--', prompt]
+        : mode === 'revive'
+          ? ['--bg', ...buildLaunchSettingArgs(), '--resume', sessionId, '-n', name, '--', prompt]
+          : ['--bg', ...buildLaunchSettingArgs(), '-n', name, '--', prompt];
+      if (mode === 'reply') {
+        await runClaudeQuietly(['stop', existing.jobId]);
+        await sleep(STOP_SETTLE_MS);
+      }
+      let result;
       try {
-        ({ stdout } = await execFileAsync('claude', args, { cwd, timeout: 20000 }));
+        result = await launchBackground(args, cwd, name);
+        if (mode === 'reply' && result.jobId && result.jobId !== existing.jobId && /started a copy/.test(result.output)) {
+          await runClaudeQuietly(['stop', result.jobId]);
+          await runClaudeQuietly(['rm', result.jobId]);
+          await sleep(STOP_SETTLE_MS);
+          result = await launchBackground(args, cwd, name);
+        }
       } catch (err) {
         return sendLaunchFailure(res, err, cwd);
       }
-      const jobId = parseBackgroundedId(stdout);
+      const { jobId, recovered } = result;
       if (!jobId) {
         return sendJson(res, 500, { error: 'could not parse session id from claude output' });
       }
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-      sessionsMap[groupId] = { jobId, name, launchedAt: new Date().toISOString() };
-      fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
-      if (resumeId && jobId !== existing.jobId && !transcriptUsedWorktree(existingState.linkScanPath)) {
-        try {
-          await execFileAsync('claude', ['rm', existing.jobId], { timeout: 20000 });
-        } catch {
-          // 片付けに失敗しても継続先は起動済みなので、旧ジョブが一覧に残るだけに留める。
-        }
+      updateSessionEntry(file, groupId, { jobId, name, launchedAt: new Date().toISOString() });
+      const copied = mode === 'reply' && jobId !== existing.jobId;
+      if (copied && !transcriptUsedWorktree(transcriptPath)) {
+        await runClaudeQuietly(['rm', existing.jobId]);
       }
-      return sendJson(res, 200, { launched: true, jobId });
+      return sendJson(res, 200, {
+        launched: true, jobId, resumed: mode !== 'new',
+        ...(copied ? { copied: true } : {}), ...(recovered ? { recovered: true } : {}),
+      });
     } finally {
       activeLaunchKeys.delete(lockKey);
     }
@@ -1612,11 +1776,11 @@ const server = http.createServer(async (req, res) => {
     if (!/^[0-9a-f-]+$/.test(jobId)) {
       return sendJson(res, 400, { error: 'invalid job id' });
     }
-    const jobState = readJobState(jobId);
-    if (!jobState || !jobState.linkScanPath || !fs.existsSync(jobState.linkScanPath)) {
+    const transcriptPath = resolveTranscriptPath(jobId);
+    if (!transcriptPath) {
       return sendJson(res, 404, { error: 'transcript not found' });
     }
-    const artifacts = listSessionArtifacts(jobState.linkScanPath);
+    const artifacts = listSessionArtifacts(transcriptPath);
     if (url.pathname === '/api/session/artifacts') {
       return sendJson(res, 200, { artifacts });
     }
@@ -1673,20 +1837,23 @@ const server = http.createServer(async (req, res) => {
       fs.writeFileSync(branchedPath, chain.map((obj) => JSON.stringify({ ...obj, sessionId })).join('\n') + '\n');
       const cwd = chain[chain.length - 1].cwd || resolveLaunchCwd(columnName, groupTitle);
       const name = `${columnName} ▸ ${groupTitle}`.slice(0, 60);
-      const prompt = `「${columnName}」の「${groupTitle}」について、以下の指示を実行してください:\n\n${trimmed}`;
-      let stdout;
+      const prompt = buildNewSessionPrompt(columnName, groupTitle, trimmed);
+      let result;
       try {
-        ({ stdout } = await execFileAsync('claude', ['--bg', ...buildLaunchSettingArgs(), '--resume', sessionId, '-n', name, prompt], { cwd, timeout: 20000 }));
+        result = await launchBackground(['--bg', ...buildLaunchSettingArgs(), '--resume', sessionId, '-n', name, '--', prompt], cwd, name);
       } catch (err) {
         return sendLaunchFailure(res, err, cwd);
       }
-      const jobId = parseBackgroundedId(stdout);
+      const { jobId, recovered } = result;
       if (!jobId) {
         return sendJson(res, 500, { error: 'could not parse session id from claude output' });
       }
-      sessionsMap[groupId] = { jobId, name, launchedAt: new Date().toISOString(), branchedFrom: { jobId: existing.jobId, uuid } };
-      fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
-      return sendJson(res, 200, { launched: true, jobId, sessionId });
+      updateSessionEntry(file, groupId, { jobId, name, launchedAt: new Date().toISOString(), branchedFrom: { jobId: existing.jobId, uuid } });
+      // 元ジョブは入力待ちのまま残さない。rmしないのは、元の会話をセッション一覧から見られるようにするため。
+      if (jobState && ['blocked', 'done', 'failed'].includes(jobState.state)) {
+        await runClaudeQuietly(['stop', existing.jobId]);
+      }
+      return sendJson(res, 200, { launched: true, jobId, sessionId, ...(recovered ? { recovered: true } : {}) });
     } finally {
       activeLaunchKeys.delete(lockKey);
     }
