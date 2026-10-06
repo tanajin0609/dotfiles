@@ -1003,8 +1003,9 @@ async function launchBackground(args, cwd, name) {
 async function runClaudeQuietly(args) {
   try {
     await execFileAsync('claude', args, { timeout: LAUNCH_TIMEOUT_MS });
-  } catch {
-    // 停止済み・削除済み等の競合は無視する。
+  } catch (err) {
+    // 停止済み・削除済み等の競合は無視するが、rm 失敗でジョブが残る原因を追えるよう記録する。
+    console.error(`[claude ${args.join(' ')}] failed: ${err.stderr || err.message}`);
   }
 }
 
@@ -1711,7 +1712,9 @@ const server = http.createServer(async (req, res) => {
       let result;
       try {
         result = await launchBackground(args, cwd, name);
-        if (mode === 'reply' && result.jobId && result.jobId !== existing.jobId && /started a copy/.test(result.output)) {
+        // 実機では note を出さずにコピーになったことがあるため、note ではなく jobId の違いで判定する。
+        if (mode === 'reply' && result.jobId && result.jobId !== existing.jobId) {
+          console.error(`[launch] resume of ${existing.jobId} started copy ${result.jobId}; retrying once. output: ${result.output}`);
           await runClaudeQuietly(['stop', result.jobId]);
           await runClaudeQuietly(['rm', result.jobId]);
           await sleep(STOP_SETTLE_MS);
