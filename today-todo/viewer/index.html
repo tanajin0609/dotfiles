@@ -3586,6 +3586,8 @@ async function fetchAndRenderSessionLog(session) {
   }
   if (res.status === 404) {
     renderSessionLogMessage(resolveEmptySessionLogReason(session, res.status), session);
+    // 最初のターンで回答待ちになったジョブはstate.jsonにtranscriptの所在がまだ無いが、質問はblockにある。
+    syncPendingAskUserQuestionOptions(document.getElementById('sessionLogList'), [], session);
     return;
   }
   if (!res.ok) {
