@@ -14,6 +14,8 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
 - AC-SRV-CFG-1: 環境変数 `VIEWER_PORT`・`VIEWER_TODO_DIR`・`VIEWER_DATA_DIR` で、ポート・todoファイルの置き場・
   `data/` の置き場を上書きできる。未指定時の既定値は従来どおり（3131 / `viewer/` の親ディレクトリ / `viewer/data`）。
   プロジェクト解決の基準（`PROJECTS_ROOT`）は `TODO_DIR` の親ディレクトリとする。
+- AC-SRV-CFG-2: `VIEWER_CLAUDE_JOBS_DIR` でClaude Codeのジョブの置き場（既定 `~/.claude/jobs`）を、`VIEWER_STOP_SETTLE_MS` で
+  `claude stop` の後に `--resume` まで待つ時間（既定3000ms。AC-CC2-2）を上書きできる（テスト用）。
 
 ### 1.2 セッション起動の二重防止（H1）
 
@@ -44,8 +46,11 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
   viewerはこのファイルを書き換えない。`override` の未設定項目は空文字。
 - AC-MS-SRV-2: `POST /api/claude-settings` `{ "model", "effort" }` は `data/launch-settings.json` に保存し、保存後の `override` を返す。
   空文字は未設定を表す。`model` は `^[A-Za-z0-9][A-Za-z0-9._\[\]-]{0,63}$`（先頭英数字）、`effort` は `low|medium|high|xhigh|max` 以外なら400。
-- AC-MS-SRV-3: `POST /api/session/launch` は `override` の設定済み項目を `--model <model>`・`--effort <effort>` として
-  `claude --bg` に渡す（`--resume` 時も同様）。未設定の項目のフラグは付けない。
+- AC-MS-SRV-3: `POST /api/session/launch` は新規起動のときだけ `override` の設定済み項目を `--model <model>`・`--effort <effort>` として
+  `claude --bg` に渡す。未設定の項目のフラグは付けない。既存ジョブへの返信（AC-CC2-2）には付けない
+  （CLIは登録済みのbgセッションの `--resume` にプロンプト以外の引数があると、別jobIdのコピーを起動するため）。
+  返信のジョブはCLIが保存した元の `-n`・model・effort・permission-modeのまま動く。
+  ジョブが削除済みで控えたtranscriptから再開するとき（AC-CC2-2）と分岐（AC-BR-SRV-3）は、CLIに保存済みのオプションが無いため付ける。
 
 ### 1.6 トークンのAPI換算コスト（CO）
 
@@ -71,7 +76,22 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
 
 - AC-SL-SRV-1: `GET /api/sessions/all` は `200 { "sessions": [{ "file", "groupId", "name", "jobId", "launchedAt", "state", "tempo", "detail", "updatedAt" }] }`
   を返す。対象は `data/sessions-*.json` の全エントリ（viewerから起動したセッション、完了済みを含む）で、`launchedAt` の新しい順。
-  `state` 以降はAC-H5相当の `sessionInfoFor` と同じ値（ジョブが消えていれば `state: "unknown"`、他は `null`）。
+  `state` 以降はAC-H5相当の `sessionInfoFor` と同じ値（ジョブが消えていれば `state: "unknown"`、他は `null`）。`state` はAC-JS-SRV-1で正規化した値。
+
+### 1.7a ジョブの状態の判定（JS）
+
+`~/.claude/jobs/<jobId>/state.json` はClaude Codeの非公開の内部形式で、`state` だけではAskUserQuestionの回答待ちなどを判別できない。
+
+- AC-JS-SRV-1: viewerはstate.jsonを次の順で `working`（稼働中）・`blocked`（入力待ち）・`done`（完了）・`failed`（失敗）のどれかに正規化し、
+  セッションの状態（`/api/sessions`・`/api/board`・`/api/sessions/all`）、返信の可否（AC-CC2-2）、選択肢の表示（AC-CC3-1）、自動コメント（AC-CC2-3）のすべてで使う。
+  1. `tempo` が `blocked`、または `needs` が空でない → `blocked`（CLI 2.1.291ではAskUserQuestionの回答待ちが `state: "working"` のまま `tempo: "blocked"` になる）
+  2. `state` が `running` で `tempo` が `idle` → `blocked`（worker の異常終了から戻った後、指示を待って止まっている）
+  3. `state` が `working`・`running`・`starting`・`resuming`・`crashed` → `working`
+  4. `state` が `failed`・`error` → `failed`、`stopped` → `done`
+  5. それ以外は `state` の値のまま
+- AC-CC2-3: `GET /api/sessions`・`GET /api/board` は、ジョブが `blocked`/`done` になって `updatedAt` が前回の通知と変わるたびに、
+  その `detail` を `[Claude 確認]`/`[Claude 完了]` のコメントとしてカードに1回だけ追加する。`GET /api/sessions` は表示中以外のtodoファイルの
+  セッションもこの確認の対象にする（開いていないtodoのカードにもコメントが付く）。5秒のポーリングの間に入力待ちから稼働中へ戻ったものは対象外。
 
 ### 1.8 レート制限の使用率（RL）
 
@@ -92,9 +112,16 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-BR-SRV-2: `POST /api/session/branch` `{ "file", "groupId", "columnName", "groupTitle", "uuid", "text" }` は、カードに紐付くジョブの
   transcript（`linkScanPath`、無ければ `transcriptPath`）から、`uuid` の行を起点に `parentUuid` を根までたどった行だけを元の順序で取り出し、
   `sessionId` を新しいUUIDに置き換えて同じディレクトリの `<新UUID>.jsonl` に書き出す。元のtranscriptは変更しない。
+  ジョブが削除済みでも、sessionsに控えた `transcriptPath` があればそれを使う。
 - AC-BR-SRV-3: 書き出し後、最後の行の `cwd` で `claude --bg <model/effort指定> --resume <新UUID> -n <名前> <指示>` を実行し（指示の文面は
-  `/api/session/launch` と同じ形式）、`data/sessions-*.json` の該当カードを新しいジョブ `{ "jobId", "name", "launchedAt", "branchedFrom": { "jobId", "uuid" } }`
-  に置き換えて `200 { "launched": true, "jobId", "sessionId" }` を返す。
+  `/api/session/launch` の新規起動と同じ形式。新UUIDはCLIに未登録なのでフラグを付けてもコピーにならない）、`data/sessions-*.json` の該当カードを新しいジョブ `{ "jobId", "name", "launchedAt", "branchedFrom": { "jobId", "uuid" } }`
+  に置き換えて `200 { "launched": true, "jobId", "sessionId" }` を返す。起動後、元のジョブが `blocked`・`done`・`failed`（AC-JS-SRV-1）なら
+  `claude stop` する（入力待ちのまま残さないため。`claude rm` はせず、セッション一覧から元の会話を見られるようにする。失敗は無視）。
+- AC-BR-SRV-5: `/api/session/launch`・`/api/session/branch` は、`claude` の完了を待った後に `data/sessions-*.json` を読み直し、該当カードのエントリだけを
+  書き換える（待っている間に別カードの起動やポーリングが書いた内容を消さない）。
+- AC-BR-SRV-6: `claude --bg` が時間切れ（20秒）になったときは、`claude agents --json --cwd <cwd>` から、同じ名前で要求の受付以降に始まった
+  backgroundジョブを探す。見つかればそのジョブをカードに紐付けて `200 { "launched": true, "jobId", "recovered": true }` を返し、
+  見つからなければ従来どおり500を返す（ジョブだけが起動して紐付かないまま残るのを防ぐ）。
 - AC-BR-SRV-4: 入力不正（`text` 空を含む）は400、紐付くtranscriptが無い／`uuid` が見つからない場合は404、同じカードの起動処理中は409
   （AC-H1-SRV-1のロックを共有）、`claude` の失敗は500。
 
@@ -104,6 +131,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   ジョブのtranscriptとその `subagents/` 配下で、`Write`・`Edit`・`MultiEdit`・`NotebookEdit` の `tool_use` の `input.file_path`（重複なし、最後に書かれた順の新しい順）のうち、
   拡張子が `.html`/`.htm`（`kind: "html"`）、`.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`/`.svg`（`"image"`）、`.md`（`"markdown"`）のもの。
   ファイル名が `.env` で始まる、またはパスに `secret`・`credential`（大文字小文字無視）を含むものは `locked: true`。jobIdが不正なら400、transcriptが無ければ404。
+  この節と `GET /api/session/transcript` のtranscriptは、ジョブの `linkScanPath`、ジョブが削除済みならsessionsに控えた `transcriptPath`（AC-CO-SRV-5）を使う。
 - AC-AP-SRV-2: `GET /api/session/artifact?jobId=<id>&path=<絶対パス>` は、AC-AP-SRV-1の一覧に載り `locked` でない実在ファイルだけを拡張子に応じた
   `Content-Type` で返す。それ以外は403（ロック・一覧外）または404（ファイルが無い）。HTML・SVGには `Content-Security-Policy: sandbox` を付け、viewerのオリジンで
   スクリプトを実行させない。
@@ -314,12 +342,28 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   カード詳細のコメント欄「Claudeに依頼」と同じ経路（`/api/comments`保存→`/api/session/launch`で
   `--resume`起動）を通り、busy状態（入力欄・ボタンのdisabled、文言変化）・409/失敗時の挙動
   （AC-H1-1・AC-H2-2）もカード詳細と共通にする。
-- AC-CC2-2: 入力待ち（blocked）・完了（done）セッションへの返信は、どちらもプロセスが残っているため、サーバー側が`claude stop`で対象セッションを
-  停止してから`--resume`する。`--resume`は会話履歴を引き継いだ別jobIdのジョブを起動するため、カードのセッションを継続先jobIdへ付け替え、
-  元ジョブは`claude rm`で削除してセッション一覧に残さない（rm失敗は無視）。ただし元ジョブのtranscriptに`EnterWorktree`の呼び出しがある場合は、
-  `claude rm`がworktreeごと消して継続先の作業場所を失わせるため削除しない。返信成功時に開いたままのセッションログダイアログは継続先のセッションへ追従する。稼働中（working）セッションへの返信はコメント保存のみに留め、
-  その旨をトースト通知する（既存のカード詳細と同じ挙動）。ジョブの`state.json`の`state`が`running`の場合も稼働中（working）として扱う
-  （CLIのバージョンにより稼働中の表記が`running`になるため。セッション一覧の`state`もworkingとして返す）。
+- AC-CC2-2: 既存セッションへの返信（`/api/session/launch`、`newSession` なし）は、AC-JS-SRV-1の状態で次のように扱い、同じjobIdのまま会話を続ける。
+  - `working`: `claude` を呼ばずコメント保存のみに留め、`200 { "launched": false, "reason": "already-running" }` を返す（画面はその旨をトースト通知する）。
+  - `blocked`・`done`・`failed`: `claude stop <jobId>` の後に `VIEWER_STOP_SETTLE_MS`（既定3000ms）待ってから、`claude --bg --resume <sessionId> <指示>` を実行する
+    （`-n`・`--model`・`--effort` を付けない。AC-MS-SRV-3）。stop の直後はCLIがまだ稼働中と判定してコピーを起動することがあるため待つ。
+    出力に `started a copy` があれば、コピーを `claude stop`・`claude rm` して同じだけ待ち、1回だけやり直す。やり直してもコピーなら、それをカードに紐付けて
+    `"copied": true` を返し、元ジョブは `claude rm` する（失敗は無視）。ただし元ジョブが `EnterWorktree` を `tool_use` で呼んでいた場合は、
+    `claude rm` がworktreeごと消して継続先の作業場所を失わせるため削除しない。
+  - `/api/session/launch`・`/api/session/branch` はどの起動でも指示の直前に `--` を置く（`-` で始まる指示をCLIがオプションと解釈しないため。`--` は返信のコピーの原因にならない）。
+  - `sessionId` はstate.jsonの `sessionId`、無ければ `linkScanPath` のファイル名（`<UUID>.jsonl`）から取る。
+  - ジョブが削除済み（state.jsonが無い）で、sessionsに控えた `transcriptPath`（AC-CO-SRV-5）が実在すれば、そのファイル名のUUIDで
+    `claude --bg <model/effort指定> --resume <UUID> -n <名前> <指示>` を実行する（stop はしない）。
+  - どれでも `sessionId` が取れなければ新規起動し、`"resumed": false` を返す（画面は「履歴を引き継げなかったため新規セッションで起動しました」と通知する）。
+    resumeしたときは `"resumed": true`。
+  - 返信（resume）の指示には新規起動の前置き（「「列」の「カード」について、以下の指示を実行してください:」）を付けない。transcriptの最後のエントリが
+    `AskUserQuestion` の `tool_use` のときは `直前の質問「<question>」への回答: <返信>` の形にする（stop を挟むとCLIはツール呼び出しを中断扱いにし、
+    素の返信を質問への回答と結び付けないため。質問が複数なら ` / ` で連結）。
+  返信成功時、開いたままのセッションログダイアログは最新のセッション情報へ追従する（AC-CC2-4）。
+- AC-CC2-4: セッションログダイアログを開いている間、5秒ごとのセッション状態の更新（`/api/sessions`）のたびに、ダイアログのカードの最新のセッションを反映する。
+  jobIdが変わっていれば新しいジョブのログへ切り替え、同じなら状態ラベルとAC-CC3-1の選択肢の有無を更新する。ログの再取得は状態にかかわらず5秒ごとに行う
+  （起動直後でstate.jsonがまだ無いジョブや、開いた後に状態が変わったジョブのログも更新される）。
+- AC-CC2-5: セッションの状態ラベルは `working`「稼働中」、`blocked`「入力待ち」、`done`「完了」、`failed`「失敗」、`unknown`「不明（ジョブ削除済み）」とし、
+  それ以外の値は「不明（<値>）」と表示する。
 - AC-BR-2: 返信欄には「このセッションに送信」の隣に「新しいセッションで依頼」ボタンを置く。押すと、ログ中で最後のassistantテキストエントリを
   起点にAC-BR-1と同じ分岐を行う（＝それまでの会話履歴を引き継いだ新しいセッションに返信欄の文を依頼する）。稼働中のセッションでも押せる。
   該当エントリが無いときは「引き継げる会話がまだありません」と通知して何もしない。返信欄が空のときの挙動・busy状態・失敗通知はAC-BR-1と共通。
@@ -330,7 +374,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   `locked` の資料は🔒付きの無効ボタンで表示し開けない。存在しない資料は「削除済み」と表示し開けない。選ぶと同じダイアログ内で、HTMLは `sandbox` 属性付きの
   `iframe`、画像は `img`、Markdownは本文のテキスト（`textContent`、描画なし）で表示する。
 - AC-CC3-1: セッションログの直近のエントリが`AskUserQuestion`ツール呼び出しで、かつセッションが
-  入力待ち（blocked）のときは、質問文と選択肢（ラベル）をボタンとして表示する。ボタンを押すと
+  入力待ち（blocked。AC-JS-SRV-1で `tempo: "blocked"` の回答待ちを含む）のときは、質問文と選択肢（ラベル）をボタンとして表示する。ボタンを押すと
   返信欄にそのラベルを入れて即座に送信する（経路はAC-CC2-1・AC-CC2-2と同じ）。`multiSelect`の
   質問は対象外とし、従来どおり自由入力のみとする（選択肢ボタンを出さない）。送信中は他の返信欄
   コントロールと同様にボタンをdisabledにする。
@@ -340,7 +384,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   描画前にログの最下部付近（残り40px未満）にいたときだけ行い、読み返し中のスクロール位置は保つ。
 - AC-WT-1: セッション起動・返信・分岐がAC-WT-SRV-1の403になった場合、トーストに「<cwd> はClaude Codeで未信頼です。
   `cd <cwd> && claude` で一度承認するか、『信頼して再試行』を押してください」と出す。『信頼して再試行』は押したときだけ
-  `/api/workspace/trust` を呼び、成功したら同じ送信を再試行する。失敗時はAC-H2-2に従い通知する。
+  `/api/workspace/trust` を呼び、成功したら同じ送信を再試行する（「新規セッションで依頼」の再試行も `newSession: true` のまま送る）。失敗時はAC-H2-2に従い通知する。
 - AC-UX4-1: 入力待ち・稼働中のセッションがどちらも0件のとき、左側パネルに「稼働中・入力待ちのセッションはありません」と
   「カード詳細のコメント欄で『Claudeに依頼』すると、ここに表示されます」を表示する。1件以上あれば表示しない。
 - AC-UX6-1: AC-CC3-1の選択肢に `description` があれば、ボタンの直下に可視テキストで表示し、ボタンの `aria-describedby` で紐付ける
