@@ -804,7 +804,8 @@ function syncColumnSection(md, columnName, columnDir) {
   let openCount = 0;
   for (const src of sources) {
     const project = nameCount.get(src.project) > 1 ? `${src.project}（${src.parent}）` : src.project;
-    for (const item of parseBacklogItems(fs.readFileSync(src.path, 'utf-8'))) {
+    const backlogMd = fs.readFileSync(src.path, 'utf-8');
+    for (const item of parseBacklogItems(backlogMd)) {
       const match = existing.find((e) => !e.state && e.agg &&
         ((item.notionId && e.agg.notionId === item.notionId) || (item.first && e.agg.core.startsWith(item.first))));
       if (item.done) {
@@ -819,7 +820,7 @@ function syncColumnSection(md, columnName, columnDir) {
       if (match) match.state = 'replaced';
       openCount++;
       let number = item.number ?? (match && match.agg.number);
-      if (number == null) number = (maxNumber.get(project) || 0) + 1;
+      if (number == null) number = Math.max(maxNumber.get(project) || 0, findMaxTaskNumber(backlogMd)) + 1;
       maxNumber.set(project, Math.max(maxNumber.get(project) || 0, number));
       const text = [item.first, ...item.rest].filter(Boolean).join(' ');
       const notion = item.notionId ? ` <!-- notion:${item.notionId} -->` : '';

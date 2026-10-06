@@ -163,3 +163,16 @@ test('backlog.mdに対応行が無くなった旧行は消し、手書き行・�
     `- [ ] #5 他列に残るタスク → ${other}`, '',
   ].join('\n'));
 });
+
+// AC-CS-SRV-3
+test('番号の無い新規行は、backlog.md の完了済み #N と重ならない番号にする', async () => {
+  const fixture = setupFixture();
+  const todoPath = path.join(fixture.todoDir, fixture.todoFile);
+  fs.writeFileSync(todoPath, '# 2026-01-01\n\n## grp\n');
+  const backlog = writeBacklog(fixture.root, 'grp/seagaia',
+    '# Todo\n\n## 進行中\n\n- [ ] 番号の無い依頼\n- [x] #1 済み\n- [x] #7 済み\n');
+  await withServer(fixture, async (baseUrl) => {
+    assert.equal((await sync(baseUrl, { file: fixture.todoFile, column: 'grp' })).status, 200);
+  });
+  assert.match(fs.readFileSync(todoPath, 'utf-8'), new RegExp(`^- \\[ \\] #8 番号の無い依頼 → ${backlog.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
+});
