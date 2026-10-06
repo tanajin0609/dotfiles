@@ -176,3 +176,31 @@ test('番号の無い新規行は、backlog.md の完了済み #N と重なら�
   });
   assert.match(fs.readFileSync(todoPath, 'utf-8'), new RegExp(`^- \\[ \\] #8 番号の無い依頼 → ${backlog.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
 });
+
+// AC-CS-CLI-1
+test('sync-column サブコマンドはサーバーを起動せずに同じ同期を行い、件数を出して終了する', () => {
+  const { spawnSync } = require('child_process');
+  const fixture = setupFixture();
+  const todoPath = path.join(fixture.todoDir, fixture.todoFile);
+  fs.writeFileSync(todoPath, '# 2026-01-01\n\n## grp\n\n## other\n\n### x\n- [ ] そのまま\n');
+  const backlog = writeBacklog(fixture.root, 'grp/inbox', '## 進行中\n\n- [ ] 新タスク\n');
+  const env = { ...process.env, VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir, VIEWER_PORT: '1' };
+  const run = (...args) => spawnSync(process.execPath, [path.join(__dirname, '..', 'server.js'), 'sync-column', ...args], { env, encoding: 'utf-8', timeout: 10000 });
+
+  const ok = run(fixture.todoFile, 'grp');
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(ok.stdout.trim(), '1');
+  assert.equal(fs.readFileSync(todoPath, 'utf-8'), [
+    '# 2026-01-01', '', '## grp', '', '### inbox',
+    `- [ ] #1 新タスク → ${backlog}`, '',
+    '## other', '', '### x', '- [ ] そのまま', '',
+  ].join('\n'));
+
+  const before = fs.readFileSync(todoPath, 'utf-8');
+  for (const args of [['bad.md', 'grp'], [fixture.todoFile, '../grp'], [fixture.todoFile, 'missing'], ['todo-2000-01-01.md', 'grp']]) {
+    const ng = run(...args);
+    assert.equal(ng.status, 1, args.join(' '));
+    assert.notEqual(ng.stderr, '');
+  }
+  assert.equal(fs.readFileSync(todoPath, 'utf-8'), before);
+});
