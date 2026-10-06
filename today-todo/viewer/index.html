@@ -3632,7 +3632,7 @@ function syncOpenSessionLog() {
     openSessionLogModal(found.column, found.group);
     return;
   }
-  if (JSON.stringify(next) === JSON.stringify(sessionLogSession)) return;
+  // 状態が変わった直後はtranscriptへの書き込みがまだ届いていないことがあるため、状態の変化に関係なく毎回取り直す。
   sessionLogSession = next;
   document.getElementById('sessionLogStateLabel').textContent = sessionStatusLabel(next);
   fetchAndRenderSessionLog(next);
