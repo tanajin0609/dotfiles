@@ -387,39 +387,41 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
 
-  .ghost-btn, .solid-btn, .tool-btn,
-  #globalCommentSubmit, #newCardSubmit, #modalCommentSaveBtn, #modalCommentNewSessionBtn, #modalTaskSubmit, #modelSettingsSubmit,
-  #modalCommentLaunchBtn, #sessionLogReplyBtn, #sessionLogNewSessionBtn, #reloadBtn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    height: 32px; padding: 0 12px; border-radius: var(--radius);
-    font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; cursor: pointer;
-    transition: background-color .12s, border-color .12s, color .12s;
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto;
+    height: 32px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--radius);
+    font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; cursor: pointer;
+    transition: background-color .12s, border-color .12s, color .12s, box-shadow .12s;
   }
+  .btn[hidden] { display: none; }
+  .btn--sm { height: 28px; padding: 0 10px; border-radius: var(--radius-sm); font-size: var(--fs-xs); }
+  .btn--block { width: 100%; height: auto; padding: 8px 10px; }
+  .btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+  .btn:disabled { cursor: not-allowed; opacity: .5; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow-sm); }
+  .btn-primary:not(:disabled):hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+  .btn-primary:not(:disabled):active { background: color-mix(in srgb, var(--accent) 72%, var(--ink)); box-shadow: none; }
   /* 枠線ではなく面で押せることを示す。枠線を持たないボタンはAC-M8-1（枠線3:1）の対象外。 */
-  .ghost-btn {
-    border: 1px solid transparent; background: var(--chip-bg); color: var(--ink);
+  .btn-secondary { background: var(--chip-bg); color: var(--ink); }
+  .btn-secondary:not(:disabled):hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .btn-secondary:not(:disabled):active { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+  .btn-secondary:is([aria-pressed="true"], [aria-expanded="true"]) {
+    background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); border-color: var(--accent);
   }
-  .ghost-btn:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-  .solid-btn, #globalCommentSubmit, #newCardSubmit, #modalTaskSubmit, #modelSettingsSubmit, #modalCommentLaunchBtn, #sessionLogReplyBtn {
-    border: 1px solid transparent; background: var(--accent); color: var(--accent-ink);
-    box-shadow: var(--shadow-sm);
+  .btn-icon { width: 32px; padding: 0; background: transparent; color: var(--ink-sub); }
+  .btn-icon.btn--sm { width: 28px; }
+  .btn-icon.btn--labeled { width: auto; padding: 0 10px; }
+  .btn-icon:not(:disabled):hover { background: var(--hover-bg); color: var(--ink); }
+  .btn-icon:not(:disabled):active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+  .btn-icon:is([aria-pressed="true"], [aria-expanded="true"], .is-starred),
+  .btn-icon:is([aria-pressed="true"], [aria-expanded="true"], .is-starred):not(:disabled):hover { color: var(--accent); background: var(--chip-bg); }
+  .chip { border-color: var(--input-line); border-radius: var(--radius-lg); background: var(--raised); color: var(--ink-sub); font-weight: 500; }
+  .chip:not(:disabled):hover { background: var(--hover-bg); color: var(--ink); }
+  .chip:not(:disabled):active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+  .chip[aria-pressed="true"], .chip[aria-pressed="true"]:not(:disabled):hover {
+    background: var(--chip-bg); border-color: var(--accent); color: var(--accent); font-weight: 600;
   }
-  .solid-btn:hover, #globalCommentSubmit:hover, #newCardSubmit:hover, #modalTaskSubmit:hover, #modelSettingsSubmit:hover,
-  #modalCommentLaunchBtn:hover, #sessionLogReplyBtn:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
-  #modalCommentSaveBtn, #modalCommentNewSessionBtn, #sessionLogNewSessionBtn {
-    border: 1px solid var(--input-line); background: var(--raised); color: var(--ink);
-  }
-  #modalCommentSaveBtn:hover, #modalCommentNewSessionBtn:hover, #sessionLogNewSessionBtn:hover { background: var(--hover-bg); }
-  .tool-btn, #reloadBtn {
-    width: 32px; padding: 0; border: 1px solid transparent; background: transparent; color: var(--ink-sub);
-  }
-  .tool-btn:hover, #reloadBtn:hover { background: var(--hover-bg); color: var(--ink); }
   button:disabled, textarea:disabled, input:disabled { cursor: not-allowed; opacity: .5; }
-  .ghost-btn:disabled:hover { background: var(--chip-bg); }
-  .solid-btn:disabled:hover, #globalCommentSubmit:disabled:hover, #newCardSubmit:disabled:hover,
-  #modalTaskSubmit:disabled:hover, #modalCommentLaunchBtn:disabled:hover, #sessionLogReplyBtn:disabled:hover { background: var(--accent); }
-  #modalCommentSaveBtn:disabled:hover, #modalCommentNewSessionBtn:disabled:hover { background: var(--raised); }
-  .share-btn:disabled:hover { background: transparent; color: var(--ink-sub); }
   .copy-empty-reason { font-size: var(--fs-xs); color: var(--ink-mute); white-space: nowrap; }
   .copy-empty-reason[hidden] { display: none; }
   [data-tip] { position: relative; }
@@ -465,7 +467,6 @@
     color: var(--ink-sub); background: var(--chip-bg); border-radius: 999px; padding: 1px 9px;
   }
   .file-controls { display: flex; align-items: center; gap: 4px; }
-  #fileSelect { font-family: var(--font-mono); font-size: var(--fs-xs); max-width: 200px; }
   #focusColumnSelect { max-width: 170px; }
   .search-field { position: relative; display: flex; align-items: center; }
   .search-field .ico { position: absolute; left: 10px; color: var(--ink-mute); pointer-events: none; }
@@ -558,13 +559,7 @@
   #todayRatio { font-size: var(--fs-xl); letter-spacing: -.02em; line-height: 1.1; }
   .today-strip { display: flex; gap: 2px; overflow: hidden; }
   .today-strip span { flex: 1 1 0; min-width: 2px; height: 6px; border-radius: 3px; }
-  .history-toggle {
-    display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; width: 100%;
-    padding: 8px 10px; border: 1px solid transparent; border-radius: var(--radius); background: var(--chip-bg); cursor: pointer; color: var(--ink-mute);
-  }
-  .history-toggle:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-  .history-caption { font-size: var(--fs-xs); white-space: nowrap; }
-  .history-bars { display: flex; gap: 3px; align-items: flex-end; flex: 1; max-width: 150px; height: 28px; }
+  .history-bars { display: flex; gap: 3px; align-items: flex-end; flex: 1; height: 28px; }
   .history-bars span { flex: 1; border-radius: 2px; min-height: 2px; }
   .rate-limits { display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-xs); color: var(--ink-mute); }
   .rate-limits[hidden] { display: none; }
@@ -610,20 +605,9 @@
   /* ---------- ボードのツールバー ---------- */
   .board-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .board-toolbar .seg-group { display: inline-flex; padding: 2px; border-radius: var(--radius); background: var(--chip-bg); }
-  .board-toolbar .seg-group .ghost-btn { height: 28px; background: transparent; color: var(--ink-sub); }
-  .board-toolbar .seg-group .ghost-btn:hover { background: var(--raised); color: var(--ink); box-shadow: var(--shadow-sm); }
-  #columnJumpSelect { max-width: 180px; }
   .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: -4px; }
   .filter-bar-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-mute); }
   .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .filter-chip {
-    height: 28px; padding: 0 11px; border: 1px solid var(--input-line); border-radius: 999px;
-    background: var(--raised); color: var(--ink-sub); cursor: pointer; font-weight: 500;
-  }
-  .filter-chip:hover { color: var(--ink); background: var(--hover-bg); }
-  .filter-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-  .filter-chip[aria-pressed="true"]::before { content: "✓ "; }
-  .filter-chip[hidden] { display: none; }
   .board-empty { border: 1px dashed var(--ink-faint); border-radius: var(--radius-lg); padding: 24px; text-align: center; }
   .board-empty[hidden] { display: none; }
   .load-error {
@@ -689,13 +673,6 @@
   }
   .column-actions { position: absolute; top: 9px; right: 9px; display: flex; gap: 2px; z-index: 1; }
   .column-wrap.is-menu-open .column-actions { z-index: 5; }
-  .share-btn {
-    min-width: 28px; height: 28px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid transparent; border-radius: var(--radius-sm);
-    background: transparent; color: var(--ink-sub); cursor: pointer; white-space: nowrap; font-weight: 600;
-  }
-  .share-btn:hover { background: var(--hover-bg); color: var(--ink); }
-  .global-comments-head .share-btn { border-color: var(--input-line); }
   .column-menu {
     position: absolute; top: calc(100% + 4px); right: 0; min-width: 240px;
     display: flex; flex-direction: column; padding: 4px;
@@ -719,10 +696,9 @@
   .card-wrap:hover .card-actions, .card-wrap:focus-within .card-actions, .card-wrap.is-menu-open .card-actions { opacity: 1; }
   .card-wrap.is-menu-open .card-actions { z-index: 6; }
   .card-actions:has(.is-starred) { opacity: 1; }
-  .card-action-btn { min-width: 26px; height: 26px; padding: 0 6px; background: var(--raised); }
-  .star-btn.is-starred { color: var(--accent); }
+  .card-actions .btn-icon:not(.is-starred) { background: var(--raised); }
   .card-actions:has(.status-today) { opacity: 1; }
-  .status-btn.status-today { color: var(--accent); }
+  .card-actions .status-today { color: var(--accent); }
   .status-badge { align-self: flex-start; font-size: var(--fs-xs); font-weight: 600; padding: 0 6px; border-radius: 999px; border: 1px solid currentColor; }
   .status-badge.status-today { color: var(--accent); }
   .status-badge.status-hold { color: var(--ink-mute); }
@@ -825,19 +801,9 @@
   .modal-col-label:empty { display: none; }
   .modal-header-text h2 { font-size: var(--fs-lg); font-weight: 700; letter-spacing: -.01em; margin: 6px 0 0; line-height: 1.4; text-wrap: pretty; overflow-wrap: anywhere; }
   .modal-ratio { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); margin-top: 6px; }
-  .modal-header-actions { display: flex; gap: 4px; flex: 0 0 auto; }
-  .modal-header-actions button {
-    height: 32px; min-width: 32px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    border: 1px solid transparent; border-radius: var(--radius);
-    background: transparent; color: var(--ink-sub); cursor: pointer; font-weight: 600;
-  }
-  .modal-header-actions button:hover { background: var(--hover-bg); color: var(--ink); }
-  .modal-header-actions .close-btn { padding: 0; }
-  .status-segment { display: flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .modal-header-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .status-segment { display: flex; gap: 4px; margin-right: 4px; }
   .status-segment[hidden] { display: none; }
-  .modal-header-actions .status-segment button { border-radius: 0; }
-  .modal-header-actions .status-segment button[aria-pressed="true"] { background: var(--hover-bg); color: var(--ink); font-weight: 600; }
-  .modal-header-actions .status-segment button.status-today[aria-pressed="true"] { color: var(--accent); }
   .new-card-form { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; }
   .new-card-form > button { align-self: flex-end; }
 
@@ -867,13 +833,6 @@
   }
   .task-source-path[hidden] { display: none; }
   .focus-task-text { min-width: 0; overflow-wrap: anywhere; }
-  .quote-btn {
-    height: 26px; padding: 0 9px;
-    border: 1px solid var(--input-line); border-radius: var(--radius-sm);
-    background: var(--raised); color: var(--ink-sub);
-    align-self: flex-start; cursor: pointer; white-space: nowrap;
-  }
-  .quote-btn:hover { background: var(--hover-bg); color: var(--ink); }
   .modal-comments { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 18px; }
   .modal-comments-head { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-mute); margin-bottom: 8px; }
   .modal-comment-list { display: flex; flex-direction: column; gap: 6px; max-height: 92px; overflow-y: auto; margin-bottom: 10px; }
@@ -908,7 +867,7 @@
   .log-entry.text.assistant { background: var(--raised); border: 1px solid var(--line); margin-right: 48px; }
   .log-entry.tool_use, .log-entry.tool_result { background: var(--surface); padding: 6px 12px; }
   .log-entry.tool_use .body, .log-entry.tool_result .body { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-mute); }
-  .log-branch-btn { margin-top: 6px; font-size: var(--fs-xs); }
+  .log-entry > .btn-icon { margin-top: 6px; }
   .session-artifacts { display: flex; flex-direction: column; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
   .session-artifacts[hidden] { display: none; }
   .session-artifacts-list { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--fs-xs); }
@@ -927,15 +886,15 @@
   .session-list .meta { color: var(--ink-mute); }
 
   /* ---------- フォーカスモード ---------- */
-  .focus-panel.hidden { display: none; }
   .focus-panel .hidden { display: none; }
-  .focus-panel { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 40px 16px; }
-  .focus-progress { display: flex; align-items: center; gap: 10px; width: min(480px, 100%); }
+  .focus-dialog { width: min(560px, calc(100vw - 32px)); }
+  .focus-panel { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; border-radius: 16px; background: var(--bg); }
+  .focus-progress { display: flex; align-items: center; gap: 10px; width: 100%; }
   .focus-strip { display: flex; gap: 3px; flex: 1; }
   .focus-strip span { flex: 1; height: 4px; border-radius: 2px; }
   .focus-position { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); flex: 0 0 auto; }
   .focus-card {
-    width: min(480px, 100%); background: var(--raised); border: 1px solid var(--line);
+    width: 100%; background: var(--raised); border: 1px solid var(--line);
     border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;
     box-shadow: 0 16px 48px var(--shadow);
   }
@@ -949,8 +908,7 @@
   .focus-task.done { color: var(--ink-mute); }
   .focus-task.done .focus-task-text { text-decoration: line-through; }
   .focus-note { padding: 10px 12px; background: var(--surface); border-radius: var(--radius); font-size: var(--fs-xs); line-height: 1.65; color: var(--ink-mute); }
-  .focus-actions { display: flex; gap: 8px; }
-  #focusNextBtn { flex: 1; }
+  .focus-actions { display: flex; justify-content: space-between; gap: 8px; }
   .focus-next-preview { font-size: var(--fs-xs); color: var(--ink-mute); text-align: center; }
   .focus-end { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 30px 0; text-align: center; }
   .focus-end-message { margin: 0; font-size: var(--fs-md); font-weight: 600; }
@@ -1054,31 +1012,16 @@
       <span class="brand-mark" id="brandMark" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg></span>
       <h1 class="app-title">Today Todo</h1>
       <span class="date-badge" id="dateBadge"></span>
-    </div>
-    <div class="file-controls">
-      <label for="fileSelect" class="sr-only">表示ファイル</label>
-      <select id="fileSelect"></select>
-      <button id="reloadBtn" type="button" aria-label="再読込" data-tip="再読込"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
-    </div>
-    <div class="search-field">
-      <label for="searchInput" class="sr-only">カード名・タスク本文で検索</label>
-      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input id="searchInput" type="search" placeholder="カードを検索" autocomplete="off">
-      <kbd aria-hidden="true">/</kbd>
-    </div>
-    <div class="file-controls">
-      <label for="focusColumnSelect" class="sr-only">フォーカス対象</label>
-      <select id="focusColumnSelect"></select>
-      <button id="focusModeBtn" type="button" class="ghost-btn">フォーカス</button>
+      <button id="reloadBtn" type="button" class="btn btn-icon" aria-label="再読込" data-tip="再読込"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
     </div>
     <div class="hdr-spacer"></div>
     <div class="hdr-tools" role="group" aria-label="ツール">
-      <button id="sessionListBtn" type="button" class="tool-btn" aria-label="viewerから起動したセッションの一覧" data-tip="セッション一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
-      <button id="costBtn" type="button" class="tool-btn" aria-label="トークンのAPI換算コスト（月間）" data-tip="コスト"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.6 0-4.5 1.3-4.5 3.2 0 4.3 9 2.4 9 6.6 0 1.9-1.9 3.2-4.5 3.2-2.2 0-3.9-.9-4.7-2.2"/></svg></button>
-      <button id="modelSettingsBtn" type="button" class="tool-btn" aria-label="Claude Codeのモデル設定（model・effort）" data-tip="モデル設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
+      <button id="sessionListBtn" type="button" class="btn btn-icon" aria-label="viewerから起動したセッションの一覧" data-tip="セッション一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
+      <button id="costBtn" type="button" class="btn btn-icon" aria-label="トークンのAPI換算コスト（月間）" data-tip="コスト"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.6 0-4.5 1.3-4.5 3.2 0 4.3 9 2.4 9 6.6 0 1.9-1.9 3.2-4.5 3.2-2.2 0-3.9-.9-4.7-2.2"/></svg></button>
+      <button id="modelSettingsBtn" type="button" class="btn btn-icon" aria-label="Claude Codeのモデル設定（model・effort）" data-tip="モデル設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
       <span class="hdr-sep" aria-hidden="true"></span>
-      <button id="settingsToggle" type="button" class="tool-btn" popovertarget="settingsPopover" aria-label="表示設定（テーマ・列の初期表示）" data-tip="表示設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
-      <button id="shortcutHelpBtn" type="button" class="tool-btn" aria-label="キーボードショートカット一覧（?）" data-tip="ショートカット"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 17h.01"/></svg></button>
+      <button id="settingsToggle" type="button" class="btn btn-icon" popovertarget="settingsPopover" aria-label="表示設定（テーマ・列の初期表示）" data-tip="表示設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+      <button id="shortcutHelpBtn" type="button" class="btn btn-icon" aria-label="キーボードショートカット一覧（?）" data-tip="ショートカット"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 17h.01"/></svg></button>
     </div>
   </div>
 </header>
@@ -1125,7 +1068,7 @@
     <span class="load-error-title" id="loadErrorMessage"></span>
     <span class="load-error-detail" id="loadErrorDetail"></span>
   </div>
-  <button id="loadErrorRetryBtn" type="button" class="ghost-btn">再試行</button>
+  <button id="loadErrorRetryBtn" type="button" class="btn btn-icon" aria-label="再試行" data-tip="再試行"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
 </div>
 <div id="mainLayout">
   <aside id="globalCommentsPanel" aria-label="今日の進捗とClaudeセッション">
@@ -1141,8 +1084,7 @@
           <span class="today-label">タスク</span>
           <span class="today-ratio" id="todayTaskRatio"></span>
         </div>
-        <button id="historyToggle" type="button" class="history-toggle" popovertarget="historyPopover" aria-label="直近14日の完了数（日別の件数を開く）">
-          <span class="history-caption" aria-hidden="true">直近14日</span>
+        <button id="historyToggle" type="button" class="btn btn-secondary btn--block" popovertarget="historyPopover" aria-label="直近14日の完了数（日別の件数を開く）">
           <span class="history-bars" id="historyBars" aria-hidden="true"></span>
         </button>
       </div>
@@ -1163,38 +1105,49 @@
   </aside>
   <section class="board-area" aria-label="ボード">
     <div class="board-toolbar">
+      <button id="globalCommentsOpenBtn" type="button" class="btn btn-secondary" aria-label="全体コメント" data-tip="全体コメント"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg><span>All</span></button>
       <div class="seg-group">
-        <button id="openAllColumnsBtn" type="button" class="ghost-btn">すべて開く</button>
-        <button id="closeAllColumnsBtn" type="button" class="ghost-btn">すべて閉じる</button>
+        <button id="openAllColumnsBtn" type="button" class="btn btn-icon btn--sm" aria-label="すべて開く" data-tip="すべて開く"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/></svg></button>
+        <button id="closeAllColumnsBtn" type="button" class="btn btn-icon btn--sm" aria-label="すべて閉じる" data-tip="すべて閉じる"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/></svg></button>
       </div>
-      <label for="columnJumpSelect" class="sr-only">列へ移動</label>
-      <select id="columnJumpSelect"><option value="">列へ移動…</option></select>
+      <div class="search-field">
+        <label for="searchInput" class="sr-only">カード名・タスク本文で検索</label>
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="searchInput" type="search" placeholder="カードを検索" autocomplete="off">
+        <kbd aria-hidden="true">/</kbd>
+      </div>
+      <div class="file-controls">
+        <label for="focusColumnSelect" class="sr-only">フォーカス対象</label>
+        <select id="focusColumnSelect"></select>
+        <button id="focusModeBtn" type="button" aria-pressed="false" class="btn btn-icon btn--labeled" aria-label="フォーカス" data-tip="フォーカス"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3"/></svg><span>Focus</span></button>
+      </div>
       <div class="hdr-spacer"></div>
-      <button id="globalCommentsOpenBtn" type="button" class="ghost-btn" aria-label="全体コメントを開く">全体コメント</button>
       <span id="shareAllEmptyReason" class="copy-empty-reason" hidden>コメントがありません</span>
-      <button id="shareAllBtn" type="button" class="solid-btn" aria-describedby="shareAllEmptyReason">全カードのコメントをまとめてコピー</button>
+      <button id="shareAllBtn" type="button" aria-describedby="shareAllEmptyReason" class="btn btn-secondary" aria-label="全カードのコメントをまとめてコピー" data-tip="全カードのコメントをまとめてコピー"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span>All</span></button>
     </div>
     <div class="filter-bar">
       <span class="filter-bar-label" aria-hidden="true">絞り込み</span>
       <div class="filter-chips" id="filterChips" role="group" aria-label="絞り込み（複数選択はすべてを満たすカード）">
-        <button type="button" class="filter-chip" data-filter-id="incomplete" aria-pressed="false">未完了のみ</button>
-        <button type="button" class="filter-chip" data-filter-id="commented" aria-pressed="false">コメントあり</button>
-        <button type="button" class="filter-chip" data-filter-id="working" aria-pressed="false">稼働中</button>
-        <button type="button" class="filter-chip" data-filter-id="blocked" aria-pressed="false">入力待ち</button>
-        <button type="button" class="filter-chip" data-filter-id="addedToday" aria-pressed="false" hidden>今日追加</button>
-        <button type="button" class="filter-chip" data-filter-id="statusToday" aria-pressed="false">今日やる</button>
-        <button type="button" class="filter-chip" data-filter-id="statusNone" aria-pressed="false">未着手</button>
-        <button type="button" class="filter-chip" data-filter-id="statusHold" aria-pressed="false">保留</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="incomplete" aria-pressed="false">未完了のみ</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="commented" aria-pressed="false">コメントあり</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="working" aria-pressed="false">稼働中</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="blocked" aria-pressed="false">入力待ち</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="addedToday" aria-pressed="false" hidden>今日追加</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="statusToday" aria-pressed="false">今日やる</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="statusNone" aria-pressed="false">未着手</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="statusHold" aria-pressed="false">保留</button>
       </div>
     </div>
     <div id="boardFilterEmpty" class="empty-state board-empty" role="status" hidden>条件に一致するカードがありません</div>
     <div id="board"></div>
   </section>
 </div>
-<div id="focusPanel" class="focus-panel hidden">
+<dialog id="focusDialog" class="app-dialog focus-dialog" aria-label="フォーカスモード">
+<div id="focusPanel" class="focus-panel">
   <div class="focus-progress">
     <span class="focus-strip" id="focusStrip"></span>
     <span class="focus-position" id="focusPositionText"></span>
+    <button id="focusCloseBtn" type="button" class="btn btn-icon btn--sm" aria-label="カンバンに戻る（Esc）" data-tip="カンバンに戻る（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div class="focus-card" id="focusCard" tabindex="-1">
     <div class="focus-col-label" id="focusColLabel"></div>
@@ -1202,16 +1155,17 @@
     <div class="focus-tasks" id="focusTasks"></div>
     <div class="focus-note hidden" id="focusNote"></div>
     <div class="focus-actions">
-      <button id="focusLaterBtn" type="button" class="ghost-btn">後で</button>
-      <button id="focusNextBtn" type="button" class="solid-btn">次のカードへ</button>
+      <button id="focusLaterBtn" type="button" class="btn btn-secondary" aria-label="後で" data-tip="後で"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
+      <button id="focusNextBtn" type="button" class="btn btn-secondary" aria-label="次のカードへ" data-tip="次のカードへ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
     </div>
     <div class="focus-next-preview" id="focusNextPreview"></div>
   </div>
   <div id="focusEmpty" class="focus-end hidden" tabindex="-1">
     <p class="focus-end-message" id="focusEndMessage"></p>
-    <button id="focusRestartBtn" type="button" class="solid-btn">もう一周</button>
+    <button id="focusRestartBtn" type="button" class="btn btn-icon" aria-label="もう一周" data-tip="もう一周"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
   </div>
 </div>
+</dialog>
 </main>
 
 <dialog id="cardDialog" class="app-dialog card-panel" aria-labelledby="modalTitle">
@@ -1230,8 +1184,8 @@
       </div>
       <div class="modal-header-actions">
         <div id="modalStatusGroup" class="status-segment" role="group" aria-label="このカードのステータス"></div>
-        <button id="modalStarBtn" type="button" class="star-btn"></button>
-        <button id="modalCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="modalStarBtn" type="button" class="btn btn-icon"></button>
+        <button id="modalCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div id="modalTasks" class="modal-tasks"></div>
@@ -1241,7 +1195,7 @@
         <textarea id="modalTaskInput" rows="1" placeholder="新しいタスクの内容" aria-describedby="modalTaskHint"></textarea>
         <span class="input-hint" id="modalTaskHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
       </div>
-      <button id="modalTaskSubmit" type="button">追加</button>
+      <button id="modalTaskSubmit" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
     <div class="modal-comments">
       <div class="modal-comments-head" id="modalCommentHead">コメント</div>
@@ -1253,9 +1207,9 @@
           <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」／<kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「メモ保存」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
         </div>
         <div class="modal-comment-actions">
-          <button id="modalCommentSaveBtn" type="button">メモ保存</button>
-          <button id="modalCommentLaunchBtn" type="button">Claudeに依頼</button>
-          <button id="modalCommentNewSessionBtn" type="button" title="このカードの既存セッションを引き継がず、新しいセッションで依頼します">新規セッションで依頼</button>
+          <button id="modalCommentSaveBtn" type="button" class="btn btn-icon" aria-label="メモ保存" data-tip="メモ保存"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/><path d="M17.5 3.5l3 3L13 14h-3v-3z"/></svg></button>
+          <button id="modalCommentLaunchBtn" type="button" class="btn btn-primary" aria-label="Claudeに依頼" data-tip="Claudeに依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
+          <button id="modalCommentNewSessionBtn" type="button" class="btn btn-secondary" aria-label="新規セッションで依頼" data-tip="既存セッションを引き継がず新しいセッションで依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
         </div>
       </div>
     </div>
@@ -1270,10 +1224,10 @@
         <code class="doc-path" id="docPath"></code>
       </div>
       <div class="modal-header-actions">
-        <button id="docReviewLaunchBtn" type="button" hidden>コメントをClaudeに依頼</button>
-        <button id="docReviewNewSessionBtn" type="button" title="このカードの既存セッションを引き継がず、新しいセッションで依頼します" hidden>新規セッションで依頼</button>
-        <button id="docQuoteBtn" type="button" title="本文で選択した部分をカードのコメント欄に引用します" hidden>選択部分を引用</button>
-        <button id="docCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="docReviewLaunchBtn" type="button" hidden class="btn btn-primary" aria-label="コメントをClaudeに依頼" data-tip="コメントをClaudeに依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
+        <button id="docReviewNewSessionBtn" type="button" hidden class="btn btn-secondary" aria-label="新規セッションで依頼" data-tip="既存セッションを引き継がず新しいセッションで依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
+        <button id="docQuoteBtn" type="button" hidden class="btn btn-icon" aria-label="選択部分を引用" data-tip="選択部分を引用"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 7c-2.8.8-4.5 2.8-4.5 6v4H10v-4.5H7.5"/><path d="M19 7c-2.8.8-4.5 2.8-4.5 6v4H19v-4.5h-2.5"/></svg></button>
+        <button id="docCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div id="docStatus" class="doc-status" role="status"></div>
@@ -1293,8 +1247,8 @@
         <div class="modal-ratio" id="sessionLogStateLabel"></div>
       </div>
       <div class="modal-header-actions">
-        <button id="sessionArtifactsBtn" type="button" aria-expanded="false" aria-controls="sessionArtifactsPanel">資料</button>
-        <button id="sessionLogCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="sessionArtifactsBtn" type="button" aria-expanded="false" aria-controls="sessionArtifactsPanel" class="btn btn-icon" aria-label="資料" data-tip="資料"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+        <button id="sessionLogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div id="sessionArtifactsPanel" class="session-artifacts" hidden>
@@ -1310,8 +1264,8 @@
           aria-describedby="sessionLogReplyHint"></textarea>
         <span class="input-hint" id="sessionLogReplyHint"><kbd>Enter</kbd> で「このセッションに送信」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
       </div>
-      <button id="sessionLogNewSessionBtn" type="button" title="ここまでの会話履歴を引き継いだ新しいセッションに依頼します">新しいセッションで依頼</button>
-      <button id="sessionLogReplyBtn" type="button">このセッションに送信</button>
+      <button id="sessionLogNewSessionBtn" type="button" class="btn btn-secondary" aria-label="新しいセッションで依頼" data-tip="ここまでの会話を引き継いだ新しいセッションで依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
+      <button id="sessionLogReplyBtn" type="button" class="btn btn-primary" aria-label="このセッションに送信" data-tip="このセッションに送信"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
     </div>
   </div>
 </dialog>
@@ -1323,7 +1277,7 @@
         <h2 id="shortcutDialogTitle">キーボードショートカット</h2>
       </div>
       <div class="modal-header-actions">
-        <button id="shortcutDialogCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="shortcutDialogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div class="shortcut-body">
@@ -1360,7 +1314,7 @@
         <h2 id="costDialogTitle">コスト（月間）</h2>
       </div>
       <div class="modal-header-actions">
-        <button id="costDialogCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="costDialogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div class="new-card-form">
@@ -1377,7 +1331,7 @@
         <h2 id="sessionListDialogTitle">セッション一覧</h2>
       </div>
       <div class="modal-header-actions">
-        <button id="sessionListCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="sessionListCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div class="new-card-form">
@@ -1394,7 +1348,7 @@
         <h2 id="modelSettingsDialogTitle">モデル設定</h2>
       </div>
       <div class="modal-header-actions">
-        <button id="modelSettingsDialogCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="modelSettingsDialogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div class="new-card-form">
@@ -1422,7 +1376,7 @@
           <option value="max">max</option>
         </select>
       </div>
-      <button id="modelSettingsSubmit" type="button">保存</button>
+      <button id="modelSettingsSubmit" type="button" class="btn btn-icon" aria-label="保存" data-tip="保存"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg></button>
     </div>
   </div>
 </dialog>
@@ -1434,7 +1388,7 @@
         <h2 id="newCardDialogTitle">新規カード追加</h2>
       </div>
       <div class="modal-header-actions">
-        <button id="newCardDialogCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="newCardDialogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div class="new-card-form">
@@ -1448,7 +1402,7 @@
         <textarea id="newCardTextInput" rows="2" placeholder="新しいカードの内容を入力" aria-describedby="newCardTextHint"></textarea>
         <span class="input-hint" id="newCardTextHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
       </div>
-      <button id="newCardSubmit" type="button">追加</button>
+      <button id="newCardSubmit" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
   </div>
 </dialog>
@@ -1460,13 +1414,13 @@
         <h2 id="globalCommentsDialogTitle">全体コメント</h2>
       </div>
       <div class="modal-header-actions">
-        <button id="globalCommentsDialogCloseBtn" type="button" class="close-btn" title="Esc" aria-label="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button id="globalCommentsDialogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
     <div class="global-comments-dialog-body">
       <div class="global-comments-head">
         <span id="globalCommentsEmptyReason" class="copy-empty-reason" hidden>コメントがありません</span>
-        <button id="globalCommentsCopyBtn" type="button" class="share-btn" aria-describedby="globalCommentsEmptyReason">全体コメントをコピー</button>
+        <button id="globalCommentsCopyBtn" type="button" aria-describedby="globalCommentsEmptyReason" class="btn btn-icon" aria-label="全体コメントをコピー" data-tip="全体コメントをコピー"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></button>
       </div>
       <div id="globalCommentsList" class="global-comments-list"></div>
       <div class="global-comments-form">
@@ -1475,7 +1429,7 @@
           <textarea id="globalCommentInput" rows="2" placeholder="全体を通してのメモ・コメントを入力（カードの「全体へ引用」で参照を挿入できます）" aria-describedby="globalCommentHint"></textarea>
           <span class="input-hint" id="globalCommentHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
         </div>
-        <button id="globalCommentSubmit" type="button">追加</button>
+        <button id="globalCommentSubmit" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       </div>
     </div>
   </div>
@@ -1917,7 +1871,7 @@ function renderDocReviewControls() {
   const busy = modalGroup && busyCommentsByGroupId.has(modalGroup.id);
   const launch = document.getElementById('docReviewLaunchBtn');
   const fresh = document.getElementById('docReviewNewSessionBtn');
-  launch.textContent = `コメント${count}件をClaudeに依頼`;
+  setButtonLabel(launch, `コメント${count}件をClaudeに依頼`);
   launch.hidden = fresh.hidden = count === 0;
   launch.disabled = fresh.disabled = busy;
 }
@@ -2155,8 +2109,6 @@ function observeHeaderHeight() {
 async function loadFileList() {
   const res = await fetch('/api/files');
   const files = await res.json();
-  const select = document.getElementById('fileSelect');
-  select.innerHTML = files.map(f => `<option value="${f}">${f}</option>`).join('');
   todoFiles = files;
   return files;
 }
@@ -2223,7 +2175,7 @@ function showBoardLoadError(file, response) {
 function hideBoardLoadError() {
   failedBoardFile = null;
   document.getElementById('loadError').hidden = true;
-  if (!focusMode) document.getElementById('mainLayout').classList.remove('hidden');
+  document.getElementById('mainLayout').classList.remove('hidden');
 }
 
 async function fetchBoardMtimeMs(file) {
@@ -2667,7 +2619,7 @@ function updateBoardFilter(applyChange) {
 }
 
 function renderFilterChips() {
-  for (const chip of document.querySelectorAll('#filterChips .filter-chip')) {
+  for (const chip of document.querySelectorAll('#filterChips .chip')) {
     const filterId = chip.dataset.filterId;
     chip.setAttribute('aria-pressed', String(activeFilterIds.has(filterId)));
     if (filterId === 'addedToday') chip.hidden = !previousFileGroupIds;
@@ -2803,11 +2755,6 @@ function buildColumnMenuItems(column) {
       disabledReason: countCardComments(column.groups) === 0 ? 'コメントがありません' : null,
       onSelect: () => copyPrompt(column.name, column.groups.map((g) => ({ column: column.name, group: g }))),
     },
-    {
-      label: '列を再取得',
-      ariaLabel: `${column.name} の列を再取得`,
-      onSelect: () => refreshColumn(column.name),
-    },
   ];
 }
 
@@ -2844,10 +2791,10 @@ function buildActionMenu(menuId, menuLabel, items) {
   return menu;
 }
 
-function buildActionMenuButton(menu, className) {
+function buildActionMenuButton(menu) {
   const menuBtn = document.createElement('button');
   menuBtn.type = 'button';
-  menuBtn.className = className;
+  menuBtn.className = 'btn btn-icon btn--sm';
   menuBtn.textContent = '…';
   menuBtn.setAttribute('aria-label', menu.getAttribute('aria-label'));
   menuBtn.setAttribute('aria-haspopup', 'menu');
@@ -2864,21 +2811,27 @@ function buildColumnActions(column, colIndex) {
   const actions = document.createElement('div');
   actions.className = 'column-actions';
   const menu = buildActionMenu(`col-${colIndex}-menu`, `${column.name} の操作`, buildColumnMenuItems(column));
-  const menuBtn = buildActionMenuButton(menu, 'share-btn');
+  const menuBtn = buildActionMenuButton(menu);
   menuBtn.dataset.focusKey = `column-menu:${column.name}`;
 
   const newCardBtn = document.createElement('button');
   newCardBtn.type = 'button';
-  newCardBtn.className = 'share-btn';
+  newCardBtn.className = 'btn btn-icon btn--sm';
   newCardBtn.textContent = '+';
-  newCardBtn.title = '新規カードを追加';
   newCardBtn.setAttribute('aria-label', `${column.name} にカードを追加`);
+  newCardBtn.dataset.tip = '新規カードを追加';
   newCardBtn.addEventListener('click', () => {
     openNewCardDialog();
     document.getElementById('newCardColumnInput').value = column.name;
     document.getElementById('newCardTextInput').focus();
   });
 
+  const refreshBtn = buildIconButton('reload', `${column.name} の列を再取得`, 'sm');
+  refreshBtn.dataset.tip = '列を再取得';
+  refreshBtn.dataset.focusKey = `column-refresh:${column.name}`;
+  refreshBtn.addEventListener('click', () => refreshColumn(column.name));
+
+  actions.appendChild(refreshBtn);
   actions.appendChild(menuBtn);
   actions.appendChild(newCardBtn);
   actions.appendChild(menu);
@@ -3030,7 +2983,6 @@ function renderBoard() {
   });
   renderedBoardFile = currentFile;
   document.getElementById('boardFilterEmpty').hidden = !(isFiltering && visibleColumnCount === 0);
-  populateColumnJump();
   populateFocusColumnSelect();
   populateNewCardColumnOptions();
   renderSessionPanel();
@@ -3065,25 +3017,9 @@ function populateFocusColumnSelect() {
   if (prev && [...select.options].some((o) => o.value === prev)) select.value = prev;
 }
 
-function populateColumnJump() {
-  const select = document.getElementById('columnJumpSelect');
-  select.innerHTML = '<option value="">列へ移動…</option>' +
-    boardData.columns.map((c, i) => `<option value="col-${i}">${c.name}</option>`).join('');
-}
-
 function populateNewCardColumnOptions() {
   const datalist = document.getElementById('newCardColumnOptions');
   datalist.innerHTML = boardData.columns.map((c) => `<option value="${c.name}">`).join('');
-}
-
-function jumpToColumn(id) {
-  if (!id) return;
-  const details = document.getElementById(id);
-  if (!details) return;
-  details.open = true;
-  const header = details.querySelector('.column-header');
-  header.scrollIntoView({ block: 'start', inline: 'nearest' });
-  header.focus();
 }
 
 function toggleFocusMode() {
@@ -3114,9 +3050,11 @@ function enterFocusMode(target = document.getElementById('focusColumnSelect').va
   focusQueueIds = entries.filter((e) => !e.group.done).map((e) => e.group.id);
   focusIndex = 0;
   focusMode = true;
-  document.getElementById('mainLayout').classList.add('hidden');
-  document.getElementById('focusPanel').classList.remove('hidden');
-  document.getElementById('focusModeBtn').textContent = 'カンバンに戻る';
+  const dialog = document.getElementById('focusDialog');
+  if (!dialog.open) dialog.showModal();
+  attachToastRegionToTopmostDialog();
+  document.getElementById('focusModeBtn').setAttribute('aria-pressed', 'true');
+  setButtonLabel(document.getElementById('focusModeBtn'), 'カンバンに戻る');
   renderFocusCard();
   moveFocusIntoFocusPanel();
   syncUrlHash();
@@ -3126,9 +3064,10 @@ function enterFocusMode(target = document.getElementById('focusColumnSelect').va
 function exitFocusMode() {
   const wasFocusInPanel = document.getElementById('focusPanel').contains(document.activeElement);
   focusMode = false;
-  document.getElementById('mainLayout').classList.remove('hidden');
-  document.getElementById('focusPanel').classList.add('hidden');
-  document.getElementById('focusModeBtn').textContent = 'フォーカス';
+  document.getElementById('focusDialog').close();
+  attachToastRegionToTopmostDialog();
+  document.getElementById('focusModeBtn').setAttribute('aria-pressed', 'false');
+  setButtonLabel(document.getElementById('focusModeBtn'), 'フォーカス');
   if (wasFocusInPanel) document.getElementById('focusModeBtn').focus();
   syncUrlHash();
 }
@@ -3434,8 +3373,9 @@ function renderSessionLogMessage(message, session) {
   if (session) {
     const retryBtn = document.createElement('button');
     retryBtn.type = 'button';
-    retryBtn.className = 'ghost-btn';
-    retryBtn.textContent = '再取得';
+    retryBtn.className = 'btn btn-icon';
+    retryBtn.appendChild(icon('reload'));
+    setButtonLabel(retryBtn, '再取得');
     retryBtn.addEventListener('click', () => fetchAndRenderSessionLog(session));
     box.appendChild(retryBtn);
   }
@@ -3469,7 +3409,7 @@ function buildAskUserQuestionOptions(entry) {
       option.className = 'ask-user-question-option';
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'ghost-btn';
+      btn.className = 'btn btn-secondary';
       btn.textContent = opt.label;
       btn.addEventListener('click', () => answerAskUserQuestion(opt.label));
       option.appendChild(btn);
@@ -3508,9 +3448,10 @@ function buildSessionLogEntryRow(entry) {
   if (entry.kind === 'text' && entry.role === 'assistant' && entry.uuid) {
     const branchBtn = document.createElement('button');
     branchBtn.type = 'button';
-    branchBtn.className = 'log-branch-btn';
+    branchBtn.className = 'btn btn-icon btn--sm';
     branchBtn.dataset.focusKey = `log-branch:${entry.uuid}`;
-    branchBtn.textContent = 'ここから分岐';
+    branchBtn.appendChild(icon('branch'));
+    setButtonLabel(branchBtn, 'ここから分岐');
     branchBtn.disabled = !!(sessionLogGroupId && busyCommentsByGroupId.has(sessionLogGroupId));
     branchBtn.addEventListener('click', () => branchSessionFromEntry(entry.uuid));
     row.appendChild(branchBtn);
@@ -3848,7 +3789,7 @@ function buildCardActions(column, group, orderPosition) {
   const isStarred = starredGroupIds.has(group.id);
   const starBtn = document.createElement('button');
   starBtn.type = 'button';
-  starBtn.className = 'share-btn card-action-btn star-btn' + (isStarred ? ' is-starred' : '');
+  starBtn.className = 'btn btn-icon btn--sm' + (isStarred ? ' is-starred' : '');
   starBtn.dataset.focusKey = `card-star:${group.id}`;
   starBtn.textContent = isStarred ? '★' : '☆';
   starBtn.setAttribute('aria-label', isStarred ? `${main} の★を外す` : `${main} に★を付ける`);
@@ -3857,7 +3798,7 @@ function buildCardActions(column, group, orderPosition) {
     const status = statusOf(group);
     const statusBtn = document.createElement('button');
     statusBtn.type = 'button';
-    statusBtn.className = `share-btn card-action-btn status-btn status-${status || 'none'}`;
+    statusBtn.className = `btn btn-icon btn--sm status-${status || 'none'}`;
     statusBtn.dataset.focusKey = `card-status:${group.id}`;
     statusBtn.textContent = STATUS_ICONS[status];
     statusBtn.setAttribute('aria-label', describeStatusButton(group, `${main} `));
@@ -3867,7 +3808,7 @@ function buildCardActions(column, group, orderPosition) {
   actions.appendChild(starBtn);
   if (!group.done) {
     const menu = buildActionMenu(`card-${group.id}-menu`, `${main} の操作`, buildCardMenuItems(column, group, orderPosition));
-    const menuBtn = buildActionMenuButton(menu, 'share-btn card-action-btn');
+    const menuBtn = buildActionMenuButton(menu);
     menuBtn.dataset.focusKey = `card-menu:${group.id}`;
     actions.appendChild(menuBtn);
     actions.appendChild(menu);
@@ -4212,7 +4153,7 @@ function renderModalStatusButton() {
   segment.replaceChildren(...STATUS_ORDER.map((status) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `status-btn status-${status || 'none'}`;
+    btn.className = `btn btn--sm chip status-${status || 'none'}`;
     btn.textContent = `${STATUS_ICONS[status]} ${STATUS_LABELS[status]}`;
     btn.setAttribute('aria-pressed', String(status === current));
     btn.addEventListener('click', () => {
@@ -4226,8 +4167,8 @@ function renderModalStarButton() {
   if (!modalGroup) return;
   const starBtn = document.getElementById('modalStarBtn');
   const isStarred = starredGroupIds.has(modalGroup.id);
-  starBtn.textContent = isStarred ? '★ 外す' : '☆ 付ける';
-  starBtn.setAttribute('aria-label', isStarred ? 'このカードの★を外す' : 'このカードに★を付ける');
+  starBtn.textContent = isStarred ? '★' : '☆';
+  setButtonLabel(starBtn, isStarred ? '★を外す' : '★を付ける');
   starBtn.classList.toggle('is-starred', isStarred);
 }
 
@@ -4306,8 +4247,9 @@ function buildModalTaskRow(column, group, task) {
     main.appendChild(sourceEl);
     const sourceBtn = document.createElement('button');
     sourceBtn.type = 'button';
-    sourceBtn.className = 'quote-btn';
-    sourceBtn.textContent = '出典';
+    sourceBtn.className = 'btn btn-icon btn--sm';
+    sourceBtn.appendChild(icon('link'));
+    setButtonLabel(sourceBtn, '出典');
     sourceBtn.setAttribute('aria-expanded', 'false');
     sourceBtn.setAttribute('aria-controls', sourceEl.id);
     sourceBtn.addEventListener('click', () => {
@@ -4317,9 +4259,9 @@ function buildModalTaskRow(column, group, task) {
     actions.appendChild(sourceBtn);
     const relatedBtn = document.createElement('button');
     relatedBtn.type = 'button';
-    relatedBtn.className = 'quote-btn';
-    relatedBtn.textContent = '仕様・設計';
-    relatedBtn.title = 'このタスクの変更ディレクトリの資料と大本specを開く';
+    relatedBtn.className = 'btn btn-icon btn--sm';
+    relatedBtn.appendChild(icon('doc'));
+    setButtonLabel(relatedBtn, '仕様・設計');
     relatedBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const changeDoc = [...body.querySelectorAll('a[href]')]
@@ -4332,17 +4274,19 @@ function buildModalTaskRow(column, group, task) {
 
   const quoteBtn = document.createElement('button');
   quoteBtn.type = 'button';
-  quoteBtn.className = 'quote-btn';
-  quoteBtn.textContent = '引用';
+  quoteBtn.className = 'btn btn-icon btn--sm';
+  quoteBtn.appendChild(icon('quote'));
   quoteBtn.setAttribute('aria-label', 'コメント欄に引用を挿入');
+  quoteBtn.dataset.tip = '引用';
   quoteBtn.addEventListener('click', () => insertQuote(task));
   actions.appendChild(quoteBtn);
 
   const globalQuoteBtn = document.createElement('button');
   globalQuoteBtn.type = 'button';
-  globalQuoteBtn.className = 'quote-btn';
-  globalQuoteBtn.textContent = '全体へ引用';
+  globalQuoteBtn.className = 'btn btn-icon btn--sm';
+  globalQuoteBtn.appendChild(icon('quote'));
   globalQuoteBtn.setAttribute('aria-label', '全体コメント欄に列・カード名付きで引用を挿入');
+  globalQuoteBtn.dataset.tip = '全体へ引用';
   globalQuoteBtn.addEventListener('click', () => insertGlobalQuote(column.name, group.title, task));
   actions.appendChild(globalQuoteBtn);
   return row;
@@ -4445,6 +4389,53 @@ async function addTaskToCard(target, text) {
   }
 }
 
+const ICON_PATHS = {
+  reload: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  focus: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3"/>',
+  expand: '<path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/>',
+  collapse: '<path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/>',
+  comment: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
+  copy: '<path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  later: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  next: '<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  doc: '<path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4"/><path d="M8.5 12h7M8.5 16h7"/>',
+  quote: '<path d="M10 7c-2.8.8-4.5 2.8-4.5 6v4H10v-4.5H7.5"/><path d="M19 7c-2.8.8-4.5 2.8-4.5 6v4H19v-4.5h-2.5"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  branch: '<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 8v8"/><path d="M18 8a6 6 0 0 1-6 6H8"/>',
+  send: '<path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  memo: '<path d="M13 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/><path d="M17.5 3.5l3 3L13 14h-3v-3z"/>',
+  check: '<path d="M6 12.5l4 4 8-9"/>',
+};
+
+function icon(name) {
+  const t = document.createElement('template');
+  t.innerHTML = `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+  return t.content.firstChild;
+}
+
+function setButtonLabel(btn, label) {
+  btn.setAttribute('aria-label', label);
+  btn.dataset.tip = label;
+}
+
+function buildIconButton(name, label, size = '') {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `btn btn-icon${size ? ` btn--${size}` : ''}`;
+  btn.appendChild(icon(name));
+  setButtonLabel(btn, label);
+  return btn;
+}
+
+function setBusyLabel(btn, busyLabel, idleLabel) {
+  if (busyLabel) btn.setAttribute('aria-busy', 'true');
+  else btn.removeAttribute('aria-busy');
+  setButtonLabel(btn, busyLabel || idleLabel);
+}
+
 const COMMENT_BUSY_LABELS = { memo: '保存中…', launch: '起動中…' };
 const COMMENT_IDLE_LABELS = { memo: 'メモ保存', launch: 'Claudeに依頼', newSession: '新規セッションで依頼' };
 
@@ -4460,9 +4451,9 @@ function renderModalCommentControls() {
   launchBtn.disabled = isBusy;
   newSessionBtn.disabled = isBusy;
   input.disabled = isBusy;
-  saveBtn.textContent = isBusy && busy.mode === 'memo' ? COMMENT_BUSY_LABELS.memo : COMMENT_IDLE_LABELS.memo;
-  launchBtn.textContent = isBusy && busy.mode === 'launch' ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.launch;
-  newSessionBtn.textContent = isBusy && busy.mode === 'newSession' ? COMMENT_BUSY_LABELS.launch : COMMENT_IDLE_LABELS.newSession;
+  setBusyLabel(saveBtn, isBusy && busy.mode === 'memo' && COMMENT_BUSY_LABELS.memo, COMMENT_IDLE_LABELS.memo);
+  setBusyLabel(launchBtn, isBusy && busy.mode === 'launch' && COMMENT_BUSY_LABELS.launch, COMMENT_IDLE_LABELS.launch);
+  setBusyLabel(newSessionBtn, isBusy && busy.mode === 'newSession' && COMMENT_BUSY_LABELS.launch, COMMENT_IDLE_LABELS.newSession);
 }
 
 // セッションログダイアログの返信欄も、同じbusyCommentsByGroupIdをsessionLogGroupIdで参照するだけなので
@@ -4476,9 +4467,9 @@ function renderSessionLogReplyControls() {
   replyBtn.disabled = isBusy;
   replyInput.disabled = isBusy;
   newSessionBtn.disabled = isBusy;
-  replyBtn.textContent = isBusy && busy.mode === 'launch' ? COMMENT_BUSY_LABELS.launch : 'このセッションに送信';
-  newSessionBtn.textContent = isBusy && busy.mode === 'newSession' ? COMMENT_BUSY_LABELS.launch : '新しいセッションで依頼';
-  for (const btn of document.querySelectorAll('#sessionLogList .ask-user-question-buttons button, #sessionLogList .log-branch-btn')) {
+  setBusyLabel(replyBtn, isBusy && busy.mode === 'launch' && COMMENT_BUSY_LABELS.launch, 'このセッションに送信');
+  setBusyLabel(newSessionBtn, isBusy && busy.mode === 'newSession' && COMMENT_BUSY_LABELS.launch, '新しいセッションで依頼');
+  for (const btn of document.querySelectorAll('#sessionLogList .ask-user-question-buttons button, #sessionLogList [data-focus-key^="log-branch:"]')) {
     btn.disabled = isBusy;
   }
 }
@@ -4707,8 +4698,9 @@ function isTypingTarget(element) {
   return element instanceof HTMLElement && (element.matches('input, textarea, select') || element.isContentEditable);
 }
 
+// フォーカスモード自体もdialogだが、その上でのショートカット（→・Space等）は効かせる。
 function isOverlayOpen() {
-  return !!document.querySelector('dialog[open], :popover-open') || !!openedActionMenu;
+  return !!document.querySelector('dialog[open]:not(#focusDialog), :popover-open') || !!openedActionMenu;
 }
 
 function findFocusedCard() {
@@ -4957,7 +4949,7 @@ async function openModelSettingsDialog() {
 async function saveModelSettings() {
   const button = document.getElementById('modelSettingsSubmit');
   button.disabled = true;
-  button.textContent = '保存中…';
+  setBusyLabel(button, '保存中…');
   try {
     const res = await fetch('/api/claude-settings', {
       method: 'POST',
@@ -4978,7 +4970,7 @@ async function saveModelSettings() {
     });
   } finally {
     button.disabled = false;
-    button.textContent = '保存';
+    setBusyLabel(button, null, '保存');
   }
 }
 
@@ -5107,7 +5099,7 @@ async function init() {
     if (nextQuery === searchQuery) return;
     updateBoardFilter(() => { searchQuery = nextQuery; });
   });
-  for (const chip of document.querySelectorAll('#filterChips .filter-chip')) {
+  for (const chip of document.querySelectorAll('#filterChips .chip')) {
     chip.addEventListener('click', () => updateBoardFilter(() => {
       const filterId = chip.dataset.filterId;
       if (activeFilterIds.has(filterId)) activeFilterIds.delete(filterId);
@@ -5142,24 +5134,17 @@ async function init() {
   });
 
   const files = await loadFileList();
-  const select = document.getElementById('fileSelect');
   if (files.length === 0) {
     document.getElementById('status').textContent = 'todo-*.md が見つかりません';
     return;
   }
   const hashState = readUrlHashState();
-  const isHashFileKnown = !!hashState && files.includes(hashState.file);
-  select.value = isHashFileKnown ? hashState.file : files[0];
-  if (isHashFileKnown) pendingOpenColumnNames = new Set(hashState.openColumnNames);
-  const isLoaded = await loadBoard(select.value);
-  if (isLoaded && isHashFileKnown) restoreUrlViewState(hashState);
+  const isHashFileLatest = !!hashState && hashState.file === files[0];
+  if (isHashFileLatest) pendingOpenColumnNames = new Set(hashState.openColumnNames);
+  const isLoaded = await loadBoard(files[0]);
+  if (isLoaded && isHashFileLatest) restoreUrlViewState(hashState);
 
-  select.addEventListener('change', () => loadBoard(select.value));
-  document.getElementById('reloadBtn').addEventListener('click', () => loadBoard(select.value));
-  document.getElementById('columnJumpSelect').addEventListener('change', (e) => {
-    jumpToColumn(e.target.value);
-    e.target.value = '';
-  });
+  document.getElementById('reloadBtn').addEventListener('click', () => loadBoard(currentFile));
   document.getElementById('shareAllBtn').addEventListener('click', () => {
     const pairs = [];
     for (const column of boardData.columns) {
@@ -5168,6 +5153,11 @@ async function init() {
     copyPrompt('全体', pairs);
   });
   document.getElementById('focusModeBtn').addEventListener('click', toggleFocusMode);
+  document.getElementById('focusCloseBtn').addEventListener('click', exitFocusMode);
+  document.getElementById('focusDialog').addEventListener('cancel', (e) => {
+    e.preventDefault();
+    exitFocusMode();
+  });
   // マウスで押した後もSpace（チェック）が効くよう、ポインター操作のときだけボタンからフォーカスを外す。
   document.getElementById('focusLaterBtn').addEventListener('click', (e) => {
     deferFocusCard();
