@@ -3272,7 +3272,9 @@ function sessionStatusLabel(session) {
   if (session.state === 'working') return '稼働中';
   if (session.state === 'blocked') return '入力待ち';
   if (session.state === 'done') return '完了';
-  return session.state || '不明';
+  if (session.state === 'failed') return '失敗';
+  if (session.state === 'unknown') return '不明（ジョブ削除済み）';
+  return session.state ? `不明（${session.state}）` : '不明';
 }
 
 function buildSessionStateMarker(state) {
@@ -3400,6 +3402,7 @@ function buildSessionCard(column, group) {
 
 let sessionLogTimer = null;
 let sessionLogJobId = null;
+let sessionLogSession = null;
 let latestBranchableUuid = null;
 let sessionLogGroupId = null;
 let sessionLogFocusReturn = null;
@@ -3522,6 +3525,14 @@ function buildPendingAskUserQuestionOptions(entries, session) {
   return isPendingAskUserQuestion ? buildAskUserQuestionOptions(lastEntry) : null;
 }
 
+// 5秒ごとに呼ばれるため、表示済みの選択肢は作り直さない（押そうとしているボタンのフォーカスを落とさない）。
+function syncPendingAskUserQuestionOptions(list, entries, session) {
+  const shown = list.querySelector(':scope > .ask-user-question-options');
+  const shouldShow = entries.length > 0 && !!buildPendingAskUserQuestionOptions(entries, session);
+  if (shown && !shouldShow) shown.remove();
+  if (!shown && shouldShow) list.appendChild(buildPendingAskUserQuestionOptions(entries, session));
+}
+
 // 稼働中は5秒ごとに呼ばれるため、毎回作り直すと読み返し中のスクロール位置とフォーカスが失われる。
 function renderSessionLogEntries(entries, session) {
   const list = document.getElementById('sessionLogList');
@@ -3529,7 +3540,10 @@ function renderSessionLogEntries(entries, session) {
   const renderedKeys = renderedSessionLogEntryKeys;
   const canAppend = !!renderedKeys && renderedKeys.length <= entryKeys.length &&
     renderedKeys.every((key, index) => key === entryKeys[index]);
-  if (canAppend && renderedKeys.length === entryKeys.length) return;
+  if (canAppend && renderedKeys.length === entryKeys.length) {
+    syncPendingAskUserQuestionOptions(list, entries, session);
+    return;
+  }
   const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
   const shouldFollow = !renderedKeys || distanceFromBottom < SESSION_LOG_FOLLOW_MARGIN_PX;
   if (canAppend) {
@@ -3541,8 +3555,7 @@ function renderSessionLogEntries(entries, session) {
     list.replaceChildren(...entries.map((entry) => buildSessionLogEntryRow(entry)));
     restoreFocusReturn(focusReturn);
   }
-  const options = buildPendingAskUserQuestionOptions(entries, session);
-  if (options) list.appendChild(options);
+  syncPendingAskUserQuestionOptions(list, entries, session);
   renderedSessionLogEntryKeys = entryKeys;
   const latestBranchable = entries.findLast((entry) => entry.kind === 'text' && entry.role === 'assistant' && entry.uuid);
   latestBranchableUuid = latestBranchable ? latestBranchable.uuid : null;
@@ -3601,11 +3614,28 @@ function openSessionLogModal(column, group) {
   if (!wasOpen) dialog.showModal();
   attachToastRegionToTopmostDialog();
   if (!wasOpen) document.getElementById('sessionLogCloseBtn').focus();
+  sessionLogSession = session;
   fetchAndRenderSessionLog(session);
   if (sessionLogTimer) clearInterval(sessionLogTimer);
-  sessionLogTimer = session.state === 'working'
-    ? setInterval(() => fetchAndRenderSessionLog(session), 5000)
-    : null;
+  // 起動直後でまだstate.jsonの無いジョブや、開いた後に状態が変わるジョブがあるため、状態にかかわらず回す。
+  sessionLogTimer = setInterval(() => fetchAndRenderSessionLog(sessionLogSession), 5000);
+}
+
+// refreshSessionsの結果を開いているログダイアログへ反映する（jobIdが変われば継続先へ切り替える）。
+function syncOpenSessionLog() {
+  const dialog = document.getElementById('sessionLogDialog');
+  if (!dialog.open || !sessionLogGroupId) return;
+  const found = findGroupById(sessionLogGroupId);
+  if (!found || !found.group.session) return;
+  const next = found.group.session;
+  if (next.jobId !== sessionLogJobId) {
+    openSessionLogModal(found.column, found.group);
+    return;
+  }
+  if (JSON.stringify(next) === JSON.stringify(sessionLogSession)) return;
+  sessionLogSession = next;
+  document.getElementById('sessionLogStateLabel').textContent = sessionStatusLabel(next);
+  fetchAndRenderSessionLog(next);
 }
 
 function resetSessionArtifacts() {
@@ -3691,6 +3721,7 @@ function closeSessionLogModal() {
 function onSessionLogDialogClosed() {
   resetSessionArtifacts();
   sessionLogJobId = null;
+  sessionLogSession = null;
   sessionLogGroupId = null;
   renderedSessionLogEntryKeys = null;
   latestBranchableUuid = null;
@@ -3717,6 +3748,7 @@ async function refreshSessions() {
     }
   }
   if (changed) renderBoard();
+  syncOpenSessionLog();
 }
 
 function splitGroupTitle(title) {
@@ -4579,11 +4611,13 @@ function retryCardSessionLaunch(target, text, launchOptions) {
 
 async function launchCardSession(target, text, launchOptions = {}) {
   const { file, groupId, columnName, groupTitle } = target;
+  const before = file === currentFile ? findGroupById(groupId) : null;
+  const hadSession = !!(before && before.group.session) && launchOptions.newSession !== true;
   const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text, newSession: launchOptions.newSession === true });
   if (response.status === 409) {
     showToast('このカードは起動処理中です（コメントは保存しました）');
   } else if (isUntrustedWorkspace(response)) {
-    showUntrustedWorkspaceToast(response.data.cwd, () => retryCardSessionLaunch(target, text));
+    showUntrustedWorkspaceToast(response.data.cwd, () => retryCardSessionLaunch(target, text, launchOptions));
   } else if (!response.ok) {
     showFailureToast(
       `セッション起動に失敗しました（コメントは保存済み）: ${formatFailureReason(response)}`,
@@ -4592,14 +4626,14 @@ async function launchCardSession(target, text, launchOptions = {}) {
   } else if (response.data.launched === false) {
     showToast('このカードは既にセッションが稼働中です（コメントのみ保存しました）');
   } else {
-    showToast(`セッションを起動しました（id: ${response.data.jobId}）`);
-    await refreshSessions();
-    // --resumeでの継続はjobIdが変わるため、ログダイアログを開いたままなら継続先へ追従させる。
-    const sessionLogDialogEl = document.getElementById('sessionLogDialog');
-    if (sessionLogDialogEl.open && sessionLogGroupId === groupId) {
-      const found = file === currentFile ? findGroupById(groupId) : null;
-      if (found && found.group.session) openSessionLogModal(found.column, found.group);
+    if (hadSession && response.data.resumed === false) {
+      showToast(`履歴を引き継げなかったため新規セッションで起動しました（id: ${response.data.jobId}）`);
+    } else if (response.data.copied) {
+      showToast(`セッションが停止しきらず、履歴を引き継いだ別のセッションで起動しました（id: ${response.data.jobId}）`);
+    } else {
+      showToast(`セッションを起動しました（id: ${response.data.jobId}）`);
     }
+    await refreshSessions();
   }
 }
 
