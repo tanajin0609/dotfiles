@@ -142,7 +142,7 @@ test('別groupIdまたは別fileへの同時起動要求はロックの影響を
   }
 });
 
-// AC-CC2-2（--resumeは別jobIdで継続するため、元ジョブをrmして一覧に残さない）
+// AC-CC2-2（resume がコピーになったときは、元ジョブをrmして一覧に残さない）
 async function launchResumeFromBlocked({ transcriptLines }) {
   const fixture = setupFixture();
   const jobId = crypto.randomBytes(16).toString('hex');
@@ -184,7 +184,7 @@ test('入力待ち(blocked)セッションへの再起動は、stop→--resume�
   assert.equal(res.body.jobId, resumedJobId);
   assert.equal(calls.length, 3);
   assert.equal(calls[0], `stop ${jobId}`);
-  assert.match(calls[1], /^--bg --resume full-session-uuid-0001 -n /);
+  assert.match(calls[1], /^--bg --resume full-session-uuid-0001 -- /);
   assert.equal(calls[2], `rm ${jobId}`);
   assert.equal(sessionsMap['group-a'].jobId, resumedJobId);
 });
@@ -253,7 +253,7 @@ test('完了済み(done)セッションへの再起動も、stopしてから--re
     const calls = fs.readFileSync(callLog, 'utf-8').trim().split('\n');
     assert.equal(calls.length, 2, 'stopと--resumeの2回呼ばれること');
     assert.equal(calls[0].trim(), `stop ${jobId}`);
-    assert.match(calls[1], /^--bg --resume full-session-uuid-0002 -n /);
+    assert.match(calls[1], /^--bg --resume full-session-uuid-0002 -- /);
   } finally {
     await server.stop();
     fs.rmSync(jobDir, { recursive: true, force: true });
