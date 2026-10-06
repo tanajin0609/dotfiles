@@ -886,15 +886,15 @@
   .session-list .meta { color: var(--ink-mute); }
 
   /* ---------- フォーカスモード ---------- */
-  .focus-panel.hidden { display: none; }
   .focus-panel .hidden { display: none; }
-  .focus-panel { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 40px 16px; }
-  .focus-progress { display: flex; align-items: center; gap: 10px; width: min(480px, 100%); }
+  .focus-dialog { width: min(560px, calc(100vw - 32px)); }
+  .focus-panel { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; border-radius: 16px; background: var(--bg); }
+  .focus-progress { display: flex; align-items: center; gap: 10px; width: 100%; }
   .focus-strip { display: flex; gap: 3px; flex: 1; }
   .focus-strip span { flex: 1; height: 4px; border-radius: 2px; }
   .focus-position { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); flex: 0 0 auto; }
   .focus-card {
-    width: min(480px, 100%); background: var(--raised); border: 1px solid var(--line);
+    width: 100%; background: var(--raised); border: 1px solid var(--line);
     border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;
     box-shadow: 0 16px 48px var(--shadow);
   }
@@ -1142,10 +1142,12 @@
     <div id="board"></div>
   </section>
 </div>
-<div id="focusPanel" class="focus-panel hidden">
+<dialog id="focusDialog" class="app-dialog focus-dialog" aria-label="フォーカスモード">
+<div id="focusPanel" class="focus-panel">
   <div class="focus-progress">
     <span class="focus-strip" id="focusStrip"></span>
     <span class="focus-position" id="focusPositionText"></span>
+    <button id="focusCloseBtn" type="button" class="btn btn-icon btn--sm" aria-label="カンバンに戻る（Esc）" data-tip="カンバンに戻る（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div class="focus-card" id="focusCard" tabindex="-1">
     <div class="focus-col-label" id="focusColLabel"></div>
@@ -1163,6 +1165,7 @@
     <button id="focusRestartBtn" type="button" class="btn btn-icon" aria-label="もう一周" data-tip="もう一周"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
   </div>
 </div>
+</dialog>
 </main>
 
 <dialog id="cardDialog" class="app-dialog card-panel" aria-labelledby="modalTitle">
@@ -2172,7 +2175,7 @@ function showBoardLoadError(file, response) {
 function hideBoardLoadError() {
   failedBoardFile = null;
   document.getElementById('loadError').hidden = true;
-  if (!focusMode) document.getElementById('mainLayout').classList.remove('hidden');
+  document.getElementById('mainLayout').classList.remove('hidden');
 }
 
 async function fetchBoardMtimeMs(file) {
@@ -3047,8 +3050,9 @@ function enterFocusMode(target = document.getElementById('focusColumnSelect').va
   focusQueueIds = entries.filter((e) => !e.group.done).map((e) => e.group.id);
   focusIndex = 0;
   focusMode = true;
-  document.getElementById('mainLayout').classList.add('hidden');
-  document.getElementById('focusPanel').classList.remove('hidden');
+  const dialog = document.getElementById('focusDialog');
+  if (!dialog.open) dialog.showModal();
+  attachToastRegionToTopmostDialog();
   document.getElementById('focusModeBtn').setAttribute('aria-pressed', 'true');
   setButtonLabel(document.getElementById('focusModeBtn'), 'カンバンに戻る');
   renderFocusCard();
@@ -3060,8 +3064,8 @@ function enterFocusMode(target = document.getElementById('focusColumnSelect').va
 function exitFocusMode() {
   const wasFocusInPanel = document.getElementById('focusPanel').contains(document.activeElement);
   focusMode = false;
-  document.getElementById('mainLayout').classList.remove('hidden');
-  document.getElementById('focusPanel').classList.add('hidden');
+  document.getElementById('focusDialog').close();
+  attachToastRegionToTopmostDialog();
   document.getElementById('focusModeBtn').setAttribute('aria-pressed', 'false');
   setButtonLabel(document.getElementById('focusModeBtn'), 'フォーカス');
   if (wasFocusInPanel) document.getElementById('focusModeBtn').focus();
@@ -4694,8 +4698,9 @@ function isTypingTarget(element) {
   return element instanceof HTMLElement && (element.matches('input, textarea, select') || element.isContentEditable);
 }
 
+// フォーカスモード自体もdialogだが、その上でのショートカット（→・Space等）は効かせる。
 function isOverlayOpen() {
-  return !!document.querySelector('dialog[open], :popover-open') || !!openedActionMenu;
+  return !!document.querySelector('dialog[open]:not(#focusDialog), :popover-open') || !!openedActionMenu;
 }
 
 function findFocusedCard() {
@@ -5148,6 +5153,11 @@ async function init() {
     copyPrompt('全体', pairs);
   });
   document.getElementById('focusModeBtn').addEventListener('click', toggleFocusMode);
+  document.getElementById('focusCloseBtn').addEventListener('click', exitFocusMode);
+  document.getElementById('focusDialog').addEventListener('cancel', (e) => {
+    e.preventDefault();
+    exitFocusMode();
+  });
   // マウスで押した後もSpace（チェック）が効くよう、ポインター操作のときだけボタンからフォーカスを外す。
   document.getElementById('focusLaterBtn').addEventListener('click', (e) => {
     deferFocusCard();
