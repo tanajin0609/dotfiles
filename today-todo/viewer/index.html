@@ -3519,7 +3519,11 @@ function buildSessionLogEntryRow(entry) {
 }
 
 function buildPendingAskUserQuestionOptions(entries, session) {
+  if (session && session.state === 'blocked' && Array.isArray(session.questions)) {
+    return buildAskUserQuestionOptions({ input: JSON.stringify({ questions: session.questions }) });
+  }
   const lastEntry = entries[entries.length - 1];
+  if (!lastEntry) return null;
   const isPendingAskUserQuestion = lastEntry.kind === 'tool_use' && lastEntry.name === 'AskUserQuestion' &&
     session && session.state === 'blocked';
   return isPendingAskUserQuestion ? buildAskUserQuestionOptions(lastEntry) : null;
@@ -3528,7 +3532,7 @@ function buildPendingAskUserQuestionOptions(entries, session) {
 // 5秒ごとに呼ばれるため、表示済みの選択肢は作り直さない（押そうとしているボタンのフォーカスを落とさない）。
 function syncPendingAskUserQuestionOptions(list, entries, session) {
   const shown = list.querySelector(':scope > .ask-user-question-options');
-  const shouldShow = entries.length > 0 && !!buildPendingAskUserQuestionOptions(entries, session);
+  const shouldShow = !!buildPendingAskUserQuestionOptions(entries, session);
   if (shown && !shouldShow) shown.remove();
   if (!shown && shouldShow) list.appendChild(buildPendingAskUserQuestionOptions(entries, session));
 }

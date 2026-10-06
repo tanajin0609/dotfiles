@@ -1013,20 +1013,32 @@ function buildNewSessionPrompt(columnName, groupTitle, text) {
 }
 
 // stopを挟むとCLIは答えていないAskUserQuestionを中断扱いにし、素の返信を質問への回答と結び付けないため、質問を添えて送る。
-function buildReplyPrompt(transcriptPath, text) {
-  let entries;
-  try {
-    entries = parseTranscriptEntries(transcriptPath);
-  } catch {
-    return text;
-  }
-  const last = entries[entries.length - 1];
-  if (!last || last.kind !== 'tool_use' || last.name !== 'AskUserQuestion') return text;
-  let questions = [];
-  try {
-    questions = (JSON.parse(last.input).questions || []).map((q) => q.question).filter(Boolean);
-  } catch {
-    // 長すぎて切り詰められたinputは質問文を取り出せない。
+// 回答待ちのAskUserQuestionはCLIが回答されるまでtranscriptに書かず、state.jsonの`block`にだけ置く（CLI 2.1.291、実機で確認）。
+function pendingQuestionsOf(jobState) {
+  const questions = jobState && jobState.block && jobState.block.questions;
+  return Array.isArray(questions) && questions.length > 0 ? questions : null;
+}
+
+function buildReplyPrompt(jobState, transcriptPath, text) {
+  const pending = pendingQuestionsOf(jobState);
+  let questions;
+  if (pending) {
+    questions = pending.map((q) => q.question).filter(Boolean);
+  } else {
+    let entries;
+    try {
+      entries = parseTranscriptEntries(transcriptPath);
+    } catch {
+      return text;
+    }
+    const last = entries[entries.length - 1];
+    if (!last || last.kind !== 'tool_use' || last.name !== 'AskUserQuestion') return text;
+    questions = [];
+    try {
+      questions = (JSON.parse(last.input).questions || []).map((q) => q.question).filter(Boolean);
+    } catch {
+      // 長すぎて切り詰められたinputは質問文を取り出せない。
+    }
   }
   return questions.length ? `直前の質問「${questions.join(' / ')}」への回答: ${text}` : `直前の質問への回答: ${text}`;
 }
@@ -1035,8 +1047,8 @@ function sessionInfoFor(linked) {
   if (!linked) return null;
   const jobState = readJobState(linked.jobId);
   return jobState
-    ? { jobId: linked.jobId, state: jobState.state, tempo: jobState.tempo, detail: jobState.detail, updatedAt: jobState.updatedAt }
-    : { jobId: linked.jobId, state: 'unknown', tempo: null, detail: null, updatedAt: null };
+    ? { jobId: linked.jobId, state: jobState.state, tempo: jobState.tempo, detail: jobState.detail, updatedAt: jobState.updatedAt, questions: pendingQuestionsOf(jobState) }
+    : { jobId: linked.jobId, state: 'unknown', tempo: null, detail: null, updatedAt: null, questions: null };
 }
 
 // セッションの状態がblocked/doneに変わるたびに、その回答（detail要約）を1回だけコメントとして自動追加する。
@@ -1683,7 +1695,7 @@ const server = http.createServer(async (req, res) => {
         sessionId = sessionIdFromTranscriptPath(transcriptPath);
         if (sessionId) mode = 'revive';
       }
-      const prompt = mode === 'new' ? buildNewSessionPrompt(columnName, groupTitle, trimmed) : buildReplyPrompt(transcriptPath, trimmed);
+      const prompt = mode === 'new' ? buildNewSessionPrompt(columnName, groupTitle, trimmed) : buildReplyPrompt(existingState, transcriptPath, trimmed);
       // `-`で始まる返信（箇条書き等）をCLIがオプションと解釈しないよう`--`で区切る（`--`はコピーの原因にならないことを実機で確認）。
       // 登録済みのbgセッションへの--resumeにプロンプト以外の引数があると、CLIはコピー（別jobId）を起動する。
       // 削除済みのセッションには保存済みのオプションが無いため、revive では付けて補う。

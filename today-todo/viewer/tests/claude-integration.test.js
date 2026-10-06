@@ -248,6 +248,26 @@ test('AskUserQuestion の回答待ち（working＋tempo=blocked）には返信�
   }
 });
 
+test('回答待ちの質問が transcript に無くても state.json の block から questions を返し、返信に質問を添える', async () => {
+  const t = await setup();
+  const sid = crypto.randomUUID();
+  const transcript = t.writeTranscript(sid, [{ type: 'user', uuid: 'u1', message: { content: '2択で質問して' } }]);
+  const questions = [{ question: 'どちらにしますか？', options: [{ label: 'りんご' }, { label: 'みかん' }] }];
+  t.writeJob('aaaa6667', { state: 'working', tempo: 'blocked', needs: 'answer: どちらにしますか？', block: { questions }, sessionId: sid, linkScanPath: transcript, updatedAt: 'x1' });
+  t.writeSessions({ 'group-a': linked('aaaa6667') });
+  const server = await t.start();
+  try {
+    const sessions = await (await fetch(`${server.baseUrl}/api/sessions?file=${FILE}`)).json();
+    assert.equal(sessions['group-a'].state, 'blocked');
+    assert.deepEqual(sessions['group-a'].questions, questions);
+    const res = await postJson(server.baseUrl, '/api/session/launch', payload({ text: 'りんご' }));
+    assert.equal(res.body.jobId, 'aaaa6667');
+    assert.deepEqual(readPrompts(t.callLog), ['直前の質問「どちらにしますか？」への回答: りんご']);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('crashed・resuming のジョブへの返信は稼働中として扱い、claude を呼ばない', async () => {
   const t = await setup();
   t.writeJob('aaaa7777', { state: 'resuming', sessionId: crypto.randomUUID() });

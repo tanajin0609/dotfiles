@@ -372,8 +372,10 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-AP-1: セッションログのヘッダーに「資料」ボタンを置き、そのセッションが書いた資料（AC-AP-SRV-1）の一覧を開く。0件なら「このセッションが書いた資料はありません」。
   `locked` の資料は🔒付きの無効ボタンで表示し開けない。存在しない資料は「削除済み」と表示し開けない。選ぶと同じダイアログ内で、HTMLは `sandbox` 属性付きの
   `iframe`、画像は `img`、Markdownは本文のテキスト（`textContent`、描画なし）で表示する。
-- AC-CC3-1: セッションログの直近のエントリが`AskUserQuestion`ツール呼び出しで、かつセッションが
-  入力待ち（blocked。AC-JS-SRV-1で `tempo: "blocked"` の回答待ちを含む）のときは、質問文と選択肢（ラベル）をボタンとして表示する。ボタンを押すと
+- AC-CC3-1: セッションが入力待ち（blocked。AC-JS-SRV-1で `tempo: "blocked"` の回答待ちを含む）で、回答待ちの`AskUserQuestion`があるときは、
+  質問文と選択肢（ラベル）をボタンとして表示する。CLI 2.1.291は回答されるまでその`tool_use`をtranscriptに書かず、state.jsonの
+  `block.questions` にだけ置くため、質問は `GET /api/sessions` などのセッション情報の `questions`（state.jsonの `block.questions`。無ければ `null`）から取る。
+  `questions` が無いときは、従来どおりログの直近のエントリが`AskUserQuestion`ツール呼び出しならその入力を使う。ボタンを押すと
   返信欄にそのラベルを入れて即座に送信する（経路はAC-CC2-1・AC-CC2-2と同じ）。`multiSelect`の
   質問は対象外とし、従来どおり自由入力のみとする（選択肢ボタンを出さない）。送信中は他の返信欄
   コントロールと同様にボタンをdisabledにする。
