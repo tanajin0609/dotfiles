@@ -410,6 +410,7 @@
   }
   .btn-icon { width: 32px; padding: 0; background: transparent; color: var(--ink-sub); }
   .btn-icon.btn--sm { width: 28px; }
+  .btn-icon.btn--labeled { width: auto; padding: 0 10px; }
   .btn-icon:not(:disabled):hover { background: var(--hover-bg); color: var(--ink); }
   .btn-icon:not(:disabled):active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
   .btn-icon:is([aria-pressed="true"], [aria-expanded="true"], .is-starred),
@@ -1024,7 +1025,7 @@
     <div class="file-controls">
       <label for="focusColumnSelect" class="sr-only">フォーカス対象</label>
       <select id="focusColumnSelect"></select>
-      <button id="focusModeBtn" type="button" aria-pressed="false" class="btn btn-icon" aria-label="フォーカス" data-tip="フォーカス"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <button id="focusModeBtn" type="button" aria-pressed="false" class="btn btn-icon btn--labeled" aria-label="フォーカス" data-tip="フォーカス"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3"/></svg><span>Focus</span></button>
     </div>
     <div class="hdr-spacer"></div>
     <div class="hdr-tools" role="group" aria-label="ツール">
