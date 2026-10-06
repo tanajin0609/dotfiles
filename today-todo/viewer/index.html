@@ -908,7 +908,7 @@
   .focus-task.done { color: var(--ink-mute); }
   .focus-task.done .focus-task-text { text-decoration: line-through; }
   .focus-note { padding: 10px 12px; background: var(--surface); border-radius: var(--radius); font-size: var(--fs-xs); line-height: 1.65; color: var(--ink-mute); }
-  .focus-actions { display: flex; gap: 8px; }
+  .focus-actions { display: flex; justify-content: space-between; gap: 8px; }
   .focus-next-preview { font-size: var(--fs-xs); color: var(--ink-mute); text-align: center; }
   .focus-end { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 30px 0; text-align: center; }
   .focus-end-message { margin: 0; font-size: var(--fs-md); font-weight: 600; }
@@ -1155,8 +1155,8 @@
     <div class="focus-tasks" id="focusTasks"></div>
     <div class="focus-note hidden" id="focusNote"></div>
     <div class="focus-actions">
-      <button id="focusLaterBtn" type="button" class="btn btn-icon" aria-label="後で" data-tip="後で"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
-      <button id="focusNextBtn" type="button" class="btn btn-icon" aria-label="次のカードへ" data-tip="次のカードへ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
+      <button id="focusLaterBtn" type="button" class="btn btn-secondary" aria-label="後で" data-tip="後で"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
+      <button id="focusNextBtn" type="button" class="btn btn-secondary" aria-label="次のカードへ" data-tip="次のカードへ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
     </div>
     <div class="focus-next-preview" id="focusNextPreview"></div>
   </div>
