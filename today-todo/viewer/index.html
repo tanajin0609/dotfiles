@@ -410,7 +410,6 @@
   }
   .btn-icon { width: 32px; padding: 0; background: transparent; color: var(--ink-sub); }
   .btn-icon.btn--sm { width: 28px; }
-  .btn-icon.btn--labeled { width: auto; padding: 0 10px; }
   .btn-icon:not(:disabled):hover { background: var(--hover-bg); color: var(--ink); }
   .btn-icon:not(:disabled):active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
   .btn-icon:is([aria-pressed="true"], [aria-expanded="true"], .is-starred),
@@ -1123,9 +1122,9 @@
         <button id="closeAllColumnsBtn" type="button" class="btn btn-icon btn--sm" aria-label="すべて閉じる" data-tip="すべて閉じる"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/></svg></button>
       </div>
       <div class="hdr-spacer"></div>
-      <button id="globalCommentsOpenBtn" type="button" class="btn btn-icon btn--labeled" aria-label="全体コメント" data-tip="全体コメント"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg><span>All</span></button>
+      <button id="globalCommentsOpenBtn" type="button" class="btn btn-secondary" aria-label="全体コメント" data-tip="全体コメント"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg><span>All</span></button>
       <span id="shareAllEmptyReason" class="copy-empty-reason" hidden>コメントがありません</span>
-      <button id="shareAllBtn" type="button" aria-describedby="shareAllEmptyReason" class="btn btn-icon btn--labeled" aria-label="全カードのコメントをまとめてコピー" data-tip="全カードのコメントをまとめてコピー"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span>All</span></button>
+      <button id="shareAllBtn" type="button" aria-describedby="shareAllEmptyReason" class="btn btn-secondary" aria-label="全カードのコメントをまとめてコピー" data-tip="全カードのコメントをまとめてコピー"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span>All</span></button>
     </div>
     <div class="filter-bar">
       <span class="filter-bar-label" aria-hidden="true">絞り込み</span>
