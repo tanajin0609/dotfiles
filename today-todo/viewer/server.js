@@ -1876,6 +1876,24 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+if (process.argv[2] === 'sync-column') {
+  const [file, column] = process.argv.slice(3);
+  if (!isValidTodoFile(file) || typeof column !== 'string' || !column || /[\\/]|\.\./.test(column)) {
+    console.error('usage: server.js sync-column todo-YYYY-MM-DD.md <column>');
+    process.exit(1);
+  }
+  const filePath = path.join(TODO_DIR, file);
+  const columnDir = path.join(PROJECTS_ROOT, column);
+  if (!fs.existsSync(filePath) || !fs.existsSync(columnDir)) {
+    console.error(`not found: ${fs.existsSync(filePath) ? columnDir : filePath}`);
+    process.exit(1);
+  }
+  const { md, items } = syncColumnSection(fs.readFileSync(filePath, 'utf-8'), column, columnDir);
+  fs.writeFileSync(filePath, md);
+  process.stdout.write(`${items}\n`);
+  process.exit(0);
+}
+
 server.listen(PORT, () => {
   console.log(`todo viewer: http://localhost:${PORT}`);
 });
