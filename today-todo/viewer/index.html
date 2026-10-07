@@ -874,8 +874,17 @@
   .session-artifact-preview iframe { width: 100%; height: 50vh; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
   .session-artifact-preview img { max-width: 100%; max-height: 50vh; }
   .session-artifact-preview pre { white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; font-size: var(--fs-xs); }
-  .ask-user-question-block { display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 4px; }
-  .ask-user-question-label { font-size: var(--fs-xs); color: var(--ink-mute); }
+  .ask-user-question-options { display: flex; flex-direction: column; gap: 10px; }
+  .ask-user-question-block {
+    display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+    border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--radius); background: var(--raised);
+  }
+  .ask-user-question-block.is-answered { border-left-color: var(--accent); }
+  .ask-user-question-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: var(--fs-sm); color: var(--ink); }
+  .ask-user-question-tag {
+    flex: 0 0 auto; font-size: var(--fs-xs); color: var(--accent); background: var(--chip-bg);
+    padding: 1px 8px; border-radius: 999px; font-weight: 600;
+  }
   .ask-user-question-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
   .ask-user-question-option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; max-width: 100%; }
   .session-log-reply {
@@ -3401,7 +3410,14 @@ function buildAskUserQuestionOptions(entry) {
     block.className = 'ask-user-question-block';
     const label = document.createElement('div');
     label.className = 'ask-user-question-label';
-    label.textContent = q.header ? `${q.header}: ${q.question || ''}` : (q.question || '');
+    const tag = document.createElement('span');
+    tag.className = 'ask-user-question-tag';
+    const position = questions.length > 1 ? `${questionIndex + 1}/${questions.length}` : '';
+    tag.textContent = [position, q.header].filter(Boolean).join(' · ');
+    if (tag.textContent) label.appendChild(tag);
+    const text = document.createElement('span');
+    text.textContent = q.question || '';
+    label.appendChild(text);
     block.appendChild(label);
     const buttons = document.createElement('div');
     buttons.className = 'ask-user-question-buttons';
@@ -3419,6 +3435,7 @@ function buildAskUserQuestionOptions(entry) {
         }
         for (const other of buttons.querySelectorAll('button')) other.setAttribute('aria-pressed', String(other === btn));
         answers.set(questionIndex, opt.label);
+        block.classList.add('is-answered');
         if (answers.size === wrap.childElementCount) answerAskUserQuestions(questions, answers);
       });
       option.appendChild(btn);

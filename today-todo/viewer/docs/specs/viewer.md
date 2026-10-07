@@ -385,7 +385,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   `locked` の資料は🔒付きの無効ボタンで表示し開けない。存在しない資料は「削除済み」と表示し開けない。選ぶと同じダイアログ内で、HTMLは `sandbox` 属性付きの
   `iframe`、画像は `img`、Markdownは本文のテキスト（`textContent`、描画なし）で表示する。
 - AC-CC3-1: セッションが入力待ち（blocked。AC-JS-SRV-1で `tempo: "blocked"` の回答待ちを含む）で、回答待ちの`AskUserQuestion`があるときは、
-  質問文と選択肢（ラベル）をボタンとして表示する。CLI 2.1.291は回答されるまでその`tool_use`をtranscriptに書かず、state.jsonの
+  質問文と選択肢（ラベル）をボタンとして表示する。質問ごとに枠で区切り、見出しに `<番号>/<総数>`（複数問のときのみ）と `header` をチップで出す。回答を選んだ質問は枠の左端を強調する。CLI 2.1.291は回答されるまでその`tool_use`をtranscriptに書かず、state.jsonの
   `block.questions` にだけ置くため、質問は `GET /api/sessions` などのセッション情報の `questions`（state.jsonの `block.questions`。無ければ `null`）から取る。
   `questions` が無いときは、従来どおりログの直近のエントリが`AskUserQuestion`ツール呼び出しならその入力を使う。
   最初のターンで回答待ちになったジョブはtranscriptの所在がまだ分からずログが取れない（404）が、そのときも `questions` があればボタンを出す。質問が1問のときは、ボタンを押すと
