@@ -836,7 +836,11 @@
   .modal-comments { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 18px; }
   .modal-comments-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-mute); margin-bottom: 8px; }
   .modal-comment-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; margin-bottom: 10px; }
-  .modal-comments.is-expanded .modal-comment-list { max-height: 65vh; }
+  .modal-comments.is-expanded {
+    position: fixed; top: 0; bottom: 0; right: min(var(--card-panel-w, 540px), 100vw); width: min(440px, calc(100vw - min(var(--card-panel-w, 540px), 100vw)));
+    display: flex; flex-direction: column; border-top: none; border-left: 1px solid var(--line); background: var(--surface);
+  }
+  .modal-comments.is-expanded .modal-comment-list { max-height: none; flex: 1 1 auto; min-height: 0; }
   .modal-comment { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
   .modal-comment .at { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); margin-bottom: 3px; }
   .modal-comment .text { font-size: var(--fs-xs); line-height: 1.65; }
@@ -1199,7 +1203,7 @@
       <button id="modalTaskSubmit" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
     <div class="modal-comments">
-      <div class="modal-comments-head"><span id="modalCommentHead">コメント</span><button id="modalCommentExpandBtn" type="button" class="btn btn-icon btn--sm" aria-pressed="false" aria-label="コメント一覧を拡大" data-tip="コメント一覧を拡大"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/></svg></button></div>
+      <div class="modal-comments-head"><span id="modalCommentHead">コメント</span><button id="modalCommentExpandBtn" type="button" class="btn btn-icon btn--sm" aria-pressed="false" aria-label="コメントを横に広げて表示" data-tip="コメントを横に広げて表示"></button></div>
       <div id="modalCommentList" class="modal-comment-list"></div>
       <div class="modal-comment-form">
         <div class="field">
@@ -4399,6 +4403,8 @@ const ICON_PATHS = {
   focus: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3"/>',
   expand: '<path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/>',
   collapse: '<path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/>',
+  enlarge: '<path d="M14 4h6v6"/><path d="M20 4l-7 7"/><path d="M10 20H4v-6"/><path d="M4 20l7-7"/>',
+  shrink: '<path d="M20 10h-6V4"/><path d="M14 10l6-6"/><path d="M4 14h6v6"/><path d="M10 14l-6 6"/>',
   comment: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
   copy: '<path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   later: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -5172,9 +5178,17 @@ async function init() {
     if (e.detail > 0) moveFocusIntoFocusPanel();
   });
   document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
-  document.getElementById('modalCommentExpandBtn').addEventListener('click', (e) => {
-    const expanded = e.currentTarget.closest('.modal-comments').classList.toggle('is-expanded');
-    e.currentTarget.setAttribute('aria-pressed', String(expanded));
+  const commentExpandBtn = document.getElementById('modalCommentExpandBtn');
+  const renderCommentExpandBtn = (expanded) => {
+    commentExpandBtn.replaceChildren(icon(expanded ? 'shrink' : 'enlarge'));
+    commentExpandBtn.setAttribute('aria-pressed', String(expanded));
+    const label = expanded ? 'コメントを元の位置に戻す' : 'コメントを横に広げて表示';
+    commentExpandBtn.setAttribute('aria-label', label);
+    commentExpandBtn.dataset.tip = label;
+  };
+  renderCommentExpandBtn(false);
+  commentExpandBtn.addEventListener('click', () => {
+    renderCommentExpandBtn(commentExpandBtn.closest('.modal-comments').classList.toggle('is-expanded'));
   });
   const cardDialog = document.getElementById('cardDialog');
   cardDialog.addEventListener('close', onCardDialogClosed);
