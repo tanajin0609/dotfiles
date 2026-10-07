@@ -3429,14 +3429,10 @@ function buildAskUserQuestionOptions(entry) {
       btn.className = 'btn btn-secondary';
       btn.textContent = opt.label;
       btn.addEventListener('click', () => {
-        if (questions.length === 1) {
-          answerAskUserQuestion(opt.label);
-          return;
-        }
         for (const other of buttons.querySelectorAll('button')) other.setAttribute('aria-pressed', String(other === btn));
         answers.set(questionIndex, opt.label);
         block.classList.add('is-answered');
-        if (answers.size === wrap.childElementCount) answerAskUserQuestions(questions, answers);
+        fillAskUserQuestionReply(questions, answers);
       });
       option.appendChild(btn);
       if (opt.description) {
@@ -3455,22 +3451,12 @@ function buildAskUserQuestionOptions(entry) {
   return wrap.childElementCount > 0 ? wrap : null;
 }
 
-function answerAskUserQuestion(label) {
-  document.getElementById('sessionLogReplyInput').value = label;
-  submitSessionLogReply();
-}
-
-// ボタン化しない質問（multiSelect等）があると全回答をそろえられないため、そのときは返信欄に入れて手動送信に委ねる。
-function answerAskUserQuestions(questions, answers) {
-  const input = document.getElementById('sessionLogReplyInput');
-  input.value = [...answers].sort(([a], [b]) => a - b)
-    .map(([questionIndex, label]) => `「${questions[questionIndex].question || ''}」: ${label}`)
-    .join(' / ');
-  if (answers.size === questions.length) {
-    submitSessionLogReply();
-  } else {
-    input.focus();
-  }
+function fillAskUserQuestionReply(questions, answers) {
+  document.getElementById('sessionLogReplyInput').value = questions.length === 1
+    ? answers.get(0)
+    : [...answers].sort(([a], [b]) => a - b)
+      .map(([questionIndex, label]) => `「${questions[questionIndex].question || ''}」: ${label}`)
+      .join(' / ');
 }
 
 function buildSessionLogEntryRow(entry) {
