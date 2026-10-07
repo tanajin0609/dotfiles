@@ -3394,6 +3394,7 @@ function buildAskUserQuestionOptions(entry) {
   const questions = Array.isArray(payload && payload.questions) ? payload.questions : [];
   const wrap = document.createElement('div');
   wrap.className = 'ask-user-question-options';
+  const answers = new Map();
   questions.forEach((q, questionIndex) => {
     if (q.multiSelect || !Array.isArray(q.options) || q.options.length === 0) return;
     const block = document.createElement('div');
@@ -3411,7 +3412,15 @@ function buildAskUserQuestionOptions(entry) {
       btn.type = 'button';
       btn.className = 'btn btn-secondary';
       btn.textContent = opt.label;
-      btn.addEventListener('click', () => answerAskUserQuestion(opt.label));
+      btn.addEventListener('click', () => {
+        if (questions.length === 1) {
+          answerAskUserQuestion(opt.label);
+          return;
+        }
+        for (const other of buttons.querySelectorAll('button')) other.setAttribute('aria-pressed', String(other === btn));
+        answers.set(questionIndex, opt.label);
+        if (answers.size === wrap.childElementCount) answerAskUserQuestions(questions, answers);
+      });
       option.appendChild(btn);
       if (opt.description) {
         const description = document.createElement('span');
@@ -3432,6 +3441,19 @@ function buildAskUserQuestionOptions(entry) {
 function answerAskUserQuestion(label) {
   document.getElementById('sessionLogReplyInput').value = label;
   submitSessionLogReply();
+}
+
+// ボタン化しない質問（multiSelect等）があると全回答をそろえられないため、そのときは返信欄に入れて手動送信に委ねる。
+function answerAskUserQuestions(questions, answers) {
+  const input = document.getElementById('sessionLogReplyInput');
+  input.value = [...answers].sort(([a], [b]) => a - b)
+    .map(([questionIndex, label]) => `「${questions[questionIndex].question || ''}」: ${label}`)
+    .join(' / ');
+  if (answers.size === questions.length) {
+    submitSessionLogReply();
+  } else {
+    input.focus();
+  }
 }
 
 function buildSessionLogEntryRow(entry) {
