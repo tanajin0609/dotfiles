@@ -834,11 +834,18 @@
   .task-source-path[hidden] { display: none; }
   .focus-task-text { min-width: 0; overflow-wrap: anywhere; }
   .modal-comments { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 18px; }
-  .modal-comments-head { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-mute); margin-bottom: 8px; }
-  .modal-comment-list { display: flex; flex-direction: column; gap: 6px; max-height: 92px; overflow-y: auto; margin-bottom: 10px; }
+  .modal-comments-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-mute); margin-bottom: 8px; }
+  .modal-comment-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; margin-bottom: 10px; }
+  .modal-comments.is-expanded {
+    position: fixed; top: 0; bottom: 0; right: min(var(--card-panel-w, 540px), 100vw); width: min(720px, calc(100vw - min(var(--card-panel-w, 540px), 100vw)));
+    display: flex; flex-direction: column; border-top: none; border-left: 1px solid var(--line); background: var(--surface);
+  }
+  .modal-comments.is-expanded .modal-comment-list { max-height: none; flex: 1 1 auto; min-height: 0; }
   .modal-comment { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
   .modal-comment .at { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); margin-bottom: 3px; }
   .modal-comment .text { font-size: var(--fs-xs); line-height: 1.65; }
+  #modalCommentList .modal-comment { max-width: 85%; align-self: flex-end; }
+  #modalCommentList .modal-comment.is-claude { align-self: flex-start; background: color-mix(in srgb, var(--accent) 14%, var(--raised)); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
   .modal-comment-form { display: flex; flex-direction: column; gap: 10px; }
   .modal-comment-actions { display: flex; gap: 8px; justify-content: flex-end; }
   #modalCommentInput.drag-over { outline: 2px dashed var(--accent); }
@@ -1011,6 +1018,7 @@
     content: ""; position: absolute; top: 0; right: 0; width: 14px; height: 14px; border-bottom-left-radius: 3px;
     background: linear-gradient(45deg, hsl(var(--col-hue, 0) var(--col-pill-sat) calc(var(--col-pill-light) - 10%)) 50%, transparent 50%);
   }
+  [data-skin="sticky"] .card-panel #modalCommentList .modal-comment.is-claude { background: linear-gradient(225deg, transparent 10px, color-mix(in srgb, var(--accent) 22%, var(--raised)) 0); }
   [data-skin="sticky"] .card-panel .modal-comment .at { color: hsl(var(--col-hue, 0) var(--col-pill-ink-sat) var(--col-pill-ink-light)); }
 </style>
 </head>
@@ -1207,7 +1215,7 @@
       <button id="modalTaskSubmit" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
     <div class="modal-comments">
-      <div class="modal-comments-head" id="modalCommentHead">コメント</div>
+      <div class="modal-comments-head"><span id="modalCommentHead">コメント</span><button id="modalCommentExpandBtn" type="button" class="btn btn-icon btn--sm" aria-pressed="false" aria-label="コメントを横に広げて表示" data-tip="コメントを横に広げて表示"></button></div>
       <div id="modalCommentList" class="modal-comment-list"></div>
       <div class="modal-comment-form">
         <div class="field">
@@ -4372,10 +4380,11 @@ function renderModalComments() {
   listEl.innerHTML = '';
   for (const comment of modalGroup.comments) {
     const item = document.createElement('div');
-    item.className = 'modal-comment';
+    const byClaude = comment.text.startsWith('[Claude ');
+    item.className = byClaude ? 'modal-comment is-claude' : 'modal-comment';
     const at = document.createElement('div');
     at.className = 'at';
-    at.textContent = new Date(comment.at).toLocaleString('ja-JP');
+    at.textContent = `${byClaude ? 'Claude' : '自分'} · ${new Date(comment.at).toLocaleString('ja-JP')}`;
     const text = document.createElement('div');
     text.className = 'text';
     text.textContent = comment.text;
@@ -4423,6 +4432,8 @@ const ICON_PATHS = {
   focus: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3"/>',
   expand: '<path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/>',
   collapse: '<path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/>',
+  enlarge: '<path d="M14 4h6v6"/><path d="M20 4l-7 7"/><path d="M10 20H4v-6"/><path d="M4 20l7-7"/>',
+  shrink: '<path d="M20 10h-6V4"/><path d="M14 10l6-6"/><path d="M4 14h6v6"/><path d="M10 14l-6 6"/>',
   comment: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
   copy: '<path d="M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z"/><path d="M16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   later: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -5196,6 +5207,18 @@ async function init() {
     if (e.detail > 0) moveFocusIntoFocusPanel();
   });
   document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+  const commentExpandBtn = document.getElementById('modalCommentExpandBtn');
+  const renderCommentExpandBtn = (expanded) => {
+    commentExpandBtn.replaceChildren(icon(expanded ? 'shrink' : 'enlarge'));
+    commentExpandBtn.setAttribute('aria-pressed', String(expanded));
+    const label = expanded ? 'コメントを元の位置に戻す' : 'コメントを横に広げて表示';
+    commentExpandBtn.setAttribute('aria-label', label);
+    commentExpandBtn.dataset.tip = label;
+  };
+  renderCommentExpandBtn(false);
+  commentExpandBtn.addEventListener('click', () => {
+    renderCommentExpandBtn(commentExpandBtn.closest('.modal-comments').classList.toggle('is-expanded'));
+  });
   const cardDialog = document.getElementById('cardDialog');
   cardDialog.addEventListener('close', onCardDialogClosed);
   cardDialog.addEventListener('click', (e) => {
