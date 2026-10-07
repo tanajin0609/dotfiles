@@ -4283,8 +4283,11 @@ function buildModalTaskRow(column, group, task) {
 
   const globalQuoteBtn = document.createElement('button');
   globalQuoteBtn.type = 'button';
-  globalQuoteBtn.className = 'btn btn-icon btn--sm';
+  globalQuoteBtn.className = 'btn btn-icon btn--sm btn--labeled';
   globalQuoteBtn.appendChild(icon('quote'));
+  const globalQuoteLabel = document.createElement('span');
+  globalQuoteLabel.textContent = 'All';
+  globalQuoteBtn.appendChild(globalQuoteLabel);
   globalQuoteBtn.setAttribute('aria-label', '全体コメント欄に列・カード名付きで引用を挿入');
   globalQuoteBtn.dataset.tip = '全体へ引用';
   globalQuoteBtn.addEventListener('click', () => insertGlobalQuote(column.name, group.title, task));
