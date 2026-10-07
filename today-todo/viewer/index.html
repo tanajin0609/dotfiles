@@ -844,6 +844,8 @@
   .modal-comment { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
   .modal-comment .at { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink-mute); margin-bottom: 3px; }
   .modal-comment .text { font-size: var(--fs-xs); line-height: 1.65; }
+  #modalCommentList .modal-comment { max-width: 85%; align-self: flex-end; }
+  #modalCommentList .modal-comment.is-claude { align-self: flex-start; background: color-mix(in srgb, var(--accent) 14%, var(--raised)); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
   .modal-comment-form { display: flex; flex-direction: column; gap: 10px; }
   .modal-comment-actions { display: flex; gap: 8px; justify-content: flex-end; }
   #modalCommentInput.drag-over { outline: 2px dashed var(--accent); }
@@ -1007,6 +1009,7 @@
     content: ""; position: absolute; top: 0; right: 0; width: 14px; height: 14px; border-bottom-left-radius: 3px;
     background: linear-gradient(45deg, hsl(var(--col-hue, 0) var(--col-pill-sat) calc(var(--col-pill-light) - 10%)) 50%, transparent 50%);
   }
+  [data-skin="sticky"] .card-panel #modalCommentList .modal-comment.is-claude { background: linear-gradient(225deg, transparent 10px, color-mix(in srgb, var(--accent) 22%, var(--raised)) 0); }
   [data-skin="sticky"] .card-panel .modal-comment .at { color: hsl(var(--col-hue, 0) var(--col-pill-ink-sat) var(--col-pill-ink-light)); }
 </style>
 </head>
@@ -4352,10 +4355,11 @@ function renderModalComments() {
   listEl.innerHTML = '';
   for (const comment of modalGroup.comments) {
     const item = document.createElement('div');
-    item.className = 'modal-comment';
+    const byClaude = comment.text.startsWith('[Claude ');
+    item.className = byClaude ? 'modal-comment is-claude' : 'modal-comment';
     const at = document.createElement('div');
     at.className = 'at';
-    at.textContent = new Date(comment.at).toLocaleString('ja-JP');
+    at.textContent = `${byClaude ? 'Claude' : '自分'} · ${new Date(comment.at).toLocaleString('ja-JP')}`;
     const text = document.createElement('div');
     text.className = 'text';
     text.textContent = comment.text;
