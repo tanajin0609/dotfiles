@@ -765,6 +765,7 @@
   .doc-nav button { text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; cursor: pointer; }
   .doc-nav button:hover { background: var(--hover-bg); }
   .doc-nav button[aria-current="true"] { background: var(--hover-bg); font-weight: 600; }
+  .doc-nav button:disabled { background: none; color: var(--ink-mute); cursor: default; }
   .doc-anno-layer { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
   .doc-anno-layer > * { pointer-events: auto; }
   .anno-add, .anno { position: fixed; font-size: 13px; line-height: 1.5; }
@@ -875,12 +876,6 @@
   .log-entry.tool_use, .log-entry.tool_result { background: var(--surface); padding: 6px 12px; }
   .log-entry.tool_use .body, .log-entry.tool_result .body { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-mute); }
   .log-entry > .btn-icon { margin-top: 6px; }
-  .session-artifacts { display: flex; flex-direction: column; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
-  .session-artifacts[hidden] { display: none; }
-  .session-artifacts-list { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--fs-xs); }
-  .session-artifact-preview iframe { width: 100%; height: 50vh; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
-  .session-artifact-preview img { max-width: 100%; max-height: 50vh; }
-  .session-artifact-preview pre { white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; font-size: var(--fs-xs); }
   .ask-user-question-options { display: flex; flex-direction: column; gap: 10px; }
   .ask-user-question-block {
     display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
@@ -1264,13 +1259,9 @@
         <div class="modal-ratio" id="sessionLogStateLabel"></div>
       </div>
       <div class="modal-header-actions">
-        <button id="sessionArtifactsBtn" type="button" aria-expanded="false" aria-controls="sessionArtifactsPanel" class="btn btn-icon" aria-label="資料" data-tip="資料"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+        <button id="sessionArtifactsBtn" type="button" class="btn btn-icon" aria-label="資料" data-tip="資料"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
         <button id="sessionLogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-    </div>
-    <div id="sessionArtifactsPanel" class="session-artifacts" hidden>
-      <div id="sessionArtifactsList" class="session-artifacts-list"></div>
-      <div id="sessionArtifactPreview" class="session-artifact-preview"></div>
     </div>
     <div id="sessionLogList" class="session-log-list"></div>
     <div class="session-log-reply">
@@ -1813,23 +1804,40 @@ async function openRelatedDocs(absPath) {
 }
 
 let docLoadSeq = 0;
+// セッション資料を表示中ならそのジョブID。カードのドキュメント専用の引用・注釈を出さない判定に使う。
+let docArtifactJobId = null;
 
 // 同じiframeのsrcdocを続けて書き換えると、先の空ページの読み込みが後から勝って本文が消えることがあるため、毎回作り直す。
-function replaceDocFrame(srcdoc) {
+function replaceDocFrame(srcdoc, { src } = {}) {
   document.getElementById('docAnnoLayer').replaceChildren();
   const old = document.getElementById('docFrame');
   const frame = old.cloneNode(false);
   frame.removeAttribute('srcdoc');
-  if (srcdoc) {
+  frame.removeAttribute('src');
+  // 資料のHTMLはviewerと同一オリジンから配信されるため、allow-same-originを外して親の文書・APIに触れないようにする。
+  frame.setAttribute('sandbox', src ? '' : 'allow-same-origin');
+  if (src) {
+    frame.src = src;
+  } else if (srcdoc) {
     frame.addEventListener('load', () => setupDocAnnotations(frame), { once: true });
     frame.srcdoc = srcdoc;
   }
   old.replaceWith(frame);
 }
 
+function docFrameHtml(bodyHtml) {
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>${DOC_FRAME_STYLE}</style></head><body><main>${bodyHtml}</main></body></html>`;
+}
+
+function renderMarkdownHtml(markdown) {
+  // markedはCDN読み込みのため、取得に失敗しても原文で読めるようにする。
+  return typeof marked === 'undefined' ? `<pre>${escapeHtml(markdown)}</pre>` : marked.parse(markdown);
+}
+
 async function openDocDialog(absPath, { keepNav = false } = {}) {
   const dialog = document.getElementById('docDialog');
   if (!dialog.open) docFocusReturn = captureFocusReturn();
+  docArtifactJobId = null;
   if (!keepNav) {
     renderDocNav([], '', absPath);
     fetchRelatedDocs(absPath).then((found) => {
@@ -1860,10 +1868,8 @@ async function openDocDialog(absPath, { keepNav = false } = {}) {
   }
   const markdown = await response.text();
   if (loadId !== docLoadSeq) return;
-  // markedはCDN読み込みのため、取得に失敗しても原文で読めるようにする。
-  const html = typeof marked === 'undefined' ? `<pre>${escapeHtml(markdown)}</pre>` : marked.parse(markdown);
   status.textContent = '';
-  replaceDocFrame(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>${DOC_FRAME_STYLE}</style></head><body><main>${html}</main></body></html>`);
+  replaceDocFrame(docFrameHtml(renderMarkdownHtml(markdown)));
 }
 
 // 資料を切り替えたり閉じたりしても書きかけを失わないよう、カード単位で持つ。位置は本文の文書座標。
@@ -1889,7 +1895,7 @@ function renderDocReviewControls() {
   const launch = document.getElementById('docReviewLaunchBtn');
   const fresh = document.getElementById('docReviewNewSessionBtn');
   setButtonLabel(launch, `コメント${count}件をClaudeに依頼`);
-  launch.hidden = fresh.hidden = count === 0;
+  launch.hidden = fresh.hidden = count === 0 || docArtifactJobId !== null;
   launch.disabled = fresh.disabled = busy;
 }
 
@@ -1914,7 +1920,7 @@ function setupDocAnnotations(frame) {
   const layer = document.getElementById('docAnnoLayer');
   layer.replaceChildren();
   const doc = frame.contentDocument;
-  if (!doc || !modalGroup) return;
+  if (!doc || !modalGroup || docArtifactJobId !== null) return;
   syncDocReviewOwner();
   const docPath = document.getElementById('docPath').textContent;
   const placed = [];
@@ -2044,6 +2050,7 @@ function quoteDocSelection() {
 
 function onDocDialogClosed() {
   docLoadSeq++;
+  docArtifactJobId = null;
   replaceDocFrame('');
   attachToastRegionToTopmostDialog();
   restoreFocusReturn(docFocusReturn);
@@ -3583,7 +3590,6 @@ function openSessionLogModal(column, group) {
   const wasOpen = dialog.open;
   if (!wasOpen) sessionLogFocusReturn = captureFocusReturn();
   if (sessionLogGroupId !== group.id) document.getElementById('sessionLogReplyInput').value = '';
-  if (sessionLogJobId !== session.jobId) resetSessionArtifacts();
   sessionLogJobId = session.jobId;
   sessionLogGroupId = group.id;
   document.getElementById('sessionLogColLabel').textContent = column.name;
@@ -3618,66 +3624,20 @@ function syncOpenSessionLog() {
   fetchAndRenderSessionLog(next);
 }
 
-function resetSessionArtifacts() {
-  document.getElementById('sessionArtifactsPanel').hidden = true;
-  document.getElementById('sessionArtifactsBtn').setAttribute('aria-expanded', 'false');
-  document.getElementById('sessionArtifactsList').replaceChildren();
-  document.getElementById('sessionArtifactPreview').replaceChildren();
-}
-
 function artifactUrl(jobId, filePath) {
   return `/api/session/artifact?jobId=${encodeURIComponent(jobId)}&path=${encodeURIComponent(filePath)}`;
 }
 
-async function showArtifactPreview(jobId, artifact) {
-  const preview = document.getElementById('sessionArtifactPreview');
-  const url = artifactUrl(jobId, artifact.path);
-  if (artifact.kind === 'html') {
-    const frame = document.createElement('iframe');
-    frame.setAttribute('sandbox', '');
-    frame.title = artifact.path;
-    frame.src = url;
-    preview.replaceChildren(frame);
-  } else if (artifact.kind === 'image') {
-    const img = document.createElement('img');
-    img.alt = artifact.path;
-    img.src = url;
-    preview.replaceChildren(img);
-  } else {
-    const res = await fetch(url);
-    if (!res.ok) {
-      showToast(`資料の読み込みに失敗しました（HTTP ${res.status}）`, { kind: 'error' });
-      return;
-    }
-    const pre = document.createElement('pre');
-    pre.textContent = await res.text();
-    preview.replaceChildren(pre);
-  }
-}
-
-async function toggleSessionArtifacts() {
-  const panel = document.getElementById('sessionArtifactsPanel');
-  if (!panel.hidden) {
-    resetSessionArtifacts();
-    return;
-  }
-  const jobId = sessionLogJobId;
-  if (!jobId) return;
-  const res = await fetch(`/api/session/artifacts?jobId=${encodeURIComponent(jobId)}`).catch(() => null);
-  if (!res || !res.ok) {
-    showToast('資料一覧の読み込みに失敗しました', { kind: 'error', actionLabel: '再試行', onAction: toggleSessionArtifacts });
-    return;
-  }
-  const { artifacts } = await res.json();
-  if (sessionLogJobId !== jobId) return;
-  const list = document.getElementById('sessionArtifactsList');
-  list.replaceChildren();
-  if (!artifacts.length) list.textContent = 'このセッションが書いた資料はありません';
+function renderArtifactNav(jobId, artifacts, current) {
+  const nav = document.getElementById('docNav');
+  nav.replaceChildren();
+  nav.hidden = artifacts.length < 2;
   for (const artifact of artifacts) {
     const btn = document.createElement('button');
     btn.type = 'button';
     const name = artifact.path.split('/').pop();
     btn.title = artifact.path;
+    btn.setAttribute('aria-current', String(artifact === current));
     if (artifact.locked) {
       btn.textContent = `🔒 ${name}`;
       btn.disabled = true;
@@ -3686,12 +3646,79 @@ async function toggleSessionArtifacts() {
       btn.disabled = true;
     } else {
       btn.textContent = name;
-      btn.addEventListener('click', () => showArtifactPreview(jobId, artifact));
+      btn.addEventListener('click', () => {
+        for (const other of nav.children) other.setAttribute('aria-current', String(other === btn));
+        openArtifactDoc(jobId, artifact);
+      });
     }
-    list.append(btn);
+    nav.appendChild(btn);
   }
-  panel.hidden = false;
-  document.getElementById('sessionArtifactsBtn').setAttribute('aria-expanded', 'true');
+}
+
+async function openArtifactDoc(jobId, artifact) {
+  const dialog = document.getElementById('docDialog');
+  if (!dialog.open) docFocusReturn = captureFocusReturn();
+  docArtifactJobId = jobId;
+  document.getElementById('docTitle').textContent = artifact.path.split('/').pop();
+  document.getElementById('docPath').textContent = artifact.path;
+  document.getElementById('docQuoteBtn').hidden = true;
+  renderDocReviewControls();
+  const status = document.getElementById('docStatus');
+  const loadId = ++docLoadSeq;
+  status.textContent = '読み込み中…';
+  replaceDocFrame('');
+  if (!dialog.open) dialog.showModal();
+  attachToastRegionToTopmostDialog();
+  const url = artifactUrl(jobId, artifact.path);
+  if (artifact.kind === 'html') {
+    status.textContent = '';
+    replaceDocFrame('', { src: url });
+    return;
+  }
+  if (artifact.kind === 'image') {
+    status.textContent = '';
+    replaceDocFrame(docFrameHtml(`<img src="${escapeHtml(url)}" alt="${escapeHtml(artifact.path)}" style="max-width: 100%;">`));
+    return;
+  }
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    if (loadId === docLoadSeq) status.textContent = `読み込みに失敗しました: ${err.message}`;
+    return;
+  }
+  if (loadId !== docLoadSeq) return;
+  if (!response.ok) {
+    status.textContent = `この資料は表示できません（${response.status}）`;
+    return;
+  }
+  const markdown = await response.text();
+  if (loadId !== docLoadSeq) return;
+  status.textContent = '';
+  replaceDocFrame(docFrameHtml(renderMarkdownHtml(markdown)));
+}
+
+async function openSessionArtifacts() {
+  const jobId = sessionLogJobId;
+  if (!jobId) return;
+  const res = await fetch(`/api/session/artifacts?jobId=${encodeURIComponent(jobId)}`).catch(() => null);
+  if (!res || !res.ok) {
+    showToast('資料一覧の読み込みに失敗しました', { kind: 'error', actionLabel: '再試行', onAction: openSessionArtifacts });
+    return;
+  }
+  const { artifacts } = await res.json();
+  if (sessionLogJobId !== jobId) return;
+  if (!artifacts.length) {
+    showToast('このセッションが書いた資料はありません');
+    return;
+  }
+  const first = artifacts.find((a) => a.exists && !a.locked);
+  if (!first) {
+    showToast('開ける資料がありません（ロック中または削除済み）');
+    return;
+  }
+  renderArtifactNav(jobId, artifacts, first);
+  openArtifactDoc(jobId, first);
 }
 
 function closeSessionLogModal() {
@@ -3699,7 +3726,6 @@ function closeSessionLogModal() {
 }
 
 function onSessionLogDialogClosed() {
-  resetSessionArtifacts();
   sessionLogJobId = null;
   sessionLogSession = null;
   sessionLogGroupId = null;
@@ -5098,7 +5124,7 @@ async function init() {
     restoreFocusReturn(costDialogFocusReturn);
     costDialogFocusReturn = null;
   });
-  document.getElementById('sessionArtifactsBtn').addEventListener('click', toggleSessionArtifacts);
+  document.getElementById('sessionArtifactsBtn').addEventListener('click', openSessionArtifacts);
   document.getElementById('sessionListBtn').addEventListener('click', openSessionListDialog);
   const sessionListDialog = document.getElementById('sessionListDialog');
   document.getElementById('sessionListCloseBtn').addEventListener('click', () => sessionListDialog.close());
