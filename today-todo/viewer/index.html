@@ -852,7 +852,7 @@
   #modalCommentInput.drag-over { outline: 2px dashed var(--accent); }
   .modal-task-form { display: flex; gap: 8px; align-items: flex-end; margin: 4px 0 16px; padding: 0 20px; }
   /* 入力欄の下に操作ヒントがあるため、ボタンを入力欄の下端に揃える（ヒント1行＋gap分）。 */
-  .modal-task-form > button, .global-comments-form > button, .session-log-reply > button { margin-bottom: 25px; }
+  .modal-task-form > button, .global-comments-form > button { margin-bottom: 25px; }
   .global-comments-dialog-body {
     padding: 14px 20px 20px; display: flex; flex-direction: column; gap: 10px;
     flex: 1 1 auto; min-height: 0; overflow: hidden;
@@ -891,7 +891,7 @@
   .ask-user-question-option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; max-width: 100%; }
   .session-log-reply {
     flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 18px;
-    display: flex; gap: 8px; align-items: flex-end;
+    display: flex; flex-direction: column; gap: 10px;
   }
   .session-list { display: flex; flex-direction: column; gap: 6px; }
   .session-list .meta { color: var(--ink-mute); }
@@ -1272,8 +1272,10 @@
           aria-describedby="sessionLogReplyHint"></textarea>
         <span class="input-hint" id="sessionLogReplyHint"><kbd>Enter</kbd> で「このセッションに送信」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
       </div>
-      <button id="sessionLogNewSessionBtn" type="button" class="btn btn-secondary" aria-label="新しいセッションで依頼" data-tip="ここまでの会話を引き継いだ新しいセッションで依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
-      <button id="sessionLogReplyBtn" type="button" class="btn btn-primary" aria-label="このセッションに送信" data-tip="このセッションに送信"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
+      <div class="modal-comment-actions">
+        <button id="sessionLogReplyBtn" type="button" class="btn btn-primary" aria-label="このセッションに送信" data-tip="このセッションに送信"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
+        <button id="sessionLogNewSessionBtn" type="button" class="btn btn-secondary" aria-label="新しいセッションで依頼" data-tip="ここまでの会話を引き継いだ新しいセッションで依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
+      </div>
     </div>
   </div>
 </dialog>
