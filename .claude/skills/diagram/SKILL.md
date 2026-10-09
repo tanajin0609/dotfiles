@@ -1,6 +1,6 @@
 ---
 name: diagram
-description: 図を描くとき（「図にして」「図で説明して」「シーケンス図/クラス図/状態遷移図を書いて」「構成図・フロー図がほしい」）に、伝えたい内容と読み手から適切な図種（UML等）を選び、Mermaid（既定）またはPlantUMLで描く。アーキテクチャ・データモデル・処理フロー・状態遷移・分岐ロジックを説明していて、文章だけでは関係性が伝わらないと判断したときにも使う。
+description: 図を描くとき（「図にして」「図で説明して」「シーケンス図/クラス図/状態遷移図を書いて」「構成図・フロー図がほしい」）に、伝えたい内容と読み手から適切な図種（UML等）を選び、Mermaid（既定）・PlantUML・draw.io（.drawio）で描く。draw.io は、依頼者が draw.io / .drawio を指定したとき、または既存の .drawio を直すときに使う。アーキテクチャ・データモデル・処理フロー・状態遷移・分岐ロジックを説明していて、文章だけでは関係性が伝わらないと判断したときにも使う。
 metadata:
   trigger: 図の作成依頼、設計・フロー・構成の説明で図が必要なとき
   language: ja
@@ -49,12 +49,35 @@ metadata:
 
 ## 描画ルール
 
-- **記法**: 既定は Mermaid（GitHub・Qiita・Notion等でそのまま描画される）。依頼者がPlantUMLを指定した場合や、Mermaidにない図種（タイミング図、厳密なユースケース図・配置図）が必要な場合は PlantUML。プレーンテキストしか表示できない場所ではASCII
+- **記法**: 既定は Mermaid（GitHub・Qiita・Notion等でそのまま描画される）。依頼者がPlantUMLを指定した場合や、Mermaidにない図種（タイミング図、厳密なユースケース図・配置図）が必要な場合は PlantUML。依頼者が draw.io を指定した場合は下の「draw.io で描く」に従う。プレーンテキストしか表示できない場所ではASCII
 - **規模**: 1枚あたりノード15個程度まで。超えるなら全体図と詳細図に分割する
 - **ラベル**: ノード名はコード上・仕様上の実名を使う。存在を確認していない名前を作らない。推測で補った要素は「（推定）」と書く
 - **矢印**: 向きと意味（呼び出し/データの流れ/依存）を1枚の中で統一する。意味が混在する場合は線種かラベルで区別する
 - **Mermaidの構文**: ラベルに `()` `:` `"` などの記号を含むときは `A["ラベル(説明)"]` のように引用符で囲む。日本語のノードIDは使わず、IDは英数字・ラベルは日本語にする
 - **保存**: ファイルに残す場合は `.md` 内のコードブロックか `.mmd` / `.puml` にする。図をテキストで持つことで差分レビューやバージョン管理ができる
+
+## draw.io で描く
+
+.drawio の XML を直接書かない。図形ごとに長い style 文字列と座標を出力することになり、トークンを大量に使ううえ、配色が図ごとにぶれる。代わりに、中身（ノード・矢印・座標）だけを JSON で書き、このスキルの `drawio/compact.py` で .drawio に変換する。配色は `drawio/design-system/drawio-styles.json` に固定してある。
+
+1. 上の手順1〜3で問い・読み手・図種を決める
+2. 図の JSON を作業用ディレクトリに書く。1セル1行の配列で、styleKey には役割名を使う
+   ```
+   [{"id":"p1","name":"ページ名","layers":[{"id":"1","cells":[
+     ["v", id, styleKey, ラベル, x, y, w, h],
+     ["e", id, styleKey, ラベル, 接続元id, 接続先id]
+   ]}]}]
+   ```
+   - 図形: `step`（業務ステップ）`impl`（既存の実装）`new`（新規追加）`data`（データストア）`queue` `human`（人・アクター）`branch`（判断・分岐）`risk`（リスク・既知の不具合）`legacy`（現状を流用）`external`（外部システム）`state`（状態遷移図の状態）`lane`（区画の見出し）`note`（注記）`title`
+   - 矢印: `flow`（処理の流れ）`request` `response` `dataflow`（データの流れ）`error`（異常系）`ref`（参照）`guide`（補助線）
+   - 座標の目安: ノードは幅220・高さ56〜64、間隔は横60・縦40以上。左上が原点で、y は下向きに増える
+   - 図の色の意味を、`note` の凡例で必ず書く
+3. `python3 <このスキルのディレクトリ>/drawio/compact.py build 図.json <このスキルのディレクトリ>/drawio/design-system/drawio-styles.json 出力.drawio` で変換する
+4. 依頼者に、draw.io で開いて配置を確認してもらう。座標は手書きなので、細かい位置の調整は draw.io 上で行う前提にする
+
+既存の .drawio を直すときは、`compact.py extract 元.drawio 図.json 元のstyles.json` で JSON と、その図専用の style 辞書に分解し、JSON を編集して `build` で戻す（style キーは `s01` などの連番になる）。`verify.py 元.drawio 戻した.drawio` で、編集していないセルが変わっていないことを確かめる。
+
+配色を変えるときは、`drawio/design-system/tokens.json`（色・フォント）と `semantic.json`（役割と色の対応）を編集し、`to_drawio_styles.py drawio-styles.json` で辞書を作り直す。Claude Design にも反映するときは `drawio/design-system/` で `/design-sync` を実行する（手順は `.design-sync/NOTES.md`）。
 
 ## アンチパターン
 
