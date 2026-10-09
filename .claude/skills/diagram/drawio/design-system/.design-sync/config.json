@@ -1,0 +1,8 @@
+{
+  "pkg": "drawio-diagram-tokens",
+  "globalName": "DrawioDiagramTokens",
+  "shape": "package",
+  "cssEntry": "dist/tokens.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "projectId": "d72ccc29-f389-486d-9ecc-b0e6b70104c2"
+}
