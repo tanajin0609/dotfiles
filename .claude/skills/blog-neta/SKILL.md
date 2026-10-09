@@ -121,11 +121,7 @@ type: user-learning
 
 `$HOME/projects/tech-blog-lib/neta/` にファイルを作成し、作成したファイルパスをユーザーに伝える。
 
-続けて確認なしでPR作成まで行う（ユーザー合意済みの運用）:
-
-1. `main` 上なら `neta/<内容が分かるスラッグ>-YYYYMMDD` ブランチを切る
-2. 作成したネタファイルだけを add して commit し、`git push -u origin <branch>`
-3. `main` 向けのPRを作成し、URLをユーザーに伝える（命名・本文は `github-conventions` に従う）
+続けて、作成したネタファイルだけを commit し、push・PR作成まで行う（手順は `github-conventions`）。
 
 ---
 
