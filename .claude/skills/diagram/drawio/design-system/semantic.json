@@ -1,0 +1,28 @@
+{
+ "_comment": "色は hex か @tokens のパス参照（例: @tone.blue.stroke）。shape: card | pill | note | text",
+ "node": {
+  "step":     {"shape": "card", "fill": "#ffffff", "stroke": "@neutral.hairline", "text": "@neutral.ink", "accent": "@tone.blue.stroke", "iconBg": "@tone.blue.fill", "font": "heading", "bold": true},
+  "impl":     {"shape": "card", "fill": "#ffffff", "stroke": "@neutral.hairline", "text": "@neutral.ink", "accent": "@tone.gray.stroke", "iconBg": "@tone.gray.fill", "font": "heading", "tag": "EXISTING"},
+  "new":      {"shape": "card", "fill": "#ffffff", "stroke": "@tone.yellow.stroke", "strokeWidth": 1.5, "text": "@neutral.ink", "accent": "@tone.yellow.text", "iconBg": "@tone.yellow.fill", "font": "heading", "bold": true, "tag": "NEW", "halo": true},
+  "data":     {"shape": "card", "fill": "#ffffff", "stroke": "@neutral.hairline", "text": "@neutral.ink", "accent": "@tone.green.stroke", "iconBg": "@tone.green.fill", "font": "heading", "bold": true, "tag": "DATA STORE"},
+  "human":    {"shape": "card", "fill": "#ffffff", "stroke": "@neutral.hairline", "text": "@neutral.ink", "accent": "@tone.blue.stroke", "iconBg": "@tone.blue.fill", "font": "heading", "bold": true, "tag": "ACTOR"},
+  "branch":   {"shape": "pill", "fill": "#ffffff", "stroke": "@neutral.hairline", "text": "@neutral.ink", "accent": "@tone.purple.stroke", "iconBg": "@tone.purple.fill", "font": "heading", "bold": true, "tag": "DECISION"},
+  "risk":     {"shape": "card", "fill": "@tone.red.fill", "stroke": "#f6c3bb", "text": "@neutral.ink", "accent": "@tone.red.stroke", "font": "heading", "bold": true, "tag": "RISK"},
+  "legacy":   {"shape": "card", "fill": {"css": "rgba(255,255,255,.5)", "hex": "#ffffff"}, "stroke": "#c5c9d0", "strokeWidth": 1.5, "dashed": true, "text": "@neutral.ink-muted", "accent": "#7a808b", "font": "heading", "tag": "REUSED", "flat": true},
+  "lane":     {"shape": "pill", "fill": {"css": "rgba(255,255,255,.72)", "hex": "#ffffff"}, "stroke": "@neutral.hairline", "text": "@neutral.ink", "font": "heading", "bold": true, "flat": true},
+  "queue":    {"shape": "card", "fill": "#ffffff", "stroke": "@neutral.hairline", "text": "@neutral.ink", "accent": "@tone.green.stroke", "iconBg": "@tone.green.fill", "font": "heading", "bold": true, "tag": "QUEUE"},
+  "external": {"shape": "card", "fill": {"css": "rgba(255,255,255,.6)", "hex": "#ffffff"}, "stroke": {"css": "rgba(21,23,28,.16)", "hex": "#d6d6d8"}, "text": "@neutral.ink", "accent": "@tone.gray.stroke", "iconBg": "@tone.gray.fill", "font": "heading", "bold": true, "tag": "EXTERNAL", "flat": true},
+  "state":    {"shape": "pill", "fill": "#ffffff", "stroke": "@neutral.hairline", "text": "@neutral.ink", "font": "heading", "bold": true},
+  "note":     {"shape": "note", "fill": "#ffffff", "stroke": "#666666", "text": "#333333", "font": "body", "align": "left", "flat": true},
+  "title":    {"shape": "text", "text": "@neutral.ink", "font": "title", "bold": true}
+ },
+ "edge": {
+  "flow":     {"color": "@neutral.slate", "line": "solid", "arrow": "block", "orthogonal": true},
+  "request":  {"color": "@neutral.slate", "line": "solid", "arrow": "block"},
+  "dataflow": {"color": "@tone.green.stroke", "line": "solid", "arrow": "block", "orthogonal": true},
+  "response": {"color": "@neutral.ink-faint", "line": "dashed", "arrow": "open"},
+  "error":    {"color": "@tone.red.stroke", "line": "dashed", "arrow": "block"},
+  "ref":      {"color": "#b6bbc3", "line": "dotted", "arrow": "none", "orthogonal": true},
+  "guide":    {"color": "#b6bbc3", "line": "dotted", "arrow": "none"}
+ }
+}
