@@ -13,7 +13,7 @@
 |---|---|---|---|
 | `<sub>/docs/tasks/backlog.md` | **索引**。今日のタスクに出すかどうかと優先度を人が管理する | 作業ディレクトリ1件につき1行（リンク付き）。経緯・判断メモ | 作業ディレクトリ内の進み具合（「次: 〜」など） |
 | `<sub>/docs/changes/<dir>/checklist.md`（dev） | **詳細の唯一の情報源** | その change の作業項目 `- [ ]`/`- [x]` | — |
-| `<sub>/order-yyyymmdd/plan.md`（ops） | 同上（ops 版） | その依頼の作業項目 | — |
+| `<sub>/yyyymmdd-<slug>/plan.md`（ops） | 同上（ops 版） | その依頼の作業項目 | — |
 | `today-todo/todo-YYYY-MM-DD.md` | 上の2つを横断して写したもの。ここから情報を生み出さない | todo-import の出力と、ユーザーの手書き注記 | — |
 
 - 1件の作業について、同じ進み具合を2か所に書かない。
@@ -59,7 +59,7 @@ flowchart TD
 1. `projects/*/docs/tasks/backlog.md` の `- [ ]` 行を列挙する。
 2. 行のリンクが `docs/changes/<dir>/` を指していれば、同じディレクトリの `checklist.md` にある
    `- [ ]` を、その行の子として展開する。
-   ops（`order-yyyymmdd/`）の場合は `plan.md` の `- [ ]` を同じように展開する。
+   ops（`yyyymmdd-<slug>/`）の場合は `plan.md` の `- [ ]` を同じように展開する。
 3. 次の2つを警告として出力の末尾に載せる。
    - リンク先が存在しない行
    - backlog.md から参照されていない `docs/changes/<dir>/`（`archives/` は除く）

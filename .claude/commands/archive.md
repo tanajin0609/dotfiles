@@ -6,7 +6,7 @@ description: |
   docs/changes/archives/ へ移動する。directry-rules.md 1章で「未実装コマンド」とされていた
   /archive の実装。完了の最終判断は常にユーザーが行い、コマンドは事実確認と移動作業だけを担う。
   「このchangeをアーカイブして」「完了したものをまとめてアーカイブして」と言われたときに使う。
-  ops系サブプロジェクトの order-yyyymmdd/ は対象外（directry-rules.md 5章の既存フローに従う）。
+  ops系サブプロジェクトの yyyymmdd-<slug>/ は対象外（directry-rules.md 5章の既存フローに従う）。
 ---
 
 # /archive — 完了した変更ディレクトリのアーカイブ化
@@ -15,7 +15,7 @@ description: |
 チェックしたうえで `docs/changes/archives/` へ移動する。詳細ルールは
 `self-work/directry-rules/directry-rules.md` 1章・4章を参照。
 
-**対象外**: ops系サブプロジェクトの `order-yyyymmdd/` は本コマンドの対象外。
+**対象外**: ops系サブプロジェクトの `yyyymmdd-<slug>/` は本コマンドの対象外。
 `directry-rules.md` 5章「backlog.md管理とアーカイブ化」に既存フローがあるため、そちらに従う。
 
 ## 引数

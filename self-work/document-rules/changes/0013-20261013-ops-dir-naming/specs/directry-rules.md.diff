@@ -1,0 +1,96 @@
+--- document-rules/changes/0013-20261013-ops-dir-naming/specs/base/directry-rules.md	2026-10-13 11:23:25.451174300 +0900
++++ directry-rules/directry-rules.md	2026-10-13 11:24:03.663012400 +0900
+@@ -273,7 +273,7 @@
+    例: `<point-api-project>` には `lib/batch/<tenant>/tmp/*.rb`（`Batch::<Tenant>::Tmp::ClassName`、`Batch::Base`継承、`dryrun`/`execute`メソッド）という汎用バッチクラスの蓄積がある（`git branch -a` で `operation/*` 等の専用作業ブランチにしかない資材がないかも確認する）。既存の対象ファイルが見つかった場合は、それを実装内容のベース（参考実装）として `ops-work`側の`src/`スクリプトを作成する。対象リポジトリへのコミットや作業ブランチでの管理は不要（`ops-work`側での一回限りスクリプトとして完結させる）。
+ 3. `order.md`と2の調査結果をもとに `plan.md`（作業計画書：依頼概要・調査結果・対応方針・対象データ・リスク）を作成する。
+ 4. **`plan.md` はユーザーの承認を得てから次に進む。承認前に `src/` の実装に着手しない。**
+-5. 承認後、`src/` に実装する（2で見つかった既存バッチファイルがあれば、それをベースに実装する）。**スクリプトの実体は `ops-work` 側の `order-yyyymmdd/src/` に置く。対象リポジトリ（例: `<point-api-project>`）側のディレクトリ（`tmp/`等）に直接新規作成・保存しない**（2の既存バッチファイルを参考実装として読むことと、そこへ新規スクリプトを置くことは別）。対象リポジトリの`tmp/`は、次の手順7で本番実行時に一時的にscpするコピー先に過ぎない。
++5. 承認後、`src/` に実装する（2で見つかった既存バッチファイルがあれば、それをベースに実装する）。**スクリプトの実体は `ops-work` 側の `yyyymmdd-<slug>/src/` に置く。対象リポジトリ（例: `<point-api-project>`）側のディレクトリ（`tmp/`等）に直接新規作成・保存しない**（2の既存バッチファイルを参考実装として読むことと、そこへ新規スクリプトを置くことは別）。対象リポジトリの`tmp/`は、次の手順7で本番実行時に一時的にscpするコピー先に過ぎない。
+ 6. **履歴・ログを残すレコードを作成する場合は、備考欄（`notes` 等）に作業起因を必ず記録する**（下記「備考欄（notes）への作業起因の記録」参照）。
+ 7. 本番サーバーへのscp・rails runner実行・DRYRUN確認・本実行など**手動作業が発生する場合**は、その手順を `instruction.md` に書く（scp先は対象リポジトリの`tmp/`等、実行環境側のパスになる。ops-work側の`src/`とは別の場所である点に注意）。
+ 8. 関係者と共有する資料は `refs/` に置く。
+@@ -291,13 +291,16 @@
+ 
+ **Why:** 備考欄が空だと、後から履歴を見たときに通常の自動付与と運用一括作業による付与を判別できず、問い合わせ調査や再対応の起点が失えてしまう。<tenant-a> `order-20260730/`（初回ログイン特典917件付与）で、実装後に依頼元から備考欄への文言追加を追加依頼された経緯から、最初から必須項目として扱うことにした。
+ 
+-**依頼単位のディレクトリ分割（`order-yyyymmdd/`）**
++**依頼単位のディレクトリ分割（`yyyymmdd-<slug>/`）**
+ 
+-Ops系サブプロジェクトは継続的に依頼（order）を受けて対応していくため、`order.md`・`plan.md`・`src/`・`refs/`・`tasks/` をサブプロジェクト直下に直置きすると依頼のたびにファイル・フォルダが混在し散らかる。これを避けるため、依頼ごとに実行日ベースの `order-yyyymmdd/` サブディレクトリ（例: `order-20260730/`）を作り、その配下にテンプレート一式を展開する。
++Ops系サブプロジェクトは継続的に依頼（order）を受けて対応していくため、`order.md`・`plan.md`・`src/`・`refs/`・`tasks/` をサブプロジェクト直下に直置きすると依頼のたびにファイル・フォルダが混在し散らかる。これを避けるため、依頼ごとに `yyyymmdd-<slug>/` サブディレクトリ（例: `20260730-grant-first-login-points/`）を作り、その配下にテンプレート一式を展開する。
++
++- `yyyymmdd` は作成日。先頭に置くことで一覧が時系列に並ぶ。
++- `<slug>` は作業内容を表す英語ケバブケース（小文字英数字とハイフン、2〜5語程度。動詞＋対象が望ましい）。親パスに含まれるカテゴリ名・テナント名は繰り返さない。
+ 
+ ```text
+ <subproject>/
+-└── order-20260730/
++└── 20260730-grant-first-login-points/
+     ├── order.md
+     ├── plan.md
+     ├── instruction.md   # 手動作業が発生する場合のみ
+@@ -306,15 +309,17 @@
+     └── tasks/
+ ```
+ 
+-同日中に複数の依頼が来た場合は `order-yyyymmdd/` が既に存在するため、上書きせずユーザーに確認する（連番付与などの対応を相談する）。
++同日の依頼は `<slug>` で区別する。同名ディレクトリが既に存在する場合は上書きせず、別の `<slug>` をユーザーに確認する。
++
++この初期化は **`/init-ops-work`** コマンドを使う。`_templates/ops/`（`order.md`・`plan.md`・`src/`・`refs/`・`tasks/`。`instruction.md`は手動作業発生時に個別コピー）をスケルトンとして `yyyymmdd-<slug>/` 配下にコピーし、Ops系サブプロジェクトの依頼単位ディレクトリ構成とする。
+ 
+-この初期化は **`/init-ops-work`** コマンドを使う。`_templates/ops/`（`order.md`・`plan.md`・`src/`・`refs/`・`tasks/`。`instruction.md`は手動作業発生時に個別コピー）をスケルトンとして `order-yyyymmdd/` 配下にコピーし、Ops系サブプロジェクトの依頼単位ディレクトリ構成とする。
++**Why（2026-10-13 改定）:** 旧形式 `order-yyyymmdd/` は日付しか持たず、一覧を見ても何の作業か分からなかった。`archives/` 配下の旧形式ディレクトリはリネームせずそのまま残す。
+ 
+ **`instruction.md` 内のコマンドのパス表記（2026-07-30 追加 / 2026-08-20 改定）**
+ 
+ `instruction.md`（およびサブ手順書）に書く scp・ssh 等のローカルコマンドは、**すべて絶対パスで記載する**。カレントディレクトリに関わらずそのまま貼って実行できる形にする。
+ 
+-- ops-work側の資材: `$HOME/projects/ops-work/<領域>/<tenant>/order-yyyymmdd/src/xxx`
++- ops-work側の資材: `$HOME/projects/ops-work/<領域>/<tenant>/yyyymmdd-<slug>/src/xxx`
+ - SSH鍵も絶対パス。**`~/` 記法は使わない。**
+ - WSL bash と Windows cmd.exe の両方で実行しうる場合は、**両方のコマンドを併記する**。Windows側は `\\wsl.localhost\<ディストリ名>\home\<ユーザー名>\projects\...` のUNCパスを使う。
+   - ただし**SSH秘密鍵だけはUNCパス不可**。Windows版OpenSSHの権限チェックで `UNPROTECTED PRIVATE KEY FILE!` となるため、鍵のみ Windows ローカルパス（例: `C:\Users\<ユーザー名>\work\pem\xxx.pem`、WSL側と同一の鍵）を参照する。
+@@ -330,7 +335,7 @@
+ 
+ ```text
+ <subproject>/
+-└── order-yyyymmdd/
++└── yyyymmdd-<slug>/
+     ├── instruction.md                # メイン: 本番実行（DRYRUN→本実行→完了確認）
+     ├── instruction-sub-<名前>.md      # サブ: 準備・付随作業の子タスク（複数可）
+     ├── order.md
+@@ -353,7 +358,7 @@
+ 
+ **失効ポイント復活対応の標準手順（2026-08-03 追加）**
+ 
+-「失効したポイントを復活してほしい」という依頼（`fix-points/<tenant>/order-yyyymmdd/`）は、`<point-api-project>`にモデル層での正規の復活メソッドが存在しない（`app/models/<point_history_model>.rb`の`<expire_method>`は失効専用の一方向処理で、逆再生用メソッドはない）ため、以下を標準手順とする（<tenant-b> `order-20260803`で採用。詳細な再現SQLは同ディレクトリの`instruction.md`を参照）。
++「失効したポイントを復活してほしい」という依頼（`fix-points/<tenant>/yyyymmdd-<slug>/`）は、`<point-api-project>`にモデル層での正規の復活メソッドが存在しない（`app/models/<point_history_model>.rb`の`<expire_method>`は失効専用の一方向処理で、逆再生用メソッドはない）ため、以下を標準手順とする（<tenant-b> `order-20260803`で採用。詳細な再現SQLは同ディレクトリの`instruction.md`を参照）。
+ 
+ 1. `src/`スクリプトや`<grant_method>`等のモデルメソッド経由の新規ポイント付与ではなく、**本番DBへの直接SQL**で対応する。
+ 2. 対象の失効履歴（`<point_history_table>`、`reason: EXPIRED`）を論理削除する（`acts_as_paranoid`採用のため`DELETE`ではなく`UPDATE ... SET deleted_at = NOW()`）。
+@@ -367,12 +372,12 @@
+ 
+ **backlog.md管理とアーカイブ化（2026-08-19 追加、2026-08-26 パス形式を修正）**
+ 
+-`order-yyyymmdd/` を直置きするサブプロジェクト直下（`order-yyyymmdd/` と同じ階層）の `docs/tasks/backlog.md` に、依頼の進行状況を管理する。粒度はサブプロジェクト単位（`ops-work/docs/tasks/backlog.md`のような横断1ファイルや`ops-work/fix-points/docs/tasks/backlog.md`のようなカテゴリ単位ではない。`ops-work/fix-points/<tenant-b>/docs/tasks/backlog.md`のようにテナント/案件単位まで下りる）。
++`yyyymmdd-<slug>/` を直置きするサブプロジェクト直下（`yyyymmdd-<slug>/` と同じ階層）の `docs/tasks/backlog.md` に、依頼の進行状況を管理する。粒度はサブプロジェクト単位（`ops-work/docs/tasks/backlog.md`のような横断1ファイルや`ops-work/fix-points/docs/tasks/backlog.md`のようなカテゴリ単位ではない。`ops-work/fix-points/<tenant-b>/docs/tasks/backlog.md`のようにテナント/案件単位まで下りる）。
+ 
+-- **依頼作成時**: `docs/tasks/backlog.md` が無ければ `_templates/ops/backlog.md` を `docs/tasks/backlog.md` としてコピーして新規作成し、`## 進行中` に `- [ ] 依頼概要 → order-yyyymmdd/order.md` を1行追記する（書式は `todo-format` skill）（`/init-ops-work` ワークフロー手順5）。
+-- **完了時**: ユーザーが明示的に「完了」と伝えたら、`order-yyyymmdd/` を `archives/order-yyyymmdd/` へ `mv` し、`docs/tasks/backlog.md` の該当行を `## 完了（archives/へ移動済み）` へ移して `- [x]` にし、リンク先を更新する（`/init-ops-work` 依頼対応の標準フロー手順9）。
++- **依頼作成時**: `docs/tasks/backlog.md` が無ければ `_templates/ops/backlog.md` を `docs/tasks/backlog.md` としてコピーして新規作成し、`## 進行中` に `- [ ] 依頼概要 → yyyymmdd-<slug>/order.md` を1行追記する（書式は `todo-format` skill）（`/init-ops-work` ワークフロー手順5）。
++- **完了時**: ユーザーが明示的に「完了」と伝えたら、`yyyymmdd-<slug>/` を `archives/yyyymmdd-<slug>/` へ `mv` し、`docs/tasks/backlog.md` の該当行を `## 完了（archives/へ移動済み）` へ移して `- [x]` にし、リンク先を更新する（`/init-ops-work` 依頼対応の標準フロー手順9）。
+ 
+-**Why:** ops-workサブプロジェクトが依頼を継続的に受けていく中で、`order-yyyymmdd/`が増えるほど「今どの依頼が進行中か」が一覧できなくなっていた。backlog.mdは`docs/tasks/backlog.md`（1章・4章のdevテンプレート）に相当するops版の進行管理として新設した。archives/への移動は、完了済みの依頼を`order-yyyymmdd/`の一覧から分離し、進行中のものだけを見やすくするため。
++**Why:** ops-workサブプロジェクトが依頼を継続的に受けていく中で、`yyyymmdd-<slug>/`が増えるほど「今どの依頼が進行中か」が一覧できなくなっていた。backlog.mdは`docs/tasks/backlog.md`（1章・4章のdevテンプレート）に相当するops版の進行管理として新設した。archives/への移動は、完了済みの依頼を`yyyymmdd-<slug>/`の一覧から分離し、進行中のものだけを見やすくするため。
+ 
+ **パス形式修正の経緯（2026-08-26）**: 当初は`docs/`を挟まないベタ置き`backlog.md`として運用していたが、`/todo-import`・`check-todos`の探索が`find -path "*/docs/tasks/backlog.md"`である（[[project_notion_task_pipeline]]のtodo_sync.pyと同じ形式）ため、ベタ置き`backlog.md`は日次の棚卸しに一切乗らなかった。devテンプレートと同じ`docs/tasks/backlog.md`形式に統一し、`find`の`-maxdepth`も4→6に拡張して`ops-work/<カテゴリ>/<テナント>/docs/tasks/backlog.md`（6階層）・`self-work/<サブプロジェクト>/docs/tasks/backlog.md`（5階層）を拾えるようにした。
+ 
+@@ -380,7 +385,7 @@
+ 
+ **`inbox/` からの正式配置タイミング（2026-09-02 追加）**
+ 
+-`inbox/order-yyyymmdd/`（配置先＝カテゴリ・テナントが未確定のまま仮置きされた依頼）は、`plan.md`が承認された時点でClaudeが機械的に`<category>/<tenant>/order-yyyymmdd/`へ`mv`する（archives/への移動＝完了判定とは別物で、ユーザーの明示確認は不要）。カテゴリ・テナントは本節冒頭のNotionプロパティ判定に従う。移動と同時に`inbox/docs/tasks/backlog.md`の該当行を削除し、`<category>/<tenant>/docs/tasks/backlog.md`（無ければ`_templates/ops/backlog.md`から新規作成）の`## 進行中`へ追記する。プロパティ値が既存カテゴリのいずれにも該当しない場合は新カテゴリを機械的に新設せず、都度ユーザーに確認する。
++`inbox/yyyymmdd-<slug>/`（配置先＝カテゴリ・テナントが未確定のまま仮置きされた依頼）は、`plan.md`が承認された時点でClaudeが機械的に`<category>/<tenant>/yyyymmdd-<slug>/`へ`mv`する（archives/への移動＝完了判定とは別物で、ユーザーの明示確認は不要）。カテゴリ・テナントは本節冒頭のNotionプロパティ判定に従う。移動と同時に`inbox/docs/tasks/backlog.md`の該当行を削除し、`<category>/<tenant>/docs/tasks/backlog.md`（無ければ`_templates/ops/backlog.md`から新規作成）の`## 進行中`へ追記する。プロパティ値が既存カテゴリのいずれにも該当しない場合は新カテゴリを機械的に新設せず、都度ユーザーに確認する。
+ 
+ **Why:** Inbox配下の依頼がplan.md承認後も配置先未確定のまま滞留し続けるケースが発生した（ops-work/inbox配下に長期間残る依頼が出た、2026-09-02）。承認＝カテゴリ・テナントが決まったタイミングであるため、そのタイミングで機械的に配置を確定させることで滞留を防ぐ。承認自体はユーザー判断のままなので[[feedback_no_unilateral_judgment]]とは抵触しない。
+ 

@@ -78,11 +78,11 @@ Step1のファイル競合マップ（並列実行グループ）ごとにAgent�
   編集前に対象ファイルを`docs/changes/<change-name>/specs/base/`にコピーし、完了後に`diff -u`で
   `specs/*.diff`を生成する（`directry-rules.md` 4.2、既存のdelta spec記録方式をそのまま使う。
   新しい記録方式は作らない）
-- 対象サブプロジェクトが**ops系**の場合: 対応する`order-yyyymmdd/plan.md`の「承認状況」を確認する。
+- 対象サブプロジェクトが**ops系**の場合: 対応する`yyyymmdd-<slug>/plan.md`の「承認状況」を確認する。
   未承認のまま実装に着手しない（チェックが埋まっていなければ実装せずスキップし、理由を報告する）。
   業務ルールが`$HOME/.claude/local/ops-work/RULES.md`にあれば読んで従う（無ければ
   黙って続行）
-- **`docs/tasks/backlog.md`（ops系は対応する`order-yyyymmdd/plan.md`も）への反映は、報告事項ではなく
+- **`docs/tasks/backlog.md`（ops系は対応する`yyyymmdd-<slug>/plan.md`も）への反映は、報告事項ではなく
   作業そのものの一部として明示的に指示する**（「完了したら報告して」ではなく「完了したら
   該当項目を`- [x]`にする／実施結果を書き足す、まで行うこと」と伝える。2026-08-24: Step3の
   報告フォーマットに項目があるだけでは反映が漏れることが判明したため追加）
@@ -103,7 +103,7 @@ Step1のファイル競合マップ（並列実行グループ）ごとにAgent�
 - 実行したマイルストーンID・サブステップ
 - 変更したファイルパス（実装コード、テスト、大本spec、delta spec diffなど）
 - テスト/ビルドコマンドの実行結果（dev系は必須。pass/failを明記）
-- 対応するサブプロジェクトの`docs/tasks/backlog.md`／`order-yyyymmdd/plan.md`への反映内容
+- 対応するサブプロジェクトの`docs/tasks/backlog.md`／`yyyymmdd-<slug>/plan.md`への反映内容
   （完了チェックの更新など。実施したかどうかを明記）
 - マイルストーンが完了しなかった場合（一部失敗・スキップ）は、**defer情報**を以下4項目で
   構造化して報告する（自由記述の「未解決点・次アクション」ではなく定型形式。
@@ -135,7 +135,7 @@ Step1のファイル競合マップ（並列実行グループ）ごとにAgent�
 - dev系で大本specを更新した場合、`specs/`にdiffが実在し内容が変更と一致するか
 - ops系で承認前の`plan.md`に無断で着手していないか
 - 指定されていないマイルストーンに手を広げていないか
-- `docs/tasks/backlog.md`（ops系は`order-yyyymmdd/plan.md`も）が実際に更新されているか
+- `docs/tasks/backlog.md`（ops系は`yyyymmdd-<slug>/plan.md`も）が実際に更新されているか
 
 `todo-checker`が「要修正」と判定したマイルストーンは、指摘内容を添えてStep2のサブエージェントに
 差し戻し、再実装させたうえで再度`todo-checker`にかける（合格するまでStep2↔Step4を繰り返す。

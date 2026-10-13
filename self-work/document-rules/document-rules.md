@@ -39,7 +39,7 @@ backlog.md・change の checklist.md・today-todo の役割分担と情報の流
 `docs/tasks/backlog.md`（正の情報源）を横断的に一元管理・一覧できるようにすること**。したがって：
 
 - いずれかのサブプロジェクトで作業が完了・進捗したら、**正の情報源（`docs/tasks/backlog.md`、ops系は
-  `order-yyyymmdd/plan.md`）と`today-todo/todo-YYYY-MM-DD.md`の両方を更新する。片方だけでは
+  `yyyymmdd-<slug>/plan.md`）と`today-todo/todo-YYYY-MM-DD.md`の両方を更新する。片方だけでは
   完了とみなさない。**
 - 順序は「正の情報源 → `today-todo/`」（`today-todo/`は正の情報源の写しであり、逆方向に情報が
   生まれることはない）。
@@ -54,7 +54,7 @@ backlog.md・change の checklist.md・today-todo の役割分担と情報の流
 | 種別 | 置き場所 | 作成者（コマンド/フロー） | 目的 | 実装を含むか |
 |---|---|---|---|---|
 | `proposal.md` / `design.md` / `checklist.md` | `<subproject>/docs/changes/<version>-<type>-...-<日付>/` | `/todo-propose`（dev系）、`/init-change`で雛形作成 | 単一サブプロジェクト内の1変更について、着手前に提案・設計を書き起こす | **含まない**（承認後、別途の実装依頼で着手） |
-| `order.md` / `plan.md` | `<subproject>/order-yyyymmdd/` | `/todo-propose`（ops系）、`/init-ops-work`で雛形作成 | 単一サブプロジェクトへの1依頼について、作業計画を書き起こす（承認ゲート） | **含まない**（`plan.md`承認後、`src/`実装に着手） |
+| `order.md` / `plan.md` | `<subproject>/yyyymmdd-<slug>/` | `/todo-propose`（ops系）、`/init-ops-work`で雛形作成 | 単一サブプロジェクトへの1依頼について、作業計画を書き起こす（承認ゲート） | **含まない**（`plan.md`承認後、`src/`実装に着手） |
 | `today-todo/plan-YYYY-MM-DD.md`（またはトピック別に`plan-YYYY-MM-DD-<topic>.md`） | `projects/today-todo/` 直下 | `/todo-execute`（2026-08-24追加。それ以前はアドホックなコーディネーターセッション、専用コマンドなし） | **複数サブプロジェクトを横断**して、その場で実装まで進める実行計画（並列サブエージェントへのファイル競合マップ・モデル割当・実行順序）を記録する。`/todo-execute`は`proposal-YYYY-MM-DD.md`のマイルストーンのうちユーザーが指定したものを対象に、この計画を作ってから実行する | **含む**（計画と同じセッションで実装まで進める前提） |
 | `today-todo/proposal-YYYY-MM-DD.md` | `projects/today-todo/` 直下 | `/todo-propose`（引数なし・today-todoバッチモード）の完了報告ステップ | バッチモードが**複数サブプロジェクトに起票した提案書・作業計画書の横断まとめ**（判定集計・起票パス一覧・発見事項・留保・マイルストーン提案）を1ファイルに残す。散らばった成果物への入口として、承認判断をここから始める | **含まない**（各提案の承認・実装は別途） |
 | `today-todo/work-log-YYYY-MM-DD.md` | `projects/today-todo/` 直下 | `/todo-import`・`/todo-propose`・`/todo-execute` が各実行時に追記 | `todo-import → todo-propose → todo-execute` のワークフローで**いつ何を実行したか**を時系列に積み上げる実行履歴。成果物のスナップショット（`proposal-`・`plan-`）とは別物 | **含まない**（実行結果の記録のみ） |
@@ -64,7 +64,7 @@ backlog.md・change の checklist.md・today-todo の役割分担と情報の流
 - **`/todo-propose`の成果物ではない**（まとめ版 `proposal-YYYY-MM-DD.md` とは別物。下節参照）。
   `/todo-propose`は「提案書・作業計画書の作成で必ず停止し、実装フェーズを持たない」設計
   （`directry-rules.md` 7章、2026-08-20確定）であり、**提案そのもの**は常に対象サブプロジェクト内
-  （`docs/changes/`・`order-yyyymmdd/`）に閉じる。実装まで進める横断実行計画は書かない。
+  （`docs/changes/`・`yyyymmdd-<slug>/`）に閉じる。実装まで進める横断実行計画は書かない。
 - `today-todo/plan-YYYY-MM-DD.md` は `/todo-propose` 実装前（2026-08-19）に、複数サブプロジェクトの `today-todo` 項目を
   1セッションで実装まで並列消化するために書かれたアドホックな成果物。単一サブプロジェクトの
   `docs/changes/` に置けない（複数プロジェクトにまたがるため）ので `today-todo/` 直下に置かれた。
@@ -177,7 +177,7 @@ backlog.md・change の checklist.md・today-todo の役割分担と情報の流
 `plan-YYYY-MM-DD*.md`・`proposal-YYYY-MM-DD.md`・`work-log-YYYY-MM-DD.md`はこの自動アーカイブの
 対象外（当日以降も参照されることがあるため）。これらは従来どおり、
 **完了したものを、ユーザーが指示したタイミングで手動で`today-todo/archives/<yyyymmdd>/`へ`mv`する**
-（ops系の`order-yyyymmdd/`→`archives/order-yyyymmdd/`と同じ考え方。`directry-rules.md` 5章参照）。
+（ops系の`yyyymmdd-<slug>/`→`archives/yyyymmdd-<slug>/`と同じ考え方。`directry-rules.md` 5章参照）。
 完了判定・削除に類する操作をAIが先回りして決めないという原則と同根
 （`changes/0001-20260821-todo-plan-naming/proposal.md` 5章）。
 
@@ -192,7 +192,7 @@ backlog.md・change の checklist.md・today-todo の役割分担と情報の流
 
 ## How to apply
 
-- 「提案書を書いて」「作業計画書を書いて」だけの依頼 → `/todo-propose`（dev系は`docs/changes/`、ops系は`order-yyyymmdd/`）。
+- 「提案書を書いて」「作業計画書を書いて」だけの依頼 → `/todo-propose`（dev系は`docs/changes/`、ops系は`yyyymmdd-<slug>/`）。
   実装を含む`today-todo/plan-YYYY-MM-DD.md`（横断実行計画）は作らない。
   ただし**引数なしのバッチモードのときだけ**、最後に`today-todo/proposal-YYYY-MM-DD.md`（まとめ版）を書く。
 - 「`/todo-propose`が提案したマイルストーンを実装して」「M1を進めて」のように、承認済みマイルストーンを

@@ -4,7 +4,7 @@ model: opus
 description: |
   対象サブプロジェクトの既存資材（コード・spec・過去のバッチ/ブランチ）を調査したうえで、
   dev系（docs/specs/あり）なら docs/changes/<version>-<type>-<短い説明>-<日付>/ の
-  proposal.md・design.md・checklist.md を、ops系（docs/specs/なし）なら order-yyyymmdd/ の
+  proposal.md・design.md・checklist.md を、ops系（docs/specs/なし）なら yyyymmdd-<slug>/ の
   order.md・plan.md を埋める。backlog.md への同期も行う。対象項目がNotion起源（page_idを持つ）
   場合は提案書をNotionチケットへ書き戻す（対応するtodo-source-*skillの定義に従う）。
   提案書・作業計画書の作成で必ず停止し、
@@ -154,7 +154,8 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 | `checklist.md` | 先頭のチェックリスト | 実装タスクの分解（delta specのチェック項目はテンプレートのまま残す） |
 
 情報が不足している箇所は推測で埋めず、`decisions.md`の「論点」に選択肢とともに
-明記する（承認時のレビュー観点になる。`proposal.md`・`design.md`本文には質問を書かない）。
+明記する（承認時のレビュー観点になる）。`proposal.md`・`design.md`本文には選択肢や検討過程を書かず、
+「問い → 回答（決定、未決定なら「未決定」）」の1行粒度だけを書く。
 
 上記を埋めたら、`design.md`の「実装セルフチェック」チェックボックスを実際に検証してから
 チェックを入れる（見た目だけ埋めない）。本文中のファイルパス・関数名・DBカラム名等を
@@ -178,7 +179,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 
 ### B. ops系の場合
 
-**B-1.** 依頼に対応する `order-yyyymmdd/` が無ければ、
+**B-1.** 依頼に対応する `yyyymmdd-<slug>/` が無ければ、
 `$HOME/.claude/commands/init-ops-work.md` のワークフロー（対象ディレクトリ決定・
 依頼ディレクトリ決定・重複チェック・テンプレートコピー・backlog.md追記）に従って作成する。
 既にあれば流用する。
@@ -359,7 +360,7 @@ skill（今回の対象なら `todo-source-notion`）が定義する書き戻し
 - dev系・ops系いずれも、既存資材の調査（手順2）を省略しない。
 - 案件固有の業務ルールは本コマンドに書かない。ops系の業務ルール参照先は
   `$HOME/.claude/local/ops-work/RULES.md`（無ければ黙って続行）。
-- **提案そのもの**は対象サブプロジェクト内（`docs/changes/`・`order-yyyymmdd/`）に閉じる。
+- **提案そのもの**は対象サブプロジェクト内（`docs/changes/`・`yyyymmdd-<slug>/`）に閉じる。
   横断して置くのはバッチモードのまとめ版（`today-todo/proposal-YYYY-MM-DD.md`、手順3-1）だけで、
   これは起票先への入口であって提案の実体ではない。
   実装まで進めるコーディネーター実行計画（`today-todo/plan-YYYY-MM-DD.md`）は別物であり本コマンドの
