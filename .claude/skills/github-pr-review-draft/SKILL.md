@@ -70,6 +70,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/pr_review_draft.py" reading --run "<runDir>
 
 - コードは `worktree`（PRのhead時点の完全なツリー）で読む。diffだけで判断せず、変更が参照・影響する周辺コード・呼び出し元・テストまで読む
 - リポジトリの慣習（CONTRIBUTING、lint設定、既存コードの流儀）を確認する
+- 対象リポジトリに `.claude/review-rules/INDEX.md` があれば、`code-review-checklist` skill の `references/repo-rules.md` の手順で照合する。合図がヒットしたルールの詳細だけを読み、指摘の根拠にはルールIDと詳細ドキュメントのパスを書く。無ければ飛ばす
+- 周辺コードを読む範囲は、変更箇所の参照・影響先と合図ヒット箇所までに留め、差分と無関係なコードを網羅的に読まない。linter/CIが担保する事項はコメント案にしない
 - diff全体は `<runDir>/collected/diff.patch` にある
 
 ### 4. 報告書の提示
