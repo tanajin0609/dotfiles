@@ -573,21 +573,12 @@
   }
   .rate-limits .pct { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
 
-  .session-panel { display: flex; flex-direction: column; gap: 8px; }
-  .session-panel.hidden { display: none; }
-  .attention-panel { display: flex; flex-direction: column; gap: 8px; }
-  .attention-panel[hidden] { display: none; }
-  .attention-label {
-    flex: 0 0 auto; font-size: var(--fs-xs); font-weight: 700; color: var(--state-blocked);
-    display: inline-flex; align-items: center; gap: 5px;
-  }
   .session-card {
     display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs);
     padding: 10px 12px; border-radius: var(--radius); background: var(--raised); cursor: pointer;
     width: 100%; border: 1px solid var(--line); color: var(--ink); text-align: left; box-shadow: var(--shadow-sm);
   }
   .session-card:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
-  .attention-panel .session-card { border-color: color-mix(in srgb, var(--state-blocked) 60%, transparent); box-shadow: inset 3px 0 0 var(--state-blocked); }
   .session-card-head { display: flex; align-items: center; gap: 7px; }
   .session-card .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
   .session-card .title { font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
@@ -597,10 +588,6 @@
   .session-card .detail { color: var(--ink-mute); overflow-wrap: anywhere; }
   .empty-state { font-size: var(--fs-xs); line-height: 1.7; color: var(--ink-mute); padding: 4px 2px; }
   .empty-state-title { font-weight: 600; color: var(--ink-sub); margin-bottom: 2px; }
-  #sessionPanelEmpty {
-    padding: 14px; border: 1px dashed var(--ink-faint); border-radius: var(--radius-lg);
-  }
-  #sessionPanelEmpty[hidden] { display: none; }
 
   /* ---------- ボードのツールバー ---------- */
   .board-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -838,6 +825,9 @@
   .focus-task-text { min-width: 0; overflow-wrap: anywhere; }
   .modal-comments { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 18px; }
   .modal-comments-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-mute); margin-bottom: 8px; }
+  .modal-session-tools { display: inline-flex; align-items: center; gap: 6px; }
+  #modalSessionSelect { font-size: var(--fs-xs); max-width: 260px; }
+  #modalSessionSelect[hidden] { display: none; }
   .modal-comment-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; margin-bottom: 10px; }
   .modal-comments.is-expanded {
     position: fixed; top: 0; bottom: 0; right: min(var(--card-panel-w, 540px), 100vw); width: min(720px, calc(100vw - min(var(--card-panel-w, 540px), 100vw)));
@@ -1107,15 +1097,6 @@
       <h2 class="side-heading" id="rateLimitsHeading">Claude の使用率</h2>
       <div class="rate-limits" id="rateLimits" hidden></div>
     </section>
-    <section class="side-section" aria-labelledby="sessionsHeading">
-      <h2 class="side-heading" id="sessionsHeading">Claude セッション</h2>
-      <div id="attentionPanel" class="attention-panel" role="region" aria-label="要対応" hidden></div>
-      <div id="sessionPanel" class="session-panel hidden"></div>
-      <div id="sessionPanelEmpty" class="empty-state" hidden>
-        <div class="empty-state-title">稼働中・入力待ちのセッションはありません</div>
-        <div>カード詳細のコメント欄で「Claudeに依頼」すると、ここに表示されます</div>
-      </div>
-    </section>
   </aside>
   <section class="board-area" aria-label="ボード">
     <div class="board-toolbar">
@@ -1212,16 +1193,22 @@
       <button id="modalTaskSubmit" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
     <div class="modal-comments">
-      <div class="modal-comments-head"><span id="modalCommentHead">コメント</span><button id="modalCommentExpandBtn" type="button" class="btn btn-icon btn--sm" aria-pressed="false" aria-label="コメントを横に広げて表示" data-tip="コメントを横に広げて表示"></button></div>
+      <div class="modal-comments-head">
+        <span id="modalCommentHead">セッション</span>
+        <span class="modal-session-tools">
+          <select id="modalSessionSelect" aria-label="表示するセッション" hidden></select>
+          <button id="modalSessionArtifactsBtn" type="button" class="btn btn-icon btn--sm" aria-label="資料" data-tip="資料" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+          <button id="modalCommentExpandBtn" type="button" class="btn btn-icon btn--sm" aria-pressed="false" aria-label="セッションを横に広げて表示" data-tip="セッションを横に広げて表示"></button>
+        </span>
+      </div>
       <div id="modalCommentList" class="modal-comment-list"></div>
       <div class="modal-comment-form">
         <div class="field">
-          <label for="modalCommentInput" class="field-label">新しいコメント</label>
-          <textarea id="modalCommentInput" rows="2" placeholder="コメントを入力（タスクをここにドラッグすると引用が入ります）" aria-describedby="modalCommentHint"></textarea>
-          <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」／<kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「メモ保存」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
+          <label for="modalCommentInput" class="field-label">Claudeへの依頼・返信</label>
+          <textarea id="modalCommentInput" rows="2" placeholder="依頼・返信を入力（タスクをここにドラッグすると引用が入ります）" aria-describedby="modalCommentHint"></textarea>
+          <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」（現在のセッションへ送信）／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
         </div>
         <div class="modal-comment-actions">
-          <button id="modalCommentSaveBtn" type="button" class="btn btn-icon" aria-label="メモ保存" data-tip="メモ保存"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/><path d="M17.5 3.5l3 3L13 14h-3v-3z"/></svg></button>
           <button id="modalCommentLaunchBtn" type="button" class="btn btn-primary" aria-label="Claudeに依頼" data-tip="Claudeに依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
           <button id="modalCommentNewSessionBtn" type="button" class="btn btn-secondary" aria-label="新規セッションで依頼" data-tip="既存セッションを引き継がず新しいセッションで依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
         </div>
@@ -1312,7 +1299,7 @@
       </dl>
       <h3 class="shortcut-section">入力欄</h3>
       <dl class="shortcut-list">
-        <dt><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd></dt><dd>その欄の送信ボタンと同じ（カード詳細のコメントは「メモ保存」）</dd>
+        <dt><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd></dt><dd>その欄の送信ボタンと同じ（カード詳細は「Claudeに依頼」）</dd>
         <dt><kbd>Enter</kbd></dt><dd>カード詳細のコメント・セッションログの返信で「Claudeに依頼」（<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行）</dd>
       </dl>
     </div>
@@ -2039,7 +2026,7 @@ function sendDocReview(launchOptions = {}) {
   const target = { file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title };
   docReview.items = [];
   document.getElementById('docDialog').close();
-  sendCardComment(target, text, true, launchOptions);
+  sendCardComment(target, text, launchOptions);
 }
 
 function quoteDocSelection() {
@@ -3037,7 +3024,7 @@ function renderBoard() {
   document.getElementById('boardFilterEmpty').hidden = !(isFiltering && visibleColumnCount === 0);
   populateFocusColumnSelect();
   populateNewCardColumnOptions();
-  renderSessionPanel();
+  renderBlockedCountBadge(boardData.columns.flatMap((c) => c.groups).filter((g) => g.session && g.session.state === 'blocked').length);
   setCopyAvailability(
     document.getElementById('shareAllBtn'),
     document.getElementById('shareAllEmptyReason'),
@@ -3300,41 +3287,6 @@ function buildSessionStatus(group) {
   return wrap;
 }
 
-function listSessionEntries(state) {
-  const entries = [];
-  for (const column of boardData.columns) {
-    for (const group of column.groups) {
-      if (group.session && group.session.state === state) entries.push({ column, group });
-    }
-  }
-  return entries;
-}
-
-function renderSessionPanel() {
-  const blockedEntries = listSessionEntries('blocked');
-  const workingEntries = listSessionEntries('working');
-
-  const attentionPanel = document.getElementById('attentionPanel');
-  attentionPanel.innerHTML = '';
-  attentionPanel.hidden = blockedEntries.length === 0;
-  if (blockedEntries.length > 0) {
-    const label = document.createElement('span');
-    label.className = 'attention-label';
-    label.appendChild(buildSessionStateMarker('blocked'));
-    label.append(`要対応 ${blockedEntries.length}件`);
-    attentionPanel.appendChild(label);
-    for (const { column, group } of blockedEntries) attentionPanel.appendChild(buildSessionCard(column, group));
-  }
-
-  const panel = document.getElementById('sessionPanel');
-  panel.innerHTML = '';
-  panel.classList.toggle('hidden', workingEntries.length === 0);
-  for (const { column, group } of workingEntries) panel.appendChild(buildSessionCard(column, group));
-  document.getElementById('sessionPanelEmpty').hidden = blockedEntries.length + workingEntries.length > 0;
-
-  renderBlockedCountBadge(blockedEntries.length);
-}
-
 const BASE_DOCUMENT_TITLE = 'Today Todo';
 const BADGE_COUNT_MAX = 9;
 let baseFaviconHref = null;
@@ -3360,44 +3312,13 @@ function renderBlockedCountBadge(blockedCount) {
   favicon.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-function buildSessionCard(column, group) {
-  const card = document.createElement('button');
-  card.type = 'button';
-  card.className = 'session-card';
-  card.dataset.focusKey = `chip:${group.id}`;
-  applyColumnHue(card, column.name);
-  const head = document.createElement('span');
-  head.className = 'session-card-head';
-  const dot = document.createElement('span');
-  dot.className = 'dot';
-  const title = document.createElement('span');
-  title.className = 'title';
-  title.textContent = group.title;
-  head.appendChild(dot);
-  head.appendChild(title);
-  const state = document.createElement('span');
-  state.className = `chip-state ${group.session.state}`;
-  state.appendChild(buildSessionStateMarker(group.session.state));
-  state.append(sessionStatusLabel(group.session));
-  card.appendChild(head);
-  card.appendChild(state);
-  if (group.session.detail) {
-    const detail = document.createElement('span');
-    detail.className = 'detail';
-    detail.textContent = group.session.detail;
-    card.appendChild(detail);
-  }
-  card.addEventListener('click', () => openSessionLogModal(column, group));
-  return card;
+// セッションログはヘッダーの一覧から開くダイアログとカード詳細の両方に描くため、描画先と表示中のジョブをビューごとに持つ。
+function createSessionLogView(key, listId, inputId) {
+  return { key, listId, inputId, timer: null, jobId: null, session: null, groupId: null, branchableUuid: null, renderedKeys: null };
 }
-
-let sessionLogTimer = null;
-let sessionLogJobId = null;
-let sessionLogSession = null;
-let latestBranchableUuid = null;
-let sessionLogGroupId = null;
+const sessionLogView = createSessionLogView('dialog', 'sessionLogList', 'sessionLogReplyInput');
+const modalLogView = createSessionLogView('modal', 'modalCommentList', 'modalCommentInput');
 let sessionLogFocusReturn = null;
-let renderedSessionLogEntryKeys = null;
 const SESSION_LOG_FOLLOW_MARGIN_PX = 40;
 
 function sessionLogEntryLabel(entry) {
@@ -3406,14 +3327,14 @@ function sessionLogEntryLabel(entry) {
   return entry.role === 'user' ? 'ユーザー' : 'Claude';
 }
 
-function renderSessionLogMessage(message, session) {
-  const list = document.getElementById('sessionLogList');
+function renderSessionLogMessage(view, message, session) {
+  const list = document.getElementById(view.listId);
   const retryJobId = session ? session.jobId : '';
   const shownBox = list.querySelector(':scope > .session-log-empty');
   // 稼働中は5秒ごとに同じ文言で呼ばれるため、作り直して再取得ボタンのフォーカスを落とさない。
   if (shownBox && shownBox.dataset.message === message && shownBox.dataset.retryJobId === retryJobId) return;
-  renderedSessionLogEntryKeys = null;
-  latestBranchableUuid = null;
+  view.renderedKeys = null;
+  view.branchableUuid = null;
   list.innerHTML = '';
   const box = document.createElement('div');
   box.className = 'session-log-empty';
@@ -3428,7 +3349,7 @@ function renderSessionLogMessage(message, session) {
     retryBtn.className = 'btn btn-icon';
     retryBtn.appendChild(icon('reload'));
     setButtonLabel(retryBtn, '再取得');
-    retryBtn.addEventListener('click', () => fetchAndRenderSessionLog(session));
+    retryBtn.addEventListener('click', () => fetchAndRenderSessionLog(view, session));
     box.appendChild(retryBtn);
   }
   list.appendChild(box);
@@ -3436,7 +3357,7 @@ function renderSessionLogMessage(message, session) {
 
 // AskUserQuestionのinputをJSONとして解釈し、`multiSelect`でない質問だけ選択肢をボタン化する。
 // 壊れている（切り詰め等でJSONとして不正）場合や選択肢が無い場合はnullを返し、生ログ表示のみにする。
-function buildAskUserQuestionOptions(entry) {
+function buildAskUserQuestionOptions(entry, view) {
   let payload;
   try {
     payload = JSON.parse(entry.input);
@@ -3475,13 +3396,13 @@ function buildAskUserQuestionOptions(entry) {
         for (const other of buttons.querySelectorAll('button')) other.setAttribute('aria-pressed', String(other === btn));
         answers.set(questionIndex, opt.label);
         block.classList.add('is-answered');
-        fillAskUserQuestionReply(questions, answers);
+        fillAskUserQuestionReply(view, questions, answers);
       });
       option.appendChild(btn);
       if (opt.description) {
         const description = document.createElement('span');
         description.className = 'input-hint';
-        description.id = `askUserQuestionOption${questionIndex}-${optionIndex}Description`;
+        description.id = `${view.key}AskUserQuestionOption${questionIndex}-${optionIndex}Description`;
         description.textContent = opt.description;
         btn.setAttribute('aria-describedby', description.id);
         option.appendChild(description);
@@ -3494,15 +3415,15 @@ function buildAskUserQuestionOptions(entry) {
   return wrap.childElementCount > 0 ? wrap : null;
 }
 
-function fillAskUserQuestionReply(questions, answers) {
-  document.getElementById('sessionLogReplyInput').value = questions.length === 1
+function fillAskUserQuestionReply(view, questions, answers) {
+  document.getElementById(view.inputId).value = questions.length === 1
     ? answers.get(0)
     : [...answers].sort(([a], [b]) => a - b)
       .map(([questionIndex, label]) => `「${questions[questionIndex].question || ''}」: ${label}`)
       .join(' / ');
 }
 
-function buildSessionLogEntryRow(entry) {
+function buildSessionLogEntryRow(entry, view) {
   const row = document.createElement('div');
   row.className = `log-entry ${entry.kind} ${entry.role || ''}`;
   const role = document.createElement('div');
@@ -3520,41 +3441,41 @@ function buildSessionLogEntryRow(entry) {
     branchBtn.dataset.focusKey = `log-branch:${entry.uuid}`;
     branchBtn.appendChild(icon('branch'));
     setButtonLabel(branchBtn, 'ここから分岐');
-    branchBtn.disabled = !!(sessionLogGroupId && busyCommentsByGroupId.has(sessionLogGroupId));
-    branchBtn.addEventListener('click', () => branchSessionFromEntry(entry.uuid));
+    branchBtn.disabled = !!(view.groupId && busyCommentsByGroupId.has(view.groupId));
+    branchBtn.addEventListener('click', () => branchSessionFromEntry(view, entry.uuid));
     row.appendChild(branchBtn);
   }
   return row;
 }
 
-function buildPendingAskUserQuestionOptions(entries, session) {
+function buildPendingAskUserQuestionOptions(view, entries, session) {
   if (session && session.state === 'blocked' && Array.isArray(session.questions)) {
-    return buildAskUserQuestionOptions({ input: JSON.stringify({ questions: session.questions }) });
+    return buildAskUserQuestionOptions({ input: JSON.stringify({ questions: session.questions }) }, view);
   }
   const lastEntry = entries[entries.length - 1];
   if (!lastEntry) return null;
   const isPendingAskUserQuestion = lastEntry.kind === 'tool_use' && lastEntry.name === 'AskUserQuestion' &&
     session && session.state === 'blocked';
-  return isPendingAskUserQuestion ? buildAskUserQuestionOptions(lastEntry) : null;
+  return isPendingAskUserQuestion ? buildAskUserQuestionOptions(lastEntry, view) : null;
 }
 
 // 5秒ごとに呼ばれるため、表示済みの選択肢は作り直さない（押そうとしているボタンのフォーカスを落とさない）。
-function syncPendingAskUserQuestionOptions(list, entries, session) {
+function syncPendingAskUserQuestionOptions(view, list, entries, session) {
   const shown = list.querySelector(':scope > .ask-user-question-options');
-  const shouldShow = !!buildPendingAskUserQuestionOptions(entries, session);
+  const shouldShow = !!buildPendingAskUserQuestionOptions(view, entries, session);
   if (shown && !shouldShow) shown.remove();
-  if (!shown && shouldShow) list.appendChild(buildPendingAskUserQuestionOptions(entries, session));
+  if (!shown && shouldShow) list.appendChild(buildPendingAskUserQuestionOptions(view, entries, session));
 }
 
 // 稼働中は5秒ごとに呼ばれるため、毎回作り直すと読み返し中のスクロール位置とフォーカスが失われる。
-function renderSessionLogEntries(entries, session) {
-  const list = document.getElementById('sessionLogList');
+function renderSessionLogEntries(view, entries, session) {
+  const list = document.getElementById(view.listId);
   const entryKeys = entries.map((entry) => JSON.stringify(entry));
-  const renderedKeys = renderedSessionLogEntryKeys;
+  const renderedKeys = view.renderedKeys;
   const canAppend = !!renderedKeys && renderedKeys.length <= entryKeys.length &&
     renderedKeys.every((key, index) => key === entryKeys[index]);
   if (canAppend && renderedKeys.length === entryKeys.length) {
-    syncPendingAskUserQuestionOptions(list, entries, session);
+    syncPendingAskUserQuestionOptions(view, list, entries, session);
     return;
   }
   const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
@@ -3562,16 +3483,16 @@ function renderSessionLogEntries(entries, session) {
   if (canAppend) {
     const staleOptions = list.querySelector(':scope > .ask-user-question-options');
     if (staleOptions) staleOptions.remove();
-    for (const entry of entries.slice(renderedKeys.length)) list.appendChild(buildSessionLogEntryRow(entry));
+    for (const entry of entries.slice(renderedKeys.length)) list.appendChild(buildSessionLogEntryRow(entry, view));
   } else {
     const focusReturn = list.contains(document.activeElement) ? captureFocusReturn() : null;
-    list.replaceChildren(...entries.map((entry) => buildSessionLogEntryRow(entry)));
+    list.replaceChildren(...entries.map((entry) => buildSessionLogEntryRow(entry, view)));
     restoreFocusReturn(focusReturn);
   }
-  syncPendingAskUserQuestionOptions(list, entries, session);
-  renderedSessionLogEntryKeys = entryKeys;
+  syncPendingAskUserQuestionOptions(view, list, entries, session);
+  view.renderedKeys = entryKeys;
   const latestBranchable = entries.findLast((entry) => entry.kind === 'text' && entry.role === 'assistant' && entry.uuid);
-  latestBranchableUuid = latestBranchable ? latestBranchable.uuid : null;
+  view.branchableUuid = latestBranchable ? latestBranchable.uuid : null;
   if (shouldFollow) list.scrollTop = list.scrollHeight;
 }
 
@@ -3581,34 +3502,34 @@ function resolveEmptySessionLogReason(session, status) {
   return isJustLaunched ? '起動直後でまだログがありません' : '紐付くログがありません';
 }
 
-async function fetchAndRenderSessionLog(session) {
+async function fetchAndRenderSessionLog(view, session) {
   let res;
   try {
     res = await fetch(`/api/session/transcript?jobId=${encodeURIComponent(session.jobId)}`);
   } catch {
     res = null;
   }
-  if (sessionLogJobId !== session.jobId) return;
+  if (view.jobId !== session.jobId) return;
   if (!res) {
-    renderSessionLogMessage('ログを取得できませんでした（サーバーに接続できません）', session);
+    renderSessionLogMessage(view, 'ログを取得できませんでした（サーバーに接続できません）', session);
     return;
   }
   if (res.status === 404) {
-    renderSessionLogMessage(resolveEmptySessionLogReason(session, res.status), session);
+    renderSessionLogMessage(view, resolveEmptySessionLogReason(session, res.status), session);
     // 最初のターンで回答待ちになったジョブはstate.jsonにtranscriptの所在がまだ無いが、質問はblockにある。
-    syncPendingAskUserQuestionOptions(document.getElementById('sessionLogList'), [], session);
+    syncPendingAskUserQuestionOptions(view, document.getElementById(view.listId), [], session);
     return;
   }
   if (!res.ok) {
-    renderSessionLogMessage(`ログを取得できませんでした（HTTP ${res.status}）`, session);
+    renderSessionLogMessage(view, `ログを取得できませんでした（HTTP ${res.status}）`, session);
     return;
   }
   const data = await res.json();
   if (!data.entries || data.entries.length === 0) {
-    renderSessionLogMessage(resolveEmptySessionLogReason(session, res.status), session);
+    renderSessionLogMessage(view, resolveEmptySessionLogReason(session, res.status), session);
     return;
   }
-  renderSessionLogEntries(data.entries, session);
+  renderSessionLogEntries(view, data.entries, session);
 }
 
 function openSessionLogModal(column, group) {
@@ -3617,39 +3538,39 @@ function openSessionLogModal(column, group) {
   const dialog = document.getElementById('sessionLogDialog');
   const wasOpen = dialog.open;
   if (!wasOpen) sessionLogFocusReturn = captureFocusReturn();
-  if (sessionLogGroupId !== group.id) document.getElementById('sessionLogReplyInput').value = '';
-  sessionLogJobId = session.jobId;
-  sessionLogGroupId = group.id;
+  if (sessionLogView.groupId !== group.id) document.getElementById('sessionLogReplyInput').value = '';
+  sessionLogView.jobId = session.jobId;
+  sessionLogView.groupId = group.id;
   document.getElementById('sessionLogColLabel').textContent = column.name;
   applyColumnHue(document.getElementById('sessionLogDialog'), column.name);
   document.getElementById('sessionLogTitle').textContent = group.title;
   document.getElementById('sessionLogStateLabel').textContent = sessionStatusLabel(session);
-  renderSessionLogMessage('読込中…', null);
+  renderSessionLogMessage(sessionLogView, '読込中…', null);
   if (!wasOpen) dialog.showModal();
   attachToastRegionToTopmostDialog();
   if (!wasOpen) document.getElementById('sessionLogCloseBtn').focus();
-  sessionLogSession = session;
-  fetchAndRenderSessionLog(session);
-  if (sessionLogTimer) clearInterval(sessionLogTimer);
+  sessionLogView.session = session;
+  fetchAndRenderSessionLog(sessionLogView, session);
+  if (sessionLogView.timer) clearInterval(sessionLogView.timer);
   // 起動直後でまだstate.jsonの無いジョブや、開いた後に状態が変わるジョブがあるため、状態にかかわらず回す。
-  sessionLogTimer = setInterval(() => fetchAndRenderSessionLog(sessionLogSession), 5000);
+  sessionLogView.timer = setInterval(() => fetchAndRenderSessionLog(sessionLogView, sessionLogView.session), 5000);
 }
 
 // refreshSessionsの結果を開いているログダイアログへ反映する（jobIdが変われば継続先へ切り替える）。
 function syncOpenSessionLog() {
   const dialog = document.getElementById('sessionLogDialog');
-  if (!dialog.open || !sessionLogGroupId) return;
-  const found = findGroupById(sessionLogGroupId);
+  if (!dialog.open || !sessionLogView.groupId) return;
+  const found = findGroupById(sessionLogView.groupId);
   if (!found || !found.group.session) return;
   const next = found.group.session;
-  if (next.jobId !== sessionLogJobId) {
+  if (next.jobId !== sessionLogView.jobId) {
     openSessionLogModal(found.column, found.group);
     return;
   }
   // 状態が変わった直後はtranscriptへの書き込みがまだ届いていないことがあるため、状態の変化に関係なく毎回取り直す。
-  sessionLogSession = next;
+  sessionLogView.session = next;
   document.getElementById('sessionLogStateLabel').textContent = sessionStatusLabel(next);
-  fetchAndRenderSessionLog(next);
+  fetchAndRenderSessionLog(sessionLogView, next);
 }
 
 function artifactUrl(jobId, filePath) {
@@ -3726,16 +3647,16 @@ async function openArtifactDoc(jobId, artifact) {
   replaceDocFrame(docFrameHtml(renderMarkdownHtml(markdown)));
 }
 
-async function openSessionArtifacts() {
-  const jobId = sessionLogJobId;
+async function openSessionArtifacts(view) {
+  const jobId = view.jobId;
   if (!jobId) return;
   const res = await fetch(`/api/session/artifacts?jobId=${encodeURIComponent(jobId)}`).catch(() => null);
   if (!res || !res.ok) {
-    showToast('資料一覧の読み込みに失敗しました', { kind: 'error', actionLabel: '再試行', onAction: openSessionArtifacts });
+    showToast('資料一覧の読み込みに失敗しました', { kind: 'error', actionLabel: '再試行', onAction: () => openSessionArtifacts(view) });
     return;
   }
   const { artifacts } = await res.json();
-  if (sessionLogJobId !== jobId) return;
+  if (view.jobId !== jobId) return;
   if (!artifacts.length) {
     showToast('このセッションが書いた資料はありません');
     return;
@@ -3754,14 +3675,14 @@ function closeSessionLogModal() {
 }
 
 function onSessionLogDialogClosed() {
-  sessionLogJobId = null;
-  sessionLogSession = null;
-  sessionLogGroupId = null;
-  renderedSessionLogEntryKeys = null;
-  latestBranchableUuid = null;
-  if (sessionLogTimer) {
-    clearInterval(sessionLogTimer);
-    sessionLogTimer = null;
+  sessionLogView.jobId = null;
+  sessionLogView.session = null;
+  sessionLogView.groupId = null;
+  sessionLogView.renderedKeys = null;
+  sessionLogView.branchableUuid = null;
+  if (sessionLogView.timer) {
+    clearInterval(sessionLogView.timer);
+    sessionLogView.timer = null;
   }
   attachToastRegionToTopmostDialog();
   restoreFocusReturn(sessionLogFocusReturn);
@@ -3783,6 +3704,7 @@ async function refreshSessions() {
   }
   if (changed) renderBoard();
   syncOpenSessionLog();
+  syncModalSessionLog();
 }
 
 function splitGroupTitle(title) {
@@ -4221,7 +4143,12 @@ function openModal(column, group) {
   tasksEl.innerHTML = '';
   for (const task of group.tasks) tasksEl.appendChild(buildModalTaskRow(column, group, task));
 
-  renderModalComments();
+  if (modalLogView.groupId !== group.id) modalSelectedJobId = null;
+  modalLogView.groupId = group.id;
+  renderModalSessionLog();
+  if (!modalLogView.timer) {
+    modalLogView.timer = setInterval(() => { if (modalLogView.session) fetchAndRenderSessionLog(modalLogView, modalLogView.session); }, 5000);
+  }
   renderModalCommentControls();
   renderModalStarButton();
   if (!dialog.open) {
@@ -4502,30 +4429,56 @@ function closeModal() {
 function onCardDialogClosed() {
   modalColumnName = null;
   modalGroup = null;
+  clearInterval(modalLogView.timer);
+  Object.assign(modalLogView, { timer: null, jobId: null, session: null, groupId: null, branchableUuid: null, renderedKeys: null });
+  modalSelectedJobId = null;
   attachToastRegionToTopmostDialog();
   restoreFocusReturn(modalFocusReturn);
   modalFocusReturn = null;
   syncUrlHash();
 }
 
-function renderModalComments() {
-  document.getElementById('modalCommentHead').textContent = `コメント ${modalGroup.comments.length}`;
-  const listEl = document.getElementById('modalCommentList');
-  listEl.innerHTML = '';
-  for (const comment of modalGroup.comments) {
-    const item = document.createElement('div');
-    const byClaude = comment.text.startsWith('[Claude ');
-    item.className = byClaude ? 'modal-comment is-claude' : 'modal-comment';
-    const at = document.createElement('div');
-    at.className = 'at';
-    at.textContent = `${byClaude ? 'Claude' : '自分'} · ${new Date(comment.at).toLocaleString('ja-JP')}`;
-    const text = document.createElement('div');
-    text.className = 'text';
-    text.textContent = comment.text;
-    item.appendChild(at);
-    item.appendChild(text);
-    listEl.appendChild(item);
+let modalSelectedJobId = null;
+
+function formatSessionOption(session, isCurrent) {
+  const at = session.launchedAt ? new Date(session.launchedAt).toLocaleString('ja-JP') : '起動日時不明';
+  return `${isCurrent ? '現在' : '過去'} · ${at} · ${sessionStatusLabel(session)}`;
+}
+
+// 選択中のジョブ（既定は現在のセッション）のログを出す。入力欄の送信先は選択に関わらず現在のセッション。
+function renderModalSessionLog() {
+  if (!modalGroup) return;
+  const current = modalGroup.session;
+  const history = (current && current.history) || [];
+  const sessions = current ? [current, ...[...history].reverse()] : [];
+  const selected = sessions.find((s) => s.jobId === modalSelectedJobId) || sessions[0] || null;
+  const isPast = !!selected && selected !== sessions[0];
+  document.getElementById('modalCommentHead').textContent = !selected ? 'セッション'
+    : isPast ? `セッション（過去のログ表示中・送信先は現在のセッション）` : `セッション · ${sessionStatusLabel(selected)}`;
+  const select = document.getElementById('modalSessionSelect');
+  select.hidden = sessions.length < 2;
+  select.replaceChildren(...sessions.map((s, i) => new Option(formatSessionOption(s, i === 0), s.jobId, false, s === selected)));
+  document.getElementById('modalSessionArtifactsBtn').hidden = !selected;
+  if (!selected) {
+    modalLogView.jobId = null;
+    modalLogView.session = null;
+    renderSessionLogMessage(modalLogView, 'まだClaudeに依頼していません', null);
+    return;
   }
+  if (modalLogView.jobId !== selected.jobId) {
+    modalLogView.jobId = selected.jobId;
+    modalLogView.renderedKeys = null;
+    renderSessionLogMessage(modalLogView, '読込中…', null);
+  }
+  modalLogView.session = selected;
+  fetchAndRenderSessionLog(modalLogView, selected);
+}
+
+function syncModalSessionLog() {
+  if (!modalGroup || !document.getElementById('cardDialog').open) return;
+  const found = findGroupById(modalGroup.id);
+  if (found) modalGroup = found.group;
+  renderModalSessionLog();
 }
 
 function submitModalTask() {
@@ -4611,22 +4564,22 @@ function setBusyLabel(btn, busyLabel, idleLabel) {
   setButtonLabel(btn, busyLabel || idleLabel);
 }
 
-const COMMENT_BUSY_LABELS = { memo: '保存中…', launch: '起動中…' };
-const COMMENT_IDLE_LABELS = { memo: 'メモ保存', launch: 'Claudeに依頼', newSession: '新規セッションで依頼' };
+const COMMENT_BUSY_LABELS = { launch: '起動中…' };
+const COMMENT_IDLE_LABELS = { launch: 'Claudeに依頼', newSession: '新規セッションで依頼' };
 
 // 送信中の表示は、閉じて別カードを開き直したときに持ち越さないようカードIDで判定する。
 function renderModalCommentControls() {
   const busy = modalGroup ? busyCommentsByGroupId.get(modalGroup.id) : null;
   const isBusy = !!busy;
-  const saveBtn = document.getElementById('modalCommentSaveBtn');
   const launchBtn = document.getElementById('modalCommentLaunchBtn');
   const newSessionBtn = document.getElementById('modalCommentNewSessionBtn');
   const input = document.getElementById('modalCommentInput');
-  saveBtn.disabled = isBusy;
   launchBtn.disabled = isBusy;
   newSessionBtn.disabled = isBusy;
   input.disabled = isBusy;
-  setBusyLabel(saveBtn, isBusy && busy.mode === 'memo' && COMMENT_BUSY_LABELS.memo, COMMENT_IDLE_LABELS.memo);
+  for (const btn of document.querySelectorAll('#modalCommentList .ask-user-question-buttons button, #modalCommentList [data-focus-key^="log-branch:"]')) {
+    btn.disabled = isBusy;
+  }
   setBusyLabel(launchBtn, isBusy && busy.mode === 'launch' && COMMENT_BUSY_LABELS.launch, COMMENT_IDLE_LABELS.launch);
   setBusyLabel(newSessionBtn, isBusy && busy.mode === 'newSession' && COMMENT_BUSY_LABELS.launch, COMMENT_IDLE_LABELS.newSession);
 }
@@ -4634,7 +4587,7 @@ function renderModalCommentControls() {
 // セッションログダイアログの返信欄も、同じbusyCommentsByGroupIdをsessionLogGroupIdで参照するだけなので
 // カード詳細とは独立に描画してよい（両方開いていても状態は一致する）。
 function renderSessionLogReplyControls() {
-  const busy = sessionLogGroupId ? busyCommentsByGroupId.get(sessionLogGroupId) : null;
+  const busy = sessionLogView.groupId ? busyCommentsByGroupId.get(sessionLogView.groupId) : null;
   const isBusy = !!busy;
   const replyBtn = document.getElementById('sessionLogReplyBtn');
   const replyInput = document.getElementById('sessionLogReplyInput');
@@ -4669,91 +4622,90 @@ async function runWithCommentBusy(groupId, mode, operation) {
     }
     const sessionLogDialogEl = document.getElementById('sessionLogDialog');
     const hasLostSessionLogFocus = document.activeElement === document.body || document.activeElement === sessionLogDialogEl;
-    if (sessionLogDialogEl.open && sessionLogGroupId === groupId && hasLostSessionLogFocus) {
+    if (sessionLogDialogEl.open && sessionLogView.groupId === groupId && hasLostSessionLogFocus) {
       document.getElementById('sessionLogReplyInput').focus();
     }
   }
 }
 
-function saveModalComment() {
-  submitModalComment(false);
-}
-
 function saveModalCommentAndLaunch() {
-  submitModalComment(true);
+  submitModalComment();
 }
 
 function saveModalCommentAndLaunchNewSession() {
-  submitModalComment(true, { newSession: true });
+  submitModalComment({ newSession: true });
 }
 
-function submitModalComment(shouldLaunch, launchOptions = {}) {
+function submitModalComment(launchOptions = {}) {
   const text = document.getElementById('modalCommentInput').value.trim();
   if (!text || !modalGroup || busyCommentsByGroupId.has(modalGroup.id)) return;
   const target = { file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title };
-  sendCardComment(target, text, shouldLaunch, launchOptions);
+  sendCardComment(target, text, launchOptions);
 }
 
 function submitSessionLogReply() {
   const text = document.getElementById('sessionLogReplyInput').value.trim();
-  if (!text || !sessionLogGroupId || busyCommentsByGroupId.has(sessionLogGroupId)) return;
-  const found = findGroupById(sessionLogGroupId);
+  if (!text || !sessionLogView.groupId || busyCommentsByGroupId.has(sessionLogView.groupId)) return;
+  const found = findGroupById(sessionLogView.groupId);
   if (!found) return;
-  const target = { file: currentFile, columnName: found.column.name, groupId: sessionLogGroupId, groupTitle: found.group.title };
-  sendCardComment(target, text, true);
+  const target = { file: currentFile, columnName: found.column.name, groupId: sessionLogView.groupId, groupTitle: found.group.title };
+  sendCardComment(target, text);
 }
 
 function branchSessionFromLatestEntry() {
-  if (!latestBranchableUuid) {
+  if (!sessionLogView.branchableUuid) {
     showToast('引き継げる会話がまだありません');
     return;
   }
-  branchSessionFromEntry(latestBranchableUuid, 'newSession');
+  branchSessionFromEntry(sessionLogView, sessionLogView.branchableUuid, 'newSession');
 }
 
-function branchSessionFromEntry(uuid, busyMode = 'launch') {
-  const text = document.getElementById('sessionLogReplyInput').value.trim();
-  if (!sessionLogGroupId || busyCommentsByGroupId.has(sessionLogGroupId)) return;
-  const found = findGroupById(sessionLogGroupId);
+function branchSessionFromEntry(view, uuid, busyMode = 'launch') {
+  const input = document.getElementById(view.inputId);
+  const text = input.value.trim();
+  if (!view.groupId || busyCommentsByGroupId.has(view.groupId)) return;
+  const found = findGroupById(view.groupId);
   if (!found) {
     showToast('分岐は表示中のtodoファイルのセッションだけが対象です');
     return;
   }
   if (!text) {
     showToast('分岐後の指示を返信欄に入力してください');
-    document.getElementById('sessionLogReplyInput').focus();
+    input.focus();
     return;
   }
-  const target = { file: currentFile, columnName: found.column.name, groupId: sessionLogGroupId, groupTitle: found.group.title };
+  const target = { file: currentFile, columnName: found.column.name, groupId: view.groupId, groupTitle: found.group.title };
+  const sourceJobId = view.jobId;
   runWithCommentBusy(target.groupId, busyMode, async () => {
-    const response = await postJson('/api/session/branch', { ...target, uuid, text });
+    const response = await postJson('/api/session/branch', { ...target, uuid, text, jobId: sourceJobId });
     if (response.status === 409) {
       showToast('このカードは起動処理中です');
       return;
     }
     if (isUntrustedWorkspace(response)) {
-      showUntrustedWorkspaceToast(response.data.cwd, () => branchSessionFromEntry(uuid, busyMode));
+      showUntrustedWorkspaceToast(response.data.cwd, () => branchSessionFromEntry(view, uuid, busyMode));
       return;
     }
     if (!response.ok) {
-      showFailureToast(`分岐に失敗しました: ${formatFailureReason(response)}`, () => branchSessionFromEntry(uuid, busyMode));
+      showFailureToast(`分岐に失敗しました: ${formatFailureReason(response)}`, () => branchSessionFromEntry(view, uuid, busyMode));
       return;
     }
-    document.getElementById('sessionLogReplyInput').value = '';
-    closeSessionLogModal();
+    input.value = '';
+    if (view === sessionLogView) closeSessionLogModal();
+    else modalSelectedJobId = null;
     showToast(`分岐したセッションを起動しました（id: ${response.data.jobId}）`);
     await refreshSessions();
   });
 }
 
-function sendCardComment(target, text, shouldLaunch, launchOptions = {}) {
-  const mode = !shouldLaunch ? 'memo' : launchOptions.newSession ? 'newSession' : 'launch';
+function sendCardComment(target, text, launchOptions = {}) {
+  const mode = launchOptions.newSession ? 'newSession' : 'launch';
   return runWithCommentBusy(target.groupId, mode, async () => {
     const response = await postJson('/api/comments', { file: target.file, groupId: target.groupId, text });
     if (!response.ok) {
       showFailureToast(
         `コメントの保存に失敗しました: ${formatFailureReason(response)}`,
-        () => sendCardComment(target, text, shouldLaunch, launchOptions),
+        () => sendCardComment(target, text, launchOptions),
       );
       return;
     }
@@ -4762,17 +4714,12 @@ function sendCardComment(target, text, shouldLaunch, launchOptions = {}) {
     if (modalGroup && modalGroup.id === target.groupId) {
       const input = document.getElementById('modalCommentInput');
       if (input.value.trim() === text) input.value = '';
-      renderModalComments();
     }
-    if (sessionLogGroupId === target.groupId) {
+    if (sessionLogView.groupId === target.groupId) {
       const replyInput = document.getElementById('sessionLogReplyInput');
       if (replyInput.value.trim() === text) replyInput.value = '';
     }
     if (found) renderBoard();
-    if (!shouldLaunch) {
-      showToast('メモを保存しました');
-      return;
-    }
     await launchCardSession(target, text, launchOptions);
   });
 }
@@ -5218,7 +5165,7 @@ async function init() {
   bindSubmitShortcut(document.getElementById('globalCommentInput'), submitGlobalComment);
   bindSubmitShortcut(document.getElementById('newCardTextInput'), submitNewCard);
   bindSubmitShortcut(document.getElementById('modalTaskInput'), submitModalTask);
-  bindSubmitShortcut(document.getElementById('modalCommentInput'), saveModalComment);
+  bindSubmitShortcut(document.getElementById('modalCommentInput'), saveModalCommentAndLaunch);
   bindLaunchOnEnter(document.getElementById('modalCommentInput'), saveModalCommentAndLaunch);
   bindLaunchOnEnter(document.getElementById('sessionLogReplyInput'), submitSessionLogReply);
   document.addEventListener('keydown', onShortcutKeydown);
@@ -5234,7 +5181,8 @@ async function init() {
     restoreFocusReturn(costDialogFocusReturn);
     costDialogFocusReturn = null;
   });
-  document.getElementById('sessionArtifactsBtn').addEventListener('click', openSessionArtifacts);
+  document.getElementById('sessionArtifactsBtn').addEventListener('click', () => openSessionArtifacts(sessionLogView));
+  document.getElementById('modalSessionArtifactsBtn').addEventListener('click', () => openSessionArtifacts(modalLogView));
   document.getElementById('sessionListBtn').addEventListener('click', openSessionListDialog);
   const sessionListDialog = document.getElementById('sessionListDialog');
   document.getElementById('sessionListCloseBtn').addEventListener('click', () => sessionListDialog.close());
@@ -5347,7 +5295,7 @@ async function init() {
   const renderCommentExpandBtn = (expanded) => {
     commentExpandBtn.replaceChildren(icon(expanded ? 'shrink' : 'enlarge'));
     commentExpandBtn.setAttribute('aria-pressed', String(expanded));
-    const label = expanded ? 'コメントを元の位置に戻す' : 'コメントを横に広げて表示';
+    const label = expanded ? 'セッションを元の位置に戻す' : 'セッションを横に広げて表示';
     commentExpandBtn.setAttribute('aria-label', label);
     commentExpandBtn.dataset.tip = label;
   };
@@ -5360,7 +5308,10 @@ async function init() {
   cardDialog.addEventListener('click', (e) => {
     if (e.target === cardDialog) closeModal();
   });
-  document.getElementById('modalCommentSaveBtn').addEventListener('click', saveModalComment);
+  document.getElementById('modalSessionSelect').addEventListener('change', (e) => {
+    modalSelectedJobId = e.target.value;
+    renderModalSessionLog();
+  });
   document.getElementById('modalCommentLaunchBtn').addEventListener('click', saveModalCommentAndLaunch);
   document.getElementById('modalCommentNewSessionBtn').addEventListener('click', saveModalCommentAndLaunchNewSession);
   document.getElementById('modalTaskSubmit').addEventListener('click', submitModalTask);
@@ -5415,11 +5366,11 @@ async function init() {
     if (e.dataTransfer.files.length === 0) return;
     e.preventDefault();
     sessionLogReplyInput.classList.remove('drag-over');
-    if (!sessionLogGroupId || !findGroupById(sessionLogGroupId)) {
+    if (!sessionLogView.groupId || !findGroupById(sessionLogView.groupId)) {
       showToast('添付は表示中のtodoファイルのセッションだけが対象です');
       return;
     }
-    attachDroppedFiles(sessionLogReplyInput, sessionLogGroupId, e.dataTransfer.files);
+    attachDroppedFiles(sessionLogReplyInput, sessionLogView.groupId, e.dataTransfer.files);
   });
 
   const commentInput = document.getElementById('modalCommentInput');

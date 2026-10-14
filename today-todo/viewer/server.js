@@ -682,7 +682,8 @@ function findRememberedTranscriptPath(jobId) {
     const m = name.match(/^sessions-(todo-\d{4}-\d{2}-\d{2})\.json$/);
     if (!m) continue;
     for (const linked of Object.values(readSessionsMap(`${m[1]}.md`))) {
-      if (linked && linked.jobId === jobId && linked.transcriptPath) return linked.transcriptPath;
+      const found = linked && [linked, ...(linked.history || [])].find((s) => s.jobId === jobId && s.transcriptPath);
+      if (found) return found.transcriptPath;
     }
   }
   return null;
@@ -695,10 +696,18 @@ function resolveTranscriptPath(jobId) {
 }
 
 // CLIを待っている間に別カードの起動やポーリングが同じファイルへ書くため、待った後に読み直して該当カードだけを書き換える。
-function updateSessionEntry(file, groupId, entry) {
+// keepPreviousは別の会話への差し替え（新規セッション・分岐）のときだけ立てる。返信のコピーは同じ会話の継続なので履歴に積まない。
+function updateSessionEntry(file, groupId, entry, { keepPrevious = false } = {}) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const sessionsMap = readSessionsMap(file);
-  sessionsMap[groupId] = entry;
+  const previous = sessionsMap[groupId];
+  const history = (previous && previous.history) || [];
+  if (keepPrevious && previous && previous.jobId && previous.jobId !== entry.jobId) {
+    const { history: _history, notifiedAt: _notifiedAt, ...archived } = previous;
+    if (!archived.transcriptPath) archived.transcriptPath = resolveTranscriptPath(previous.jobId) || undefined;
+    history.push(archived);
+  }
+  sessionsMap[groupId] = history.length ? { ...entry, history } : entry;
   fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
 }
 
@@ -1105,40 +1114,14 @@ function buildReplyPrompt(jobState, transcriptPath, text) {
 function sessionInfoFor(linked) {
   if (!linked) return null;
   const jobState = readJobState(linked.jobId);
-  return jobState
+  const info = jobState
     ? { jobId: linked.jobId, state: jobState.state, tempo: jobState.tempo, detail: jobState.detail, updatedAt: jobState.updatedAt, questions: pendingQuestionsOf(jobState) }
     : { jobId: linked.jobId, state: 'unknown', tempo: null, detail: null, updatedAt: null, questions: null };
-}
-
-// セッションの状態がblocked/doneに変わるたびに、その回答（detail要約）を1回だけコメントとして自動追加する。
-// 同じ状態変化を二重登録しないよう、jobStateのupdatedAtをnotifiedAtとして記録する。
-function syncSessionComments(file, sessionsMap) {
-  let changed = false;
-  const commentsMap = readCommentsMap(file);
-  for (const [groupId, linked] of Object.entries(sessionsMap)) {
-    const jobState = readJobState(linked.jobId);
-    if (!jobState || !jobState.detail) continue;
-    if (jobState.state !== 'blocked' && jobState.state !== 'done') continue;
-    if (linked.notifiedAt === jobState.updatedAt) continue;
-    const label = jobState.state === 'done' ? '[Claude 完了]' : '[Claude 確認]';
-    const list = commentsMap[groupId] || [];
-    list.push({ text: `${label} ${jobState.detail}`, at: new Date().toISOString() });
-    commentsMap[groupId] = list;
-    linked.notifiedAt = jobState.updatedAt;
-    changed = true;
+  if (linked.history && linked.history.length) {
+    info.launchedAt = linked.launchedAt || null;
+    info.history = linked.history.map((h) => ({ ...sessionInfoFor(h), launchedAt: h.launchedAt || null }));
   }
-  if (!changed) return;
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(commentsFilePath(file), JSON.stringify(commentsMap));
-  fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
-}
-
-function syncAllSessionComments() {
-  if (!fs.existsSync(DATA_DIR)) return;
-  for (const name of fs.readdirSync(DATA_DIR)) {
-    const m = name.match(/^sessions-(todo-\d{4}-\d{2}-\d{2})\.json$/);
-    if (m) syncSessionComments(`${m[1]}.md`, readSessionsMap(`${m[1]}.md`));
-  }
+  return info;
 }
 
 function listAllSessions() {
@@ -1167,7 +1150,6 @@ function readRateLimits() {
 
 function attachSessions(board, file) {
   const sessionsMap = readSessionsMap(file);
-  syncSessionComments(file, sessionsMap);
   for (const column of board.columns) {
     for (const group of column.groups) {
       group.session = sessionInfoFor(sessionsMap[group.id]);
@@ -1678,7 +1660,6 @@ const server = http.createServer(async (req, res) => {
     if (!isValidTodoFile(file)) {
       return sendJson(res, 400, { error: 'invalid file name' });
     }
-    syncAllSessionComments();
     const sessionsMap = readSessionsMap(file);
     rememberTranscriptPaths(file, sessionsMap);
     const result = {};
@@ -1830,7 +1811,7 @@ const server = http.createServer(async (req, res) => {
       if (!jobId) {
         return sendJson(res, 500, { error: 'could not parse session id from claude output' });
       }
-      updateSessionEntry(file, groupId, { jobId, name, launchedAt: new Date().toISOString() });
+      updateSessionEntry(file, groupId, { jobId, name, launchedAt: new Date().toISOString() }, { keepPrevious: newSession === true });
       const copied = mode === 'reply' && jobId !== existing.jobId;
       if (copied && !transcriptUsedWorktree(transcriptPath)) {
         await runClaudeQuietly(['rm', existing.jobId]);
@@ -1914,7 +1895,7 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJson(res, 400, { error: 'invalid json' });
     }
-    const { file, groupId, columnName, groupTitle, uuid, text } = payload;
+    const { file, groupId, columnName, groupTitle, uuid, text, jobId: sourceJobId } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof columnName !== 'string' ||
         typeof groupTitle !== 'string' || typeof uuid !== 'string' || !uuid || !trimmed) {
@@ -1927,7 +1908,11 @@ const server = http.createServer(async (req, res) => {
     activeLaunchKeys.add(lockKey);
     try {
       const sessionsMap = readSessionsMap(file);
-      const existing = sessionsMap[groupId];
+      const current = sessionsMap[groupId];
+      // 過去のセッション（history）のログからも分岐できるよう、分岐元はjobIdで選ぶ。省略時は現行のセッション。
+      const existing = current && sourceJobId
+        ? [current, ...(current.history || [])].find((s) => s.jobId === sourceJobId)
+        : current;
       const jobState = existing ? readJobState(existing.jobId) : null;
       const transcriptPath = (jobState && jobState.linkScanPath) || (existing && existing.transcriptPath);
       if (!transcriptPath || !fs.existsSync(transcriptPath)) {
@@ -1954,7 +1939,7 @@ const server = http.createServer(async (req, res) => {
       if (!jobId) {
         return sendJson(res, 500, { error: 'could not parse session id from claude output' });
       }
-      updateSessionEntry(file, groupId, { jobId, name, launchedAt: new Date().toISOString(), branchedFrom: { jobId: existing.jobId, uuid } });
+      updateSessionEntry(file, groupId, { jobId, name, launchedAt: new Date().toISOString(), branchedFrom: { jobId: existing.jobId, uuid } }, { keepPrevious: true });
       // 元ジョブは入力待ちのまま残さない。rmしないのは、元の会話をセッション一覧から見られるようにするため。
       if (jobState && ['blocked', 'done', 'failed'].includes(jobState.state)) {
         await runClaudeQuietly(['stop', existing.jobId]);

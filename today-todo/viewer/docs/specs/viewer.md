@@ -26,6 +26,10 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
 - AC-NS-SRV-1: `POST /api/session/launch` に `"newSession": true` を付けると、カードに紐付く既存セッションの状態に関わらず
   （稼働中・入力待ちでも）`claude stop`・`--resume` をせず新規セッションとして起動し、`data/sessions-*.json` の該当カードを新しいジョブで上書きする。
   差し替え前のジョブは停止しない。
+- AC-SH-SRV-1: New Session（AC-NS-SRV-1）と分岐（AC-BR-SRV-2）でカードのジョブを差し替えるとき、差し替え前のエントリ（`history`・`notifiedAt` を除く）を
+  そのカードの `history`（古い順）に積み、新しいエントリへ引き継ぐ。`transcriptPath` が未記録ならその時点の所在を控える。返信のコピー（AC-CC2-2）は
+  同じ会話の継続なので積まない。`/api/sessions`・`/api/board` のセッション情報は、`history` があるとき `launchedAt` と、各要素に `jobId`・`state` 等
+  （現行と同じ形）と `launchedAt` を持つ `history` を含める。`GET /api/session/transcript` は `history` のジョブの控えた `transcriptPath` も探す。
 
 ### 1.3 メモのみの保存（C3）
 
@@ -83,14 +87,12 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
 `~/.claude/jobs/<jobId>/state.json` はClaude Codeの非公開の内部形式で、`state` だけではAskUserQuestionの回答待ちなどを判別できない。
 
 - AC-JS-SRV-1: viewerはstate.jsonを次の順で `working`（稼働中）・`blocked`（入力待ち）・`done`（完了）・`failed`（失敗）のどれかに正規化し、
-  セッションの状態（`/api/sessions`・`/api/board`・`/api/sessions/all`）、返信の可否（AC-CC2-2）、選択肢の表示（AC-CC3-1）、自動コメント（AC-CC2-3）のすべてで使う。
+  セッションの状態（`/api/sessions`・`/api/board`・`/api/sessions/all`）、返信の可否（AC-CC2-2）、選択肢の表示（AC-CC3-1）のすべてで使う。
   1. `tempo` が `blocked`、または `needs` が空でない → `blocked`（CLI 2.1.291ではAskUserQuestionの回答待ちが `state: "working"` のまま `tempo: "blocked"` になる）
   2. `state` が `working`・`running`・`starting`・`resuming`・`crashed` → `working`（`running`＋`tempo: "idle"` はターンの途中でバックグラウンドのコマンドを待っている間にも出るため、入力待ちとは扱わない）
   3. `state` が `failed`・`error` → `failed`、`stopped` → `done`
   4. それ以外は `state` の値のまま
-- AC-CC2-3: `GET /api/sessions`・`GET /api/board` は、ジョブが `blocked`/`done` になって `updatedAt` が前回の通知と変わるたびに、
-  その `detail` を `[Claude 確認]`/`[Claude 完了]` のコメントとしてカードに1回だけ追加する。`GET /api/sessions` は表示中以外のtodoファイルの
-  セッションもこの確認の対象にする（開いていないtodoのカードにもコメントが付く）。5秒のポーリングの間に入力待ちから稼働中へ戻ったものは対象外。
+- AC-CC2-3: `GET /api/sessions`・`GET /api/board` はカードにコメントを自動追加しない（セッションの経過はカード詳細のセッションログで見る。AC-CSL-1）。
 
 ### 1.8 レート制限の使用率（RL）
 
@@ -108,7 +110,7 @@ viewerはこのファイルを書き換えない。
 transcriptの `parentUuid` をたどった部分履歴を新しいセッションIDのtranscriptとして書き出し、それを `--resume` する。
 
 - AC-BR-SRV-1: `GET /api/session/transcript` の各エントリに、元の行の `uuid`（無ければ `null`）を含める。
-- AC-BR-SRV-2: `POST /api/session/branch` `{ "file", "groupId", "columnName", "groupTitle", "uuid", "text" }` は、カードに紐付くジョブの
+- AC-BR-SRV-2: `POST /api/session/branch` `{ "file", "groupId", "columnName", "groupTitle", "uuid", "text", "jobId"? }` は、カードに紐付くジョブ（`jobId` を付けたときは現在または `history` のうちそのジョブ）の
   transcript（`linkScanPath`、無ければ `transcriptPath`）から、`uuid` の行を起点に `parentUuid` を根までたどった行だけを元の順序で取り出し、
   `sessionId` を新しいUUIDに置き換えて同じディレクトリの `<新UUID>.jsonl` に書き出す。元のtranscriptは変更しない。
   ジョブが削除済みでも、sessionsに控えた `transcriptPath` があればそれを使う。
@@ -244,7 +246,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   グラフのクリックで日別の件数を示すポップオーバーを開く（Escとポップオーバー外クリックで閉じる）。
 - AC-B2-1: 左側パネル（`#globalCommentsPanel`、`aside`）は幅320〜360pxに固定し、ボードが残りの幅を使う
   （ボードの `max-width:560px` をやめる）。左側パネルはヘッダー直下からビューポート下端までの高さでstickyに固定し、中身が溢れたらパネル内でスクロールする。
-- AC-CC1-1: 左側パネルは「今日の進捗」（AC-B5-1・AC-B1-1）・「Claude の使用率」（AC-RL-1）・「Claude セッション」（AC-B7-1）を
+- AC-CC1-1: 左側パネルは「今日の進捗」（AC-B5-1・AC-B1-1）・「Claude の使用率」（AC-RL-1）を
   この順に見出し付きで置く領域であり、「全体コメント」「新規カード追加」はこの領域に置かない（右側`board-area`のダイアログ側に置く。
   AC-CC1-2参照）。やり取り機能そのもの（対話UI等）の実装は別変更で行う。
 - AC-B3-1: ビューポート幅1280px以上では、ボードの列を2〜3列のグリッドで並べる。
@@ -297,13 +299,18 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-C7-2: パネル左端をドラッグして幅を変えられる（最小420px・最大は画面幅から320pxを引いた値）。幅は localStorage に保存し、次に開いたときも使う。
 - AC-C7-3: カード詳細のタスク行のボタン（出典・仕様・設計・引用・全体へ引用）は本文の下に並べ、本文は行の幅いっぱいに折り返す。
   「引用」と「全体へ引用」は同じ引用アイコンを使い、「全体へ引用」はアイコンの右に「All」を表示して見分けられるようにする（名称は `aria-label`・`data-tip` に持つ）。
-- AC-C7-4: カード詳細のコメント一覧は最大240pxの高さまで広がり、超えた分は一覧内でスクロールする。コメント見出しの拡大ボタン（斜め矢印のアイコン、`aria-pressed`）を押すと、
-  コメント欄（一覧と入力欄）をカード詳細パネルの左隣に全高・幅720px（画面に収まらなければ残り幅）で出し、もう一度押すと元の位置に戻る。
-- AC-C7-5: カード詳細のコメントは、Claudeの書いたもの（本文が `[Claude ` で始まる。AC-JS-SRV-1）を左寄せ・アクセント色の淡色、それ以外（自分）を右寄せで表示し、
-  日時の前に「Claude」「自分」を付ける（色だけに頼らない）。
-- AC-C3-1: カード詳細のコメント欄には「メモ保存」と「Claudeに依頼」のボタンがある（ほかにAC-NS-1）。「メモ保存」は `/api/comments` だけを呼び、
-  セッションを起動しない。「Claudeに依頼」はコメント保存に続けて `/api/session/launch` を呼ぶ。
-- AC-NS-1: カード詳細のコメント欄に「新規セッションで依頼」ボタンを置く。コメント保存に続けて `/api/session/launch` を `newSession: true` で呼び、
+- AC-C7-4: カード詳細のセッション欄（AC-CSL-1）のログは最大240pxの高さまで広がり、超えた分はログ内でスクロールする。セッション見出しの拡大ボタン（斜め矢印のアイコン、`aria-pressed`）を押すと、
+  セッション欄（ログと入力欄）をカード詳細パネルの左隣に全高・幅720px（画面に収まらなければ残り幅）で出し、もう一度押すと元の位置に戻る。
+- AC-CSL-1: カード詳細の下部は「セッション」欄とし、そのカードのセッションログ（セッションログダイアログと同じ描画。AskUserQuestionの選択肢・「ここから分岐」・
+  「資料」ボタンを含む。AC-CC3-1・AC-BR-1・AC-AP-1）と入力欄を置く。保存済みのコメント（`data/comments-*.json`）はカード詳細に表示しない。
+  セッションが無いカードは「まだClaudeに依頼していません」と表示する。見出しには現在のセッションの状態ラベル（AC-CC2-5）を出す。
+  ログはカード詳細を開いている間5秒ごとに取り直し（AC-UX2-1）、`/api/sessions` の更新で現在のセッションが変わればそれに追従する。
+- AC-CSL-2: カードに `history`（AC-SH-SRV-1）があるとき、セッション見出しに表示するセッションの選択（現在＋過去を新しい順、起動日時と状態を表示）を出し、
+  選んだセッションのログを表示する。過去のセッションを表示中は見出しに「過去のログ表示中・送信先は現在のセッション」と出す。入力欄の送信先は常に現在のセッション。
+  過去のセッションのログの「ここから分岐」は、そのセッションを分岐元にする（`/api/session/branch` に `jobId` を付ける。AC-BR-SRV-2）。
+- AC-C3-1: カード詳細の入力欄には「Claudeに依頼」ボタンがある（ほかにAC-NS-1）。「Claudeに依頼」は依頼文を `/api/comments` に記録したうえで（表示はしない）
+  `/api/session/launch` を呼ぶ。メモだけを保存するボタンは置かない。`Ctrl+Enter` も「Claudeに依頼」と同じ動作にする。
+- AC-NS-1: カード詳細の入力欄に「新規セッションで依頼」ボタンを置く。コメント保存に続けて `/api/session/launch` を `newSession: true` で呼び、
   同じカードの既存セッションへ指示を混ぜずに別の依頼を始められる。busy状態・失敗通知はAC-H1-1・AC-H2-2と共通。
 - AC-CC1-2: 新規カード追加は各列見出しの「+」ボタンから、全体コメントはボードツールバーの「全体コメント」ボタンから、
   それぞれ独立した`<dialog>`を開いて行う。カード詳細を開いた状態でタスク行の「全体へ引用」を押した場合は、
@@ -355,10 +362,8 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 
 ### 2.5 セッション（H5・B7・F3・F5・CC2・CC3・UX2・UX4・UX6・UX7）
 
-- AC-H5-1: セッションカードは `<button type="button">` で、キーボード（Tab→Enter/Space）でセッションログを開ける。
-- AC-B7-1: セッションカードは`globalCommentsPanel`（左側aside）に表示し、ヘッダーには置かない。
-  確認待ち（入力待ち）のセッションは「要対応」欄に、稼働中のセッションより上に表示する。入力待ちが0件なら
-  要対応欄を、稼働中が0件なら稼働中欄を出さない。フォーカスモード中はダイアログの背後になり操作できない。
+- AC-H5-1: セッション一覧（AC-SL-1）の各行は `<button type="button">` で、キーボード（Tab→Enter/Space）でセッションログダイアログを開ける。
+- AC-B7-1: Claudeセッションの状態はタスクカード（ボード上の状態行と、カード詳細のセッション欄。AC-CSL-1）に表示し、左側パネルとヘッダーには置かない。
 - AC-F3-1: セッションログが空のとき、理由（「起動直後でまだログがありません」／「紐付くログがありません」）と「再取得」ボタンを出す。
 - AC-F5-1: 入力待ちセッションがn件（n≥1）のとき `document.title` を `(n) Today Todo` にし、faviconにも件数の目印を出す。0件で元に戻す。
 - AC-CC2-1: セッションログダイアログには返信欄（テキストエリア＋「このセッションに送信」ボタン）がある。送信は
@@ -416,8 +421,6 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-WT-1: セッション起動・返信・分岐がAC-WT-SRV-1の403になった場合、トーストに「<cwd> はClaude Codeで未信頼です。
   `cd <cwd> && claude` で一度承認するか、『信頼して再試行』を押してください」と出す。『信頼して再試行』は押したときだけ
   `/api/workspace/trust` を呼び、成功したら同じ送信を再試行する（「新規セッションで依頼」の再試行も `newSession: true` のまま送る）。失敗時はAC-H2-2に従い通知する。
-- AC-UX4-1: 入力待ち・稼働中のセッションがどちらも0件のとき、左側パネルに「稼働中・入力待ちのセッションはありません」と
-  「カード詳細のコメント欄で『Claudeに依頼』すると、ここに表示されます」を表示する。1件以上あれば表示しない。
 - AC-UX6-1: AC-CC3-1の選択肢に `description` があれば、ボタンの直下に可視テキストで表示し、ボタンの `aria-describedby` で紐付ける
   （`title` 属性だけに頼らない）。選択肢ごとに「ボタン＋説明」を縦に並べた単位とし、単位どうしは折り返して並べる。
 
@@ -427,8 +430,8 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   `j`/`k` カード移動、`Enter` カード詳細を開く、`x` フォーカス中カードの先頭の未完了タスクをチェック、`/` 検索欄へ、
   `f` フォーカスモード切替、`[`/`]` 全列を閉じる/開く、`?` ショートカット一覧を開く。
 - AC-C2-1: すべての複数行入力欄で `Ctrl+Enter`（macは `Cmd+Enter`）が既定の送信ボタンを押したのと同じ動作になり、欄の近くに案内を出す。
-  カード詳細のコメント欄の既定は「メモ保存」。
-- AC-C2-2: 「Claudeに依頼」ボタンを持つカード詳細のコメント欄と、「このセッションに送信」ボタンを持つセッションログの返信欄では、修飾キーなしの `Enter`（IME変換中を除く）が
+  カード詳細の入力欄の既定は「Claudeに依頼」。
+- AC-C2-2: 「Claudeに依頼」ボタンを持つカード詳細の入力欄と、「このセッションに送信」ボタンを持つセッションログの返信欄では、修飾キーなしの `Enter`（IME変換中を除く）が
   それぞれのボタンと同じ動作になり、`Shift+Enter` で改行する。
 - AC-C5-1: フォーカス中のカードで `Alt+↑`/`Alt+↓` を押すと列内で1つ上/下へ移動して保存され、フォーカスはそのカードに残る。
   カードの操作メニューにも「上へ」「下へ」がある。
