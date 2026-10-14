@@ -1463,6 +1463,37 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { comments: list });
   }
 
+  if (url.pathname === '/api/session/cancel' && req.method === 'POST') {
+    const body = await readBody(req);
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const { file, groupId, at, jobId } = payload;
+    if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof at !== 'string' ||
+        (jobId !== undefined && typeof jobId !== 'string')) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    let stopped = false;
+    if (jobId) {
+      const current = readSessionsMap(file)[groupId];
+      // 取り消しの間に返信や分岐で別ジョブへ替わっていたら、意図しないセッションを止めない。
+      if (!current || current.jobId !== jobId) return sendJson(res, 409, { error: 'session changed' });
+      // rm しないのは、取り消した後もログと会話履歴を残して続きから返信できるようにするため。
+      await runClaudeQuietly(['stop', jobId]);
+      stopped = true;
+    }
+    const commentsMap = readCommentsMap(file);
+    const list = (commentsMap[groupId] || []).filter((c) => c.at !== at);
+    if (commentsMap[groupId]) {
+      commentsMap[groupId] = list;
+      fs.writeFileSync(commentsFilePath(file), JSON.stringify(commentsMap));
+    }
+    return sendJson(res, 200, { comments: list, stopped });
+  }
+
   if (url.pathname === '/api/comments/global' && req.method === 'POST') {
     const body = await readBody(req);
     let payload;
