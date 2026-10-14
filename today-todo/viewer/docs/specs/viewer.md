@@ -185,6 +185,14 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 
 - AC-CB-SRV-1: `POST /api/checkbox` は todoファイルの行を切り替えたうえで、行末に埋め込まれた `→ <絶対パス>/docs/tasks/backlog.md` の該当行
   （本文の前方一致で1件に絞れた場合のみ）も同じ状態にし、`sourceUpdated: true` を返す。「+」でのタスク・カード追加の書き込み先も同じ `docs/tasks/backlog.md`。
+- AC-CB-SRV-2: 「+」での追加の書き込み先は対象ディレクトリ直下の `docs/tasks/backlog.md`、無ければ配下を AC-CS-SRV と同じ範囲で探した `backlog.md`。
+  候補が1件ならそこへ書く。カード追加で候補が複数なら `backlogPath`（候補のいずれか）を必須とし、新規カード追加ダイアログは
+  候補が複数の列でだけ「書き込み先」の選択欄を出す（`GET /api/backlog-targets?column=` が候補を返す）。候補0件は400。
+- AC-CB-SRV-3: 追加・編集するタスク本文の改行は空白1つにまとめ、todoファイル・backlog.md とも1行で書く。
+- AC-CB-SRV-4: `POST /api/tasks/edit`（`{ file, taskId, text }` で本文差し替え、`{ file, taskId, remove: true }` で削除）は、
+  todoファイルの行の `#<連番>`・出典パス・notionコメントを保ったまま本文だけを差し替える（削除なら行を消す）。
+  出典の backlog.md の該当項目（AC-CB-SRV-1 と同じ突合。継続行を含む）も同じく差し替え・削除し、`sourceUpdated: true` を返す。
+- AC-CB-UI-1: カード詳細のタスク行に「編集」「削除」ボタンを置く。編集は行内の入力欄（`Ctrl+Enter`で保存・`Esc`で取消）、削除は確認ダイアログの後に行う。
 
 ## 2. 画面
 

@@ -824,6 +824,8 @@
   }
   .modal-task .task-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .task-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .task-edit { display: flex; gap: 6px; align-items: flex-end; }
+  .task-edit textarea { flex: 1; min-width: 0; font: inherit; resize: vertical; }
   .modal-task .task-text { text-wrap: pretty; overflow-wrap: anywhere; }
   .modal-task .task-text a { word-break: break-all; }
   .modal-task .task-text code { background: var(--chip-bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
@@ -1406,6 +1408,10 @@
         <label for="newCardColumnInput" class="field-label">列（プロジェクト）</label>
         <input id="newCardColumnInput" type="text" list="newCardColumnOptions" placeholder="プロジェクト名、自由記述可">
         <datalist id="newCardColumnOptions"></datalist>
+      </div>
+      <div class="field" id="newCardBacklogField" hidden>
+        <label for="newCardBacklogSelect" class="field-label">書き込み先</label>
+        <select id="newCardBacklogSelect"></select>
       </div>
       <div class="field">
         <label for="newCardTextInput" class="field-label">内容</label>
@@ -2436,13 +2442,32 @@ function submitNewCard() {
     (columnName ? textInput : columnInput).focus();
     return;
   }
-  addCard(currentFile, columnName, text);
+  const backlogField = document.getElementById('newCardBacklogField');
+  const backlogPath = backlogField.hidden ? undefined : document.getElementById('newCardBacklogSelect').value;
+  addCard(currentFile, columnName, text, backlogPath);
 }
 
-async function addCard(file, columnName, text) {
-  const response = await runOwnBoardWrite(file, () => postJson('/api/cards', { file, columnName, text }));
+// 列ディレクトリ配下に backlog.md が複数あるときだけ、書き込み先の選択欄を出す。
+async function refreshNewCardBacklogTargets() {
+  const columnName = document.getElementById('newCardColumnInput').value.trim();
+  const response = columnName ? await fetchJson(`/api/backlog-targets?column=${encodeURIComponent(columnName)}`) : null;
+  if (columnName !== document.getElementById('newCardColumnInput').value.trim()) return;
+  const targets = response && response.ok ? response.data.targets : [];
+  const select = document.getElementById('newCardBacklogSelect');
+  select.innerHTML = '';
+  for (const target of targets) {
+    const option = document.createElement('option');
+    option.value = target;
+    option.textContent = target;
+    select.appendChild(option);
+  }
+  document.getElementById('newCardBacklogField').hidden = targets.length < 2;
+}
+
+async function addCard(file, columnName, text, backlogPath) {
+  const response = await runOwnBoardWrite(file, () => postJson('/api/cards', { file, columnName, text, backlogPath }));
   if (!response.ok) {
-    showFailureToast(`カード追加に失敗しました: ${formatFailureReason(response)}`, () => addCard(file, columnName, text));
+    showFailureToast(`カード追加に失敗しました: ${formatFailureReason(response)}`, () => addCard(file, columnName, text, backlogPath));
     return;
   }
   const textInput = document.getElementById('newCardTextInput');
@@ -2849,6 +2874,7 @@ function buildColumnActions(column, colIndex) {
   newCardBtn.addEventListener('click', () => {
     openNewCardDialog();
     document.getElementById('newCardColumnInput').value = column.name;
+    refreshNewCardBacklogTargets();
     document.getElementById('newCardTextInput').focus();
   });
 
@@ -4353,7 +4379,87 @@ function buildModalTaskRow(column, group, task) {
   globalQuoteBtn.dataset.tip = '全体へ引用';
   globalQuoteBtn.addEventListener('click', () => insertGlobalQuote(column.name, group.title, task));
   actions.appendChild(globalQuoteBtn);
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'btn btn-icon btn--sm';
+  editBtn.appendChild(icon('edit'));
+  setButtonLabel(editBtn, '編集');
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startTaskEdit(row, main, body, task, taskBody);
+  });
+  actions.appendChild(editBtn);
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.className = 'btn btn-icon btn--sm';
+  deleteBtn.appendChild(icon('trash'));
+  setButtonLabel(deleteBtn, '削除');
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (confirm(`このタスクを削除しますか？\n${taskBody}`)) sendTaskEdit(currentFile, task, { remove: true });
+  });
+  actions.appendChild(deleteBtn);
   return row;
+}
+
+// 編集対象は `#<連番>`・出典パスを除いた本文だけ（保存時にサーバー側で元の連番・パスを付け直す）。
+function startTaskEdit(row, main, body, task, taskBody) {
+  if (main.querySelector('.task-edit')) return;
+  row.draggable = false;
+  const form = document.createElement('div');
+  form.className = 'task-edit';
+  const input = document.createElement('textarea');
+  input.rows = 2;
+  input.value = taskBody.replace(/^#\d+\s+/, '');
+  input.setAttribute('aria-label', 'タスクの内容');
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'btn btn--sm';
+  save.textContent = '保存';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'btn btn--sm';
+  cancel.textContent = 'キャンセル';
+  const close = () => {
+    form.remove();
+    body.hidden = false;
+    row.draggable = !task.done;
+  };
+  const submit = () => {
+    const text = input.value.trim();
+    if (!text) {
+      showFieldError(input, 'タスクの内容を入力してください');
+      return;
+    }
+    sendTaskEdit(currentFile, task, { text });
+  };
+  save.addEventListener('click', submit);
+  cancel.addEventListener('click', close);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+  });
+  for (const el of [form, input]) el.addEventListener('click', (e) => e.stopPropagation());
+  form.append(input, save, cancel);
+  body.hidden = true;
+  body.after(form);
+  input.focus();
+}
+
+async function sendTaskEdit(file, task, change) {
+  const response = await runOwnBoardWrite(file, () => postJson('/api/tasks/edit', { file, taskId: task.id, ...change }));
+  if (!response.ok) {
+    showFailureToast(`タスクの${change.remove ? '削除' : '編集'}に失敗しました: ${formatFailureReason(response)}`, () => sendTaskEdit(file, task, change));
+    return;
+  }
+  const groupId = modalGroup && modalGroup.id;
+  if (file === currentFile) await loadBoard(currentFile);
+  const found = groupId ? findGroupById(groupId) : null;
+  if (found) openModal(found.column, found.group);
+  else if (groupId) closeModal();
+  showToast(change.remove ? 'タスクを削除しました' : 'タスクを更新しました');
 }
 
 const CARD_PANEL_WIDTH_KEY = 'viewer:cardPanelWidth';
@@ -4473,6 +4579,8 @@ const ICON_PATHS = {
   branch: '<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 8v8"/><path d="M18 8a6 6 0 0 1-6 6H8"/>',
   send: '<path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+  trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>',
   memo: '<path d="M13 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/><path d="M17.5 3.5l3 3L13 14h-3v-3z"/>',
   check: '<path d="M6 12.5l4 4 8-9"/>',
 };
@@ -5259,6 +5367,7 @@ async function init() {
   document.getElementById('globalCommentSubmit').addEventListener('click', submitGlobalComment);
   document.getElementById('globalCommentsCopyBtn').addEventListener('click', copyGlobalComments);
   document.getElementById('newCardSubmit').addEventListener('click', submitNewCard);
+  document.getElementById('newCardColumnInput').addEventListener('change', refreshNewCardBacklogTargets);
   document.getElementById('globalCommentsOpenBtn').addEventListener('click', openGlobalCommentsDialog);
   const newCardDialog = document.getElementById('newCardDialog');
   document.getElementById('newCardDialogCloseBtn').addEventListener('click', () => newCardDialog.close());
