@@ -755,8 +755,11 @@
   .doc-nav button:disabled { background: none; color: var(--ink-mute); cursor: default; }
   /* draggableな行の中は既定で選択不可になるため、部分引用用に本文だけ選べるようにする。 */
   #cardDialog .task-text { user-select: text; }
-  .quote-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
-  .quote-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 1px 2px 1px 8px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 999px; background: var(--raised); font-size: 12px; }
+  .rich-input { min-height: 3.4em; max-height: 40vh; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; cursor: text; }
+  .rich-input:focus-visible { outline: none; border-color: var(--accent); }
+  .rich-input:empty::before { content: attr(data-placeholder); color: var(--muted, #888); pointer-events: none; }
+  .rich-input[aria-disabled="true"] { opacity: .6; cursor: default; }
+  .quote-chip { display: inline-flex; vertical-align: baseline; margin: 1px 0; align-items: center; gap: 2px; max-width: 100%; padding: 1px 2px 1px 8px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 999px; background: var(--raised); font-size: 12px; }
   .quote-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28em; }
   .quote-chip button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 4px; border-radius: 999px; }
   .quote-chip button:hover { background: color-mix(in srgb, var(--ink) 12%, transparent); }
@@ -1212,9 +1215,8 @@
       <div id="modalCommentList" class="modal-comment-list"></div>
       <div class="modal-comment-form">
         <div class="field">
-          <label for="modalCommentInput" class="field-label">Claudeへの依頼・返信</label>
-          <div id="modalCommentQuotes" class="quote-chips" aria-label="引用" hidden></div>
-          <textarea id="modalCommentInput" rows="2" placeholder="依頼・返信を入力（タスクをここにドラッグすると引用が入ります）" aria-describedby="modalCommentHint"></textarea>
+          <label id="modalCommentLabel" class="field-label">Claudeへの依頼・返信</label>
+          <div id="modalCommentInput" class="rich-input" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="modalCommentLabel" data-placeholder="依頼・返信を入力（タスクをここにドラッグすると引用が入ります）" aria-describedby="modalCommentHint"></div>
           <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」（現在のセッションへ送信）／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
         </div>
         <div class="modal-comment-actions">
@@ -1264,11 +1266,10 @@
     <div id="sessionLogList" class="session-log-list"></div>
     <div class="session-log-reply">
       <div class="field">
-        <label for="sessionLogReplyInput" class="field-label">返信</label>
-        <div id="sessionLogReplyQuotes" class="quote-chips" aria-label="引用" hidden></div>
-        <textarea id="sessionLogReplyInput" rows="2"
-          placeholder="セッションへの返信・追加の指示を入力"
-          aria-describedby="sessionLogReplyHint"></textarea>
+        <label id="sessionLogReplyLabel" class="field-label">返信</label>
+        <div id="sessionLogReplyInput" class="rich-input" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="sessionLogReplyLabel"
+          data-placeholder="セッションへの返信・追加の指示を入力"
+          aria-describedby="sessionLogReplyHint"></div>
         <span class="input-hint" id="sessionLogReplyHint"><kbd>Enter</kbd> で「このセッションに送信」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
       </div>
       <div class="modal-comment-actions">
@@ -1683,6 +1684,10 @@ function findElementByFocusKey(focusKey) {
 }
 
 function insertAtCursor(input, text) {
+  if (input.isContentEditable || input.classList.contains('rich-input')) {
+    insertIntoRichInput(input, document.createTextNode(text));
+    return;
+  }
   const start = input.selectionStart ?? input.value.length;
   const end = input.selectionEnd ?? input.value.length;
   input.value = input.value.slice(0, start) + text + input.value.slice(end);
@@ -1691,41 +1696,104 @@ function insertAtCursor(input, text) {
   input.setSelectionRange(pos, pos);
 }
 
-const QUOTE_CHIP_CONTAINER_IDS = { modalCommentInput: 'modalCommentQuotes', sessionLogReplyInput: 'sessionLogReplyQuotes' };
-const quoteChipsByInputId = { modalCommentInput: [], sessionLogReplyInput: [] };
+// 引用を本文中の位置ごと保ちたいため、依頼欄はcontenteditableにして引用をインラインのチップで持つ。
+// 既存処理がtextareaと同じく value・disabled で扱えるよう、要素にプロパティを生やす。
+const RICH_INPUT_IDS = ['modalCommentInput', 'sessionLogReplyInput'];
 
-function setQuoteChips(inputId, quotes) {
-  quoteChipsByInputId[inputId] = [...quotes];
-  const container = document.getElementById(QUOTE_CHIP_CONTAINER_IDS[inputId]);
-  container.replaceChildren();
-  container.hidden = quotes.length === 0;
-  quotes.forEach((quote, index) => {
-    const chip = document.createElement('span');
-    chip.className = 'quote-chip';
-    chip.title = quote;
-    const label = document.createElement('span');
-    label.className = 'quote-chip-label';
-    label.textContent = quote.split('\n')[0].replace(/^> ?/, '');
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.textContent = '×';
-    remove.setAttribute('aria-label', `引用「${label.textContent}」を外す`);
-    remove.addEventListener('click', () => {
-      setQuoteChips(inputId, quoteChipsByInputId[inputId].filter((_, i) => i !== index));
-      document.getElementById(inputId).focus();
-    });
-    chip.append(label, remove);
-    container.appendChild(chip);
+function serializeRichInput(el) {
+  let out = '';
+  const walk = (node) => {
+    for (const child of node.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) out += child.data.replace(/\u200B/g, '');
+      else if (child.nodeName === 'BR') out += '\n';
+      else if (child.classList && child.classList.contains('quote-chip')) out += `\n\n${child.dataset.quote}\n\n`;
+      else {
+        if (/^(DIV|P)$/.test(child.nodeName) && out && !out.endsWith('\n')) out += '\n';
+        walk(child);
+      }
+    }
+  };
+  walk(el);
+  return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+}
+
+function enhanceRichInput(el) {
+  Object.defineProperty(el, 'value', {
+    get: () => serializeRichInput(el),
+    set: (text) => { el.textContent = text; },
   });
+  Object.defineProperty(el, 'disabled', {
+    get: () => el.getAttribute('aria-disabled') === 'true',
+    set: (flag) => {
+      el.setAttribute('aria-disabled', String(!!flag));
+      el.contentEditable = flag ? 'false' : 'true';
+    },
+  });
+  let lastRange = null;
+  document.addEventListener('selectionchange', () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && el.contains(selection.anchorNode)) lastRange = selection.getRangeAt(0).cloneRange();
+  });
+  el.restoreCaret = () => {
+    el.focus();
+    const selection = window.getSelection();
+    if (lastRange && el.contains(lastRange.startContainer)) {
+      selection.removeAllRanges();
+      selection.addRange(lastRange);
+    } else {
+      selection.selectAllChildren(el);
+      selection.collapseToEnd();
+    }
+    return selection.getRangeAt(0);
+  };
+  el.addEventListener('paste', (e) => {
+    e.preventDefault();
+    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+  });
+  el.addEventListener('click', (e) => {
+    const remove = e.target.closest('.quote-chip-remove');
+    if (!remove || el.disabled) return;
+    remove.closest('.quote-chip').remove();
+    el.focus();
+  });
+  // Chromeは中身を消しても<br>を残し、:emptyのplaceholderが出なくなるため掃除する。
+  el.addEventListener('input', () => { if (!el.textContent && !el.querySelector('.quote-chip')) el.replaceChildren(); });
+}
+
+function insertIntoRichInput(el, node) {
+  const range = el.restoreCaret();
+  range.deleteContents();
+  range.insertNode(node);
+  // チップの直後にカーソルを置ける足場がないと、末尾のチップの後ろへ入力できないため空文字を足す。
+  const after = document.createTextNode('\u200B');
+  node.after(after);
+  range.setStart(after, 1);
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function addQuoteChip(inputId, quote) {
-  setQuoteChips(inputId, [...quoteChipsByInputId[inputId], quote.replace(/\n+$/, '')]);
-  document.getElementById(inputId).focus();
-}
-
-function composeOutgoingText(inputId) {
-  return [...quoteChipsByInputId[inputId], document.getElementById(inputId).value.trim()].filter(Boolean).join('\n\n');
+  const el = document.getElementById(inputId);
+  const text = quote.replace(/\n+$/, '');
+  const chip = document.createElement('span');
+  chip.className = 'quote-chip';
+  chip.contentEditable = 'false';
+  chip.dataset.quote = text;
+  chip.title = text;
+  const label = document.createElement('span');
+  label.className = 'quote-chip-label';
+  // 部分引用の1行目は出典パスなので、見分けやすい引用本文の行を見出しにする。
+  const lines = text.split('\n').map((line) => line.replace(/^> ?/, ''));
+  label.textContent = lines.find((line) => line && !line.startsWith('/')) || lines[0];
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'quote-chip-remove';
+  remove.textContent = '×';
+  remove.setAttribute('aria-label', `引用「${label.textContent}」を外す`);
+  chip.append(label, remove);
+  insertIntoRichInput(el, chip);
 }
 
 function toLineQuote(text) {
@@ -2121,7 +2189,7 @@ function sendDocReview(launchOptions = {}) {
   const remaining = docReview.items;
   docReview.items = [];
   document.getElementById('docDialog').close();
-  scheduleCardSend(target, text, launchOptions, () => {
+  sendCardComment(target, text, launchOptions, () => {
     if (docReview.groupId === target.groupId) docReview.items = [...remaining, ...docReview.items];
   });
 }
@@ -3637,10 +3705,7 @@ function openSessionLogModal(column, group) {
   const dialog = document.getElementById('sessionLogDialog');
   const wasOpen = dialog.open;
   if (!wasOpen) sessionLogFocusReturn = captureFocusReturn();
-  if (sessionLogView.groupId !== group.id) {
-    document.getElementById('sessionLogReplyInput').value = '';
-    setQuoteChips('sessionLogReplyInput', []);
-  }
+  if (sessionLogView.groupId !== group.id) document.getElementById('sessionLogReplyInput').value = '';
   sessionLogView.jobId = session.jobId;
   sessionLogView.groupId = group.id;
   document.getElementById('sessionLogColLabel').textContent = column.name;
@@ -4227,7 +4292,6 @@ function openModal(column, group) {
   if (!dialog.open || lastModalGroupId !== group.id) clearFieldError(document.getElementById('modalTaskInput'));
   if (lastModalGroupId !== group.id) {
     document.getElementById('modalCommentInput').value = '';
-    setQuoteChips('modalCommentInput', []);
     document.getElementById('modalTaskInput').value = '';
   }
   lastModalGroupId = group.id;
@@ -4405,7 +4469,6 @@ function buildModalTaskRow(column, group, task) {
   quoteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     insertQuote(task, readSelectionWithin(body), sourcePath);
-    window.getSelection().removeAllRanges();
   });
   actions.appendChild(quoteBtn);
 
@@ -4751,83 +4814,49 @@ function saveModalCommentAndLaunchNewSession() {
 }
 
 function submitModalComment(launchOptions = {}) {
-  const text = composeOutgoingText('modalCommentInput');
+  const text = document.getElementById('modalCommentInput').value.trim();
   if (!text || !modalGroup || busyCommentsByGroupId.has(modalGroup.id)) return;
   const target = { file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title };
-  scheduleCardSend(target, text, launchOptions, takeDraft('modalCommentInput', () => modalGroup && modalGroup.id === target.groupId));
+  sendCardComment(target, text, launchOptions, takeDraft('modalCommentInput', () => modalGroup && modalGroup.id === target.groupId));
 }
 
 function submitSessionLogReply() {
-  const text = composeOutgoingText('sessionLogReplyInput');
+  const text = document.getElementById('sessionLogReplyInput').value.trim();
   if (!text || !sessionLogView.groupId || busyCommentsByGroupId.has(sessionLogView.groupId)) return;
   const found = findGroupById(sessionLogView.groupId);
   if (!found) return;
   const target = { file: currentFile, columnName: found.column.name, groupId: sessionLogView.groupId, groupTitle: found.group.title };
-  scheduleCardSend(target, text, {}, takeDraft('sessionLogReplyInput', () => sessionLogView.groupId === target.groupId));
+  sendCardComment(target, text, {}, takeDraft('sessionLogReplyInput', () => sessionLogView.groupId === target.groupId));
 }
 
-// 入力欄とチップを空にし、取り消し時に同じカードを開いたままなら書きかけを戻す関数を返す。
+// 送信した時点で入力欄を空にし、取り消したら同じカードを開いたままのときだけチップごと書きかけを戻す関数を返す。
 function takeDraft(inputId, isSameCard) {
   const input = document.getElementById(inputId);
-  const draft = { value: input.value, quotes: quoteChipsByInputId[inputId] };
+  const draftHtml = input.innerHTML;
   input.value = '';
-  setQuoteChips(inputId, []);
   return () => {
-    if (!isSameCard()) return;
-    input.value = draft.value;
-    setQuoteChips(inputId, draft.quotes);
+    if (!isSameCard() || input.value.trim()) return;
+    input.innerHTML = draftHtml;
     input.focus();
   };
 }
 
-const SEND_GRACE_MS = 5000;
-const UNDO_SENT_TOAST_MS = 15000;
+const UNDO_SENT_TOAST_MS = 5000;
 
-function scheduleCardSend(target, text, launchOptions, restore) {
-  const busy = { mode: 'pending' };
-  busyCommentsByGroupId.set(target.groupId, busy);
-  renderModalCommentControls();
-  renderSessionLogReplyControls();
-  const release = () => {
-    if (busyCommentsByGroupId.get(target.groupId) === busy) busyCommentsByGroupId.delete(target.groupId);
-    renderModalCommentControls();
-    renderSessionLogReplyControls();
-  };
-  const timer = setTimeout(() => {
-    dismiss();
-    release();
-    sendCardComment(target, text, launchOptions);
-  }, SEND_GRACE_MS);
-  const dismiss = showToast(`${SEND_GRACE_MS / 1000}秒後に送信します`, {
-    key: `send-grace:${target.groupId}`,
-    durationMs: null,
-    actionLabel: '取り消す',
-    onAction: () => {
-      clearTimeout(timer);
-      release();
-      restore();
-      showToast('送信を取り消しました');
-    },
-  });
-}
-
-async function cancelSentRequest(target, text, at, jobId) {
+async function cancelSentRequest(target, at, jobId, restore) {
   const response = await postJson('/api/session/cancel', { file: target.file, groupId: target.groupId, at, ...(jobId ? { jobId } : {}) });
   if (response.status === 409) {
     showToast('セッションが切り替わったため取り消せません');
     return;
   }
   if (!response.ok) {
-    showFailureToast(`取り消しに失敗しました: ${formatFailureReason(response)}`, () => cancelSentRequest(target, text, at, jobId));
+    showFailureToast(`取り消しに失敗しました: ${formatFailureReason(response)}`, () => cancelSentRequest(target, at, jobId, restore));
     return;
   }
   const found = target.file === currentFile ? findGroupById(target.groupId) : null;
   if (found) found.group.comments = response.data.comments;
   showToast(response.data.stopped ? '送信を取り消しました（セッションを停止）' : '依頼の記録を削除しました');
-  const modalInput = document.getElementById('modalCommentInput');
-  const replyInput = document.getElementById('sessionLogReplyInput');
-  if (modalGroup && modalGroup.id === target.groupId && !modalInput.value.trim()) modalInput.value = text;
-  else if (sessionLogView.groupId === target.groupId && !replyInput.value.trim()) replyInput.value = text;
+  restore();
   await refreshSessions();
 }
 
@@ -4849,7 +4878,6 @@ function bindSessionLogQuote(view) {
     button.addEventListener('mousedown', (e) => e.preventDefault());
     button.addEventListener('click', () => {
       removeButton();
-      window.getSelection().removeAllRanges();
       addQuoteChip(view.inputId, toLineQuote(quote));
     });
     // dialogはtop layerに出るため、ボタンも同じdialogの中に置かないと下に隠れる。
@@ -4905,14 +4933,14 @@ function branchSessionFromEntry(view, uuid, busyMode = 'launch') {
   });
 }
 
-function sendCardComment(target, text, launchOptions = {}) {
+function sendCardComment(target, text, launchOptions = {}, restore = () => {}) {
   const mode = launchOptions.newSession ? 'newSession' : 'launch';
   return runWithCommentBusy(target.groupId, mode, async () => {
     const response = await postJson('/api/comments', { file: target.file, groupId: target.groupId, text });
     if (!response.ok) {
       showFailureToast(
         `コメントの保存に失敗しました: ${formatFailureReason(response)}`,
-        () => sendCardComment(target, text, launchOptions),
+        () => sendCardComment(target, text, launchOptions, restore),
       );
       return;
     }
@@ -4920,7 +4948,7 @@ function sendCardComment(target, text, launchOptions = {}) {
     if (found) found.group.comments = response.data.comments;
     if (found) renderBoard();
     const saved = response.data.comments;
-    await launchCardSession(target, text, launchOptions, saved.length > 0 ? saved[saved.length - 1].at : null);
+    await launchCardSession(target, text, { ...launchOptions, restore }, saved.length > 0 ? saved[saved.length - 1].at : null);
   });
 }
 
@@ -4930,7 +4958,7 @@ function retryCardSessionLaunch(target, text, launchOptions, commentAt) {
 
 async function launchCardSession(target, text, launchOptions = {}, commentAt = null) {
   const undoable = (jobId) => (commentAt
-    ? { actionLabel: '取り消す', durationMs: UNDO_SENT_TOAST_MS, onAction: () => cancelSentRequest(target, text, commentAt, jobId) }
+    ? { actionLabel: '取り消す', durationMs: UNDO_SENT_TOAST_MS, onAction: () => cancelSentRequest(target, commentAt, jobId, launchOptions.restore || (() => {})) }
     : {});
   const { file, groupId, columnName, groupTitle } = target;
   const before = file === currentFile ? findGroupById(groupId) : null;
@@ -5369,6 +5397,7 @@ async function init() {
   bindSubmitShortcut(document.getElementById('globalCommentInput'), submitGlobalComment);
   bindSubmitShortcut(document.getElementById('newCardTextInput'), submitNewCard);
   bindSubmitShortcut(document.getElementById('modalTaskInput'), submitModalTask);
+  for (const id of RICH_INPUT_IDS) enhanceRichInput(document.getElementById(id));
   bindSubmitShortcut(document.getElementById('modalCommentInput'), saveModalCommentAndLaunch);
   bindLaunchOnEnter(document.getElementById('modalCommentInput'), saveModalCommentAndLaunch);
   bindLaunchOnEnter(document.getElementById('sessionLogReplyInput'), submitSessionLogReply);
