@@ -458,6 +458,52 @@ function toggleTaskLine(md, taskId) {
   return null;
 }
 
+// taskIdの行を本文差し替え（newText）または削除（newText=null）する。`#<連番> `と行末の出典パス・notionコメントは残す。
+function rewriteTaskLine(md, taskId, newText) {
+  const lines = md.split('\n');
+  let currentColumnName = '';
+  let currentTag = '';
+  for (let i = 0; i < lines.length; i++) {
+    const h2 = lines[i].match(/^## (.+)/);
+    const h3 = lines[i].match(/^### (.+)/);
+    const task = lines[i].match(/^(\s*- \[[ x]\] )(.+)$/);
+    if (h2) {
+      currentColumnName = h2[1];
+      currentTag = '';
+    } else if (h3) {
+      currentTag = h3[1];
+    } else if (task && hashId(`${currentColumnName}::${currentTag}::${task[2]}`) === taskId) {
+      const rawText = task[2];
+      if (newText == null) {
+        lines.splice(i, 1);
+      } else {
+        const prefix = (rawText.match(/^#\d+\s+/) || [''])[0];
+        const suffix = (rawText.match(/(?: → \/\S+\/docs\/tasks\/backlog\.md)?(?:\s*<!--\s*notion:[^>]*-->)?\s*$/) || [''])[0];
+        lines[i] = `${task[1]}${prefix}${newText}${suffix}`;
+      }
+      return { md: lines.join('\n'), rawText };
+    }
+  }
+  return null;
+}
+
+// backlog.md側の該当項目（タスク行＋継続行）を差し替え・削除する。1件に絞れなければnull。
+function rewriteSourceItem(srcMd, aggCore, newText) {
+  const index = findSourceLine(srcMd, aggCore);
+  if (index == null) return null;
+  const lines = srcMd.split('\n');
+  let end = index + 1;
+  while (end < lines.length && lines[end].trim() !== '' && !/^#{1,3} /.test(lines[end]) && !/^\s*- \[[ x]\] /.test(lines[end])) end++;
+  if (newText == null) {
+    lines.splice(index, end - index);
+  } else {
+    const task = lines[index].match(/^(\s*- \[[ x]\] )(#\d+\s+)?(.+)$/);
+    const notion = (task[3].match(/\s*<!--\s*notion:[^>]*-->\s*$/) || [''])[0];
+    lines.splice(index, end - index, `${task[1]}${task[2] || ''}${newText}${notion}`);
+  }
+  return lines.join('\n');
+}
+
 // 集約ファイルのタスク行から、todo-importが埋め込んだ元`docs/tasks/todo.md`への絶対パスを抽出する。
 function extractSourcePath(rawText) {
   const m = rawText.match(/ → (\/\S+\/docs\/tasks\/backlog\.md)(?:\s*<!--\s*notion:[^>]*-->)?\s*$/);
@@ -694,6 +740,18 @@ function resolveLaunchCwd(columnName, groupTitle) {
     if (fs.existsSync(nested)) return nested;
   }
   return base;
+}
+
+// 「+」追加の書き込み先候補。直下に無ければ配下を todo-import と同じ範囲で探し、複数あれば呼び出し側で選ばせる。
+function listBacklogTargets(targetDir) {
+  const direct = path.join(targetDir, 'docs', 'tasks', 'backlog.md');
+  if (fs.existsSync(direct)) return [direct];
+  return findBacklogFiles(targetDir);
+}
+
+// backlog.md は1項目=1行で突合するため、改行は todo-import の継続行連結と同じく空白にまとめる。
+function normalizeTaskText(text) {
+  return typeof text === 'string' ? text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).join(' ') : '';
 }
 
 // backlog.md内の`#<N>`採番の最大値を返す（1件も無ければ0＝この対象ファイルは無番号運用とみなす）。
@@ -1490,7 +1548,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, columnName, groupTitle, text } = payload;
-    const trimmed = typeof text === 'string' ? text.trim() : '';
+    const trimmed = normalizeTaskText(text);
     if (!isValidTodoFile(file) || typeof columnName !== 'string' ||
         typeof groupTitle !== 'string' || !trimmed) {
       return sendJson(res, 400, { error: 'invalid payload' });
@@ -1499,10 +1557,11 @@ const server = http.createServer(async (req, res) => {
     if (!targetDir) {
       return sendJson(res, 400, { error: 'no matching project directory', columnName });
     }
-    const sourcePath = path.join(targetDir, 'docs', 'tasks', 'backlog.md');
-    if (!fs.existsSync(sourcePath)) {
-      return sendJson(res, 400, { error: 'source backlog.md not found', sourcePath });
+    const targets = listBacklogTargets(targetDir);
+    if (targets.length !== 1) {
+      return sendJson(res, 400, { error: targets.length ? 'multiple backlog.md found' : 'source backlog.md not found', targets });
     }
+    const sourcePath = targets[0];
 
     const srcMd = fs.readFileSync(sourcePath, 'utf-8');
     const maxNum = findMaxTaskNumber(srcMd);
@@ -1527,6 +1586,46 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { task: { number, text: trimmed }, mirroredToAggregate });
   }
 
+  if (url.pathname === '/api/backlog-targets' && req.method === 'GET') {
+    const targetDir = resolveLaunchCwd(url.searchParams.get('column') || '', '');
+    return sendJson(res, 200, { targets: targetDir ? listBacklogTargets(targetDir) : [] });
+  }
+
+  if (url.pathname === '/api/tasks/edit' && req.method === 'POST') {
+    const body = await readBody(req);
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const { file, taskId, text, remove } = payload;
+    const newText = remove === true ? null : normalizeTaskText(text);
+    if (!isValidTodoFile(file) || typeof taskId !== 'string' || newText === '') {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const filePath = path.join(TODO_DIR, file);
+    if (!fs.existsSync(filePath)) {
+      return sendJson(res, 404, { error: 'not found' });
+    }
+    const rewritten = rewriteTaskLine(fs.readFileSync(filePath, 'utf-8'), taskId, newText);
+    if (!rewritten) {
+      return sendJson(res, 404, { error: 'task not found' });
+    }
+    fs.writeFileSync(filePath, rewritten.md);
+
+    let sourceUpdated = false;
+    const sourcePath = extractSourcePath(rewritten.rawText);
+    if (sourcePath && fs.existsSync(sourcePath)) {
+      const updatedSrc = rewriteSourceItem(fs.readFileSync(sourcePath, 'utf-8'), computeAggCore(rewritten.rawText), newText);
+      if (updatedSrc != null) {
+        fs.writeFileSync(sourcePath, updatedSrc);
+        sourceUpdated = true;
+      }
+    }
+    return sendJson(res, 200, { ok: true, sourceUpdated });
+  }
+
   if (url.pathname === '/api/cards' && req.method === 'POST') {
     const body = await readBody(req);
     let payload;
@@ -1535,8 +1634,8 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJson(res, 400, { error: 'invalid json' });
     }
-    const { file, columnName, text } = payload;
-    const trimmed = typeof text === 'string' ? text.trim() : '';
+    const { file, columnName, text, backlogPath } = payload;
+    const trimmed = normalizeTaskText(text);
     if (!isValidTodoFile(file) || typeof columnName !== 'string' || !trimmed) {
       return sendJson(res, 400, { error: 'invalid payload' });
     }
@@ -1544,9 +1643,13 @@ const server = http.createServer(async (req, res) => {
     if (!targetDir) {
       return sendJson(res, 400, { error: 'no matching project directory', columnName });
     }
-    const sourcePath = path.join(targetDir, 'docs', 'tasks', 'backlog.md');
-    if (!fs.existsSync(sourcePath)) {
-      return sendJson(res, 400, { error: 'source backlog.md not found', sourcePath });
+    const targets = listBacklogTargets(targetDir);
+    const sourcePath = targets.length === 1 && !backlogPath ? targets[0] : backlogPath;
+    if (!targets.length) {
+      return sendJson(res, 400, { error: 'source backlog.md not found', targets });
+    }
+    if (!targets.includes(sourcePath)) {
+      return sendJson(res, 400, { error: 'backlogPath required', targets });
     }
 
     const srcMd = fs.readFileSync(sourcePath, 'utf-8');
