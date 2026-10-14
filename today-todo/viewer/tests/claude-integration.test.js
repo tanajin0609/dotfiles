@@ -188,25 +188,6 @@ test('同じ todo の別カードへの起動が重なっても、両方の jobI
   }
 });
 
-test('起動を待っている間にポーリングが書いた別カードの notifiedAt を消さない', async () => {
-  const t = await setup({ fake: { delayMs: 800 } });
-  t.writeJob('bbbb0001', { state: 'done', detail: '終わりました', updatedAt: '2026-01-01T01:00:00.000Z' });
-  t.writeSessions({ 'group-b': linked('bbbb0001') });
-  const server = await t.start();
-  try {
-    const launching = postJson(server.baseUrl, '/api/session/launch', payload({ groupId: 'group-a' }));
-    await new Promise((r) => setTimeout(r, 200));
-    await fetch(`${server.baseUrl}/api/sessions?file=${FILE}`);
-    await launching;
-    assert.equal(t.readSessions()['group-b'].notifiedAt, '2026-01-01T01:00:00.000Z');
-    await fetch(`${server.baseUrl}/api/sessions?file=${FILE}`);
-    const comments = JSON.parse(fs.readFileSync(path.join(t.fixture.dataDir, 'comments-todo-2026-01-01.json'), 'utf-8'));
-    assert.equal(comments['group-b'].length, 1, '完了コメントが重複しないこと');
-  } finally {
-    await server.stop();
-  }
-});
-
 // N3・N17（AC-JS-SRV-1）
 test('state.json の state/tempo/needs を working・blocked・done・failed に正規化する', async () => {
   const t = await setup();
@@ -253,9 +234,6 @@ test('AskUserQuestion の回答待ち（working＋tempo=blocked）には返信�
   t.writeSessions({ 'group-a': linked('aaaa6666') });
   const server = await t.start();
   try {
-    await fetch(`${server.baseUrl}/api/sessions?file=${FILE}`);
-    const comments = JSON.parse(fs.readFileSync(path.join(t.fixture.dataDir, 'comments-todo-2026-01-01.json'), 'utf-8'));
-    assert.deepEqual(comments['group-a'].map((c) => c.text), ['[Claude 確認] 続行しますか？']);
     const res = await postJson(server.baseUrl, '/api/session/launch', payload({ text: 'はい' }));
     assert.equal(res.body.launched, true);
     assert.equal(res.body.jobId, 'aaaa6666');
@@ -433,18 +411,65 @@ test('分岐の後、入力待ちの元ジョブを stop する（rm はしな�
   }
 });
 
-// N11（AC-CC2-3）
-test('/api/sessions のポーリングで、表示中でない todo のセッションにも自動コメントを付ける', async () => {
+// AC-SH-SRV-1・AC-CC2-3
+test('ポーリングしてもカードに自動コメントを付けない', async () => {
   const t = await setup();
-  t.writeJob('adad0001', { state: 'done', detail: '別の日の完了', updatedAt: 'u1' });
-  t.writeSessions({ 'group-z': linked('adad0001') }, 'todo-2025-12-31.md');
+  t.writeJob('adad0001', { state: 'done', detail: '完了', updatedAt: 'u1' });
+  t.writeSessions({ 'group-a': linked('adad0001') });
   const server = await t.start();
   try {
     await fetch(`${server.baseUrl}/api/sessions?file=${FILE}`);
-    const comments = JSON.parse(fs.readFileSync(path.join(t.fixture.dataDir, 'comments-todo-2025-12-31.json'), 'utf-8'));
-    assert.deepEqual(comments['group-z'].map((c) => c.text), ['[Claude 完了] 別の日の完了']);
+    await fetch(`${server.baseUrl}/api/board?file=${FILE}`);
+    assert.equal(fs.existsSync(path.join(t.fixture.dataDir, 'comments-todo-2026-01-01.json')), false);
   } finally {
     await server.stop();
+  }
+});
+
+test('新規セッションで差し替えると旧セッションを history に積み、返信のコピーでは積まない', async () => {
+  const t = await setup();
+  t.writeJob('aeae0001', { state: 'done', linkScanPath: '/tmp/old.jsonl' });
+  t.writeSessions({ 'group-a': linked('aeae0001', { notifiedAt: 'x' }) });
+  const server = await t.start();
+  try {
+    const res = await postJson(server.baseUrl, '/api/session/launch', payload({ newSession: true }));
+    assert.equal(res.status, 200);
+    const entry = t.readSessions()['group-a'];
+    assert.equal(entry.jobId, res.body.jobId);
+    assert.equal(entry.history.length, 1);
+    assert.equal(entry.history[0].jobId, 'aeae0001');
+    assert.equal(entry.history[0].notifiedAt, undefined);
+    const board = await (await fetch(`${server.baseUrl}/api/sessions?file=${FILE}`)).json();
+    assert.equal(board['group-a'].history[0].jobId, 'aeae0001');
+    assert.equal(board['group-a'].history[0].launchedAt, '2026-01-01T00:00:00.000Z');
+    await postJson(server.baseUrl, '/api/session/launch', payload({ text: '続き' }));
+    assert.equal(t.readSessions()['group-a'].history.length, 1, '返信では履歴が増えない');
+  } finally {
+    await server.stop();
+  }
+});
+
+test('history のジョブを jobId で指定して分岐でき、そのログも取得できる', async () => {
+  const t = await setup();
+  const sid = crypto.randomUUID();
+  const transcript = t.writeTranscript(sid, [
+    { type: 'user', uuid: 'u1', parentUuid: null, cwd: t.fixture.projectDir, sessionId: sid, message: { content: 'はじめ' } },
+    { type: 'assistant', uuid: 'a1', parentUuid: 'u1', cwd: t.fixture.projectDir, sessionId: sid, message: { content: [{ type: 'text', text: '回答' }] } },
+  ]);
+  t.writeJob('afaf0002', { state: 'done' });
+  t.writeSessions({ 'group-a': linked('afaf0002', { history: [linked('afaf0001', { transcriptPath: transcript })] }) });
+  const server = await t.start();
+  try {
+    const log = await fetch(`${server.baseUrl}/api/session/transcript?jobId=afaf0001`);
+    assert.equal(log.status, 200);
+    const res = await postJson(server.baseUrl, '/api/session/branch', { ...payload({ text: '別案で' }), uuid: 'a1', jobId: 'afaf0001' });
+    assert.equal(res.status, 200);
+    const entry = t.readSessions()['group-a'];
+    assert.equal(entry.branchedFrom.jobId, 'afaf0001');
+    assert.deepEqual(entry.history.map((h) => h.jobId), ['afaf0001', 'afaf0002']);
+  } finally {
+    await server.stop();
+    fs.rmSync(path.join(path.dirname(transcript)), { recursive: true, force: true });
   }
 });
 
