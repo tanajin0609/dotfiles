@@ -262,8 +262,20 @@ function readLaunchSettings() {
   }
 }
 
-function buildLaunchSettingArgs() {
-  const { model, effort } = readLaunchSettings();
+function isValidLaunchSettings({ model, effort }) {
+  return (!model || MODEL_PATTERN.test(model)) && (!effort || EFFORT_LEVELS.includes(effort));
+}
+
+// 送信欄で選んだ値（文字列で来た項目のみ）を保存済みの設定より優先する。空文字は「フラグを付けない」。
+function resolveLaunchSettings(payload) {
+  const saved = readLaunchSettings();
+  return {
+    model: typeof payload.model === 'string' ? payload.model.trim() : saved.model,
+    effort: typeof payload.effort === 'string' ? payload.effort : saved.effort,
+  };
+}
+
+function buildLaunchSettingArgs({ model, effort }) {
   return [...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : [])];
 }
 
@@ -1188,6 +1200,7 @@ function parseTranscriptEntriesCached(jsonlPath) {
 function parseTranscriptEntries(jsonlPath, limit = 300) {
   const lines = fs.readFileSync(jsonlPath, 'utf-8').split('\n').filter(Boolean);
   const entries = [];
+  const toolNamesById = new Map();
   for (const line of lines) {
     let obj;
     try {
@@ -1211,13 +1224,14 @@ function parseTranscriptEntries(jsonlPath, limit = 300) {
       } else if (block.type === 'tool_use') {
         // AskUserQuestionは選択肢UIの復元にinput全体が必要なため、通常のtool_useより長く許容する。
         const inputLimit = block.name === 'AskUserQuestion' ? 4000 : 1000;
+        if (block.id) toolNamesById.set(block.id, block.name);
         entries.push({
           kind: 'tool_use', role, at, uuid,
           name: block.name,
           input: truncate(JSON.stringify(block.input || {}), inputLimit),
         });
       } else if (block.type === 'tool_result') {
-        entries.push({ kind: 'tool_result', role, at, uuid, text: truncate(stringifyBlockContent(block.content), 1500) });
+        entries.push({ kind: 'tool_result', role, at, uuid, name: toolNamesById.get(block.tool_use_id) || null, text: truncate(stringifyBlockContent(block.content), 1500) });
       }
     }
   }
@@ -1743,7 +1757,7 @@ const server = http.createServer(async (req, res) => {
     }
     const model = typeof payload.model === 'string' ? payload.model.trim() : '';
     const effort = typeof payload.effort === 'string' ? payload.effort : '';
-    if ((model && !MODEL_PATTERN.test(model)) || (effort && !EFFORT_LEVELS.includes(effort))) {
+    if (!isValidLaunchSettings({ model, effort })) {
       return sendJson(res, 400, { error: 'invalid payload' });
     }
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1777,6 +1791,10 @@ const server = http.createServer(async (req, res) => {
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof columnName !== 'string' ||
         typeof groupTitle !== 'string' || !trimmed) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const launchSettings = resolveLaunchSettings(payload);
+    if (!isValidLaunchSettings(launchSettings)) {
       return sendJson(res, 400, { error: 'invalid payload' });
     }
     const lockKey = buildLaunchLockKey(file, groupId);
@@ -1818,8 +1836,8 @@ const server = http.createServer(async (req, res) => {
       const args = mode === 'reply'
         ? ['--bg', '--resume', sessionId, '--', prompt]
         : mode === 'revive'
-          ? ['--bg', ...buildLaunchSettingArgs(), '--resume', sessionId, '-n', name, '--', prompt]
-          : ['--bg', ...buildLaunchSettingArgs(), '-n', name, '--', prompt];
+          ? ['--bg', ...buildLaunchSettingArgs(launchSettings), '--resume', sessionId, '-n', name, '--', prompt]
+          : ['--bg', ...buildLaunchSettingArgs(launchSettings), '-n', name, '--', prompt];
       if (mode === 'reply') {
         await runClaudeQuietly(['stop', existing.jobId]);
         await sleep(STOP_SETTLE_MS);
@@ -1932,6 +1950,10 @@ const server = http.createServer(async (req, res) => {
         typeof groupTitle !== 'string' || typeof uuid !== 'string' || !uuid || !trimmed) {
       return sendJson(res, 400, { error: 'invalid payload' });
     }
+    const launchSettings = resolveLaunchSettings(payload);
+    if (!isValidLaunchSettings(launchSettings)) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
     const lockKey = buildLaunchLockKey(file, groupId);
     if (activeLaunchKeys.has(lockKey)) {
       return sendJson(res, 409, { error: 'launch in progress' });
@@ -1962,7 +1984,7 @@ const server = http.createServer(async (req, res) => {
       const prompt = buildNewSessionPrompt(columnName, groupTitle, trimmed);
       let result;
       try {
-        result = await launchBackground(['--bg', ...buildLaunchSettingArgs(), '--resume', sessionId, '-n', name, '--', prompt], cwd, name);
+        result = await launchBackground(['--bg', ...buildLaunchSettingArgs(launchSettings), '--resume', sessionId, '-n', name, '--', prompt], cwd, name);
       } catch (err) {
         return sendLaunchFailure(res, err, cwd);
       }

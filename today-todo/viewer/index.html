@@ -852,6 +852,7 @@
   #modalCommentList .modal-comment.is-claude { align-self: flex-start; background: color-mix(in srgb, var(--accent) 14%, var(--raised)); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
   .modal-comment-form { display: flex; flex-direction: column; gap: 10px; }
   .modal-comment-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .launch-select { font-size: var(--fs-xs); max-width: 9em; }
   #modalCommentInput.drag-over { outline: 2px dashed var(--accent); }
   .modal-task-form { display: flex; gap: 8px; align-items: flex-end; margin: 4px 0 16px; padding: 0 20px; }
   /* 入力欄の下に操作ヒントがあるため、ボタンを入力欄の下端に揃える（ヒント1行＋gap分）。 */
@@ -879,6 +880,8 @@
   .log-entry.tool_use, .log-entry.tool_result { background: var(--surface); padding: 6px 12px; }
   .log-entry.tool_use .body, .log-entry.tool_result .body { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-mute); }
   .log-entry > .btn-icon { margin-top: 6px; }
+  .log-entry summary.role { cursor: pointer; margin-bottom: 0; }
+  .log-entry details[open] > summary.role { margin-bottom: 3px; }
   .ask-user-question-options { display: flex; flex-direction: column; gap: 10px; }
   .ask-user-question-block {
     display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
@@ -1220,6 +1223,12 @@
           <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」（現在のセッションへ送信）／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
         </div>
         <div class="modal-comment-actions">
+          <select id="modalLaunchModel" class="launch-select" aria-label="起動するmodel" data-tip="新規起動・New Sessionのときのmodel（返信には反映しない）">
+            <option value="">model: 既定</option><option value="opus">opus</option><option value="sonnet">sonnet</option><option value="haiku">haiku</option><option value="fable">fable</option>
+          </select>
+          <select id="modalLaunchEffort" class="launch-select" aria-label="起動するeffort" data-tip="新規起動・New Sessionのときのeffort（返信には反映しない）">
+            <option value="">effort: 既定</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option>
+          </select>
           <button id="modalCommentLaunchBtn" type="button" class="btn btn-primary" aria-label="Claudeに依頼" data-tip="Claudeに依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
           <button id="modalCommentNewSessionBtn" type="button" class="btn btn-secondary" aria-label="新規セッションで依頼" data-tip="既存セッションを引き継がず新しいセッションで依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
         </div>
@@ -1273,6 +1282,12 @@
         <span class="input-hint" id="sessionLogReplyHint"><kbd>Enter</kbd> で「このセッションに送信」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
       </div>
       <div class="modal-comment-actions">
+        <select id="sessionLogLaunchModel" class="launch-select" aria-label="起動するmodel" data-tip="新規起動・New Sessionのときのmodel（返信には反映しない）">
+          <option value="">model: 既定</option><option value="opus">opus</option><option value="sonnet">sonnet</option><option value="haiku">haiku</option><option value="fable">fable</option>
+        </select>
+        <select id="sessionLogLaunchEffort" class="launch-select" aria-label="起動するeffort" data-tip="新規起動・New Sessionのときのeffort（返信には反映しない）">
+          <option value="">effort: 既定</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option>
+        </select>
         <button id="sessionLogReplyBtn" type="button" class="btn btn-primary" aria-label="このセッションに送信" data-tip="このセッションに送信"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
         <button id="sessionLogNewSessionBtn" type="button" class="btn btn-secondary" aria-label="新しいセッションで依頼" data-tip="ここまでの会話を引き継いだ新しいセッションで依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
       </div>
@@ -2189,7 +2204,7 @@ function sendDocReview(launchOptions = {}) {
   const remaining = docReview.items;
   docReview.items = [];
   document.getElementById('docDialog').close();
-  sendCardComment(target, text, launchOptions, () => {
+  sendCardComment(target, text, { ...launchOptions, ...readLaunchSelects('modal') }, () => {
     if (docReview.groupId === target.groupId) docReview.items = [...remaining, ...docReview.items];
   });
 }
@@ -3490,7 +3505,7 @@ const SESSION_LOG_FOLLOW_MARGIN_PX = 40;
 
 function sessionLogEntryLabel(entry) {
   if (entry.kind === 'tool_use') return `tool_use: ${entry.name}`;
-  if (entry.kind === 'tool_result') return 'tool_result';
+  if (entry.kind === 'tool_result') return entry.name ? `tool_result: ${entry.name}` : 'tool_result';
   return entry.role === 'user' ? 'ユーザー' : 'Claude';
 }
 
@@ -3593,14 +3608,17 @@ function fillAskUserQuestionReply(view, questions, answers) {
 function buildSessionLogEntryRow(entry, view) {
   const row = document.createElement('div');
   row.className = `log-entry ${entry.kind} ${entry.role || ''}`;
-  const role = document.createElement('div');
+  const isTool = entry.kind === 'tool_use' || entry.kind === 'tool_result';
+  const container = isTool ? document.createElement('details') : row;
+  const role = document.createElement(isTool ? 'summary' : 'div');
   role.className = 'role';
   role.textContent = sessionLogEntryLabel(entry);
-  row.appendChild(role);
+  container.appendChild(role);
   const body = document.createElement('div');
   body.className = 'body';
   body.textContent = entry.kind === 'tool_use' ? entry.input : entry.text;
-  row.appendChild(body);
+  container.appendChild(body);
+  if (isTool) row.appendChild(container);
   if (entry.kind === 'text' && entry.role === 'assistant' && entry.uuid) {
     const branchBtn = document.createElement('button');
     branchBtn.type = 'button';
@@ -3705,7 +3723,10 @@ function openSessionLogModal(column, group) {
   const dialog = document.getElementById('sessionLogDialog');
   const wasOpen = dialog.open;
   if (!wasOpen) sessionLogFocusReturn = captureFocusReturn();
-  if (sessionLogView.groupId !== group.id) document.getElementById('sessionLogReplyInput').value = '';
+  if (sessionLogView.groupId !== group.id) {
+    document.getElementById('sessionLogReplyInput').value = '';
+    resetLaunchSelects('sessionLog');
+  }
   sessionLogView.jobId = session.jobId;
   sessionLogView.groupId = group.id;
   document.getElementById('sessionLogColLabel').textContent = column.name;
@@ -4293,6 +4314,7 @@ function openModal(column, group) {
   if (lastModalGroupId !== group.id) {
     document.getElementById('modalCommentInput').value = '';
     document.getElementById('modalTaskInput').value = '';
+    resetLaunchSelects('modal');
   }
   lastModalGroupId = group.id;
   modalColumnName = column.name;
@@ -4817,7 +4839,7 @@ function submitModalComment(launchOptions = {}) {
   const text = document.getElementById('modalCommentInput').value.trim();
   if (!text || !modalGroup || busyCommentsByGroupId.has(modalGroup.id)) return;
   const target = { file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title };
-  sendCardComment(target, text, launchOptions, takeDraft('modalCommentInput', () => modalGroup && modalGroup.id === target.groupId));
+  sendCardComment(target, text, { ...launchOptions, ...readLaunchSelects('modal') }, takeDraft('modalCommentInput', () => modalGroup && modalGroup.id === target.groupId));
 }
 
 function submitSessionLogReply() {
@@ -4826,7 +4848,7 @@ function submitSessionLogReply() {
   const found = findGroupById(sessionLogView.groupId);
   if (!found) return;
   const target = { file: currentFile, columnName: found.column.name, groupId: sessionLogView.groupId, groupTitle: found.group.title };
-  sendCardComment(target, text, {}, takeDraft('sessionLogReplyInput', () => sessionLogView.groupId === target.groupId));
+  sendCardComment(target, text, readLaunchSelects('sessionLog'), takeDraft('sessionLogReplyInput', () => sessionLogView.groupId === target.groupId));
 }
 
 // 送信した時点で入力欄を空にし、取り消したら同じカードを開いたままのときだけチップごと書きかけを戻す関数を返す。
@@ -4912,7 +4934,7 @@ function branchSessionFromEntry(view, uuid, busyMode = 'launch') {
   const target = { file: currentFile, columnName: found.column.name, groupId: view.groupId, groupTitle: found.group.title };
   const sourceJobId = view.jobId;
   runWithCommentBusy(target.groupId, busyMode, async () => {
-    const response = await postJson('/api/session/branch', { ...target, uuid, text, jobId: sourceJobId });
+    const response = await postJson('/api/session/branch', { ...target, uuid, text, jobId: sourceJobId, ...readLaunchSelects(view === sessionLogView ? 'sessionLog' : 'modal') });
     if (response.status === 409) {
       showToast('このカードは起動処理中です');
       return;
@@ -4963,7 +4985,7 @@ async function launchCardSession(target, text, launchOptions = {}, commentAt = n
   const { file, groupId, columnName, groupTitle } = target;
   const before = file === currentFile ? findGroupById(groupId) : null;
   const hadSession = !!(before && before.group.session) && launchOptions.newSession !== true;
-  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text, newSession: launchOptions.newSession === true });
+  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text, newSession: launchOptions.newSession === true, model: launchOptions.model, effort: launchOptions.effort });
   if (response.status === 409) {
     showToast('このカードは起動処理中です（コメントは保存しました）');
   } else if (isUntrustedWorkspace(response)) {
@@ -5279,6 +5301,34 @@ function renderGlobalModelSettings(global) {
   }
 }
 
+let launchSettingsOverride = { model: '', effort: '' };
+
+async function loadLaunchSettingsOverride() {
+  try {
+    const res = await fetch('/api/claude-settings');
+    if (res.ok) launchSettingsOverride = (await res.json()).override;
+  } catch {
+    // 取れなければ「既定」のまま送り、サーバー側で保存済みの設定と同じ扱いになる。
+  }
+  resetLaunchSelects('modal');
+  resetLaunchSelects('sessionLog');
+}
+
+function resetLaunchSelects(prefix) {
+  const modelSelect = document.getElementById(`${prefix}LaunchModel`);
+  const { model, effort } = launchSettingsOverride;
+  if (model && ![...modelSelect.options].some((o) => o.value === model)) modelSelect.add(new Option(model, model));
+  modelSelect.value = model;
+  document.getElementById(`${prefix}LaunchEffort`).value = effort;
+}
+
+function readLaunchSelects(prefix) {
+  return {
+    model: document.getElementById(`${prefix}LaunchModel`).value,
+    effort: document.getElementById(`${prefix}LaunchEffort`).value,
+  };
+}
+
 async function openModelSettingsDialog() {
   const dialog = document.getElementById('modelSettingsDialog');
   if (dialog.open) return;
@@ -5318,6 +5368,7 @@ async function saveModelSettings() {
       throw new Error(res.status === 400 ? 'modelの書式が不正です' : `HTTP ${res.status} ${body.error || ''}`);
     }
     showToast('モデル設定を保存しました（次回の起動から反映）');
+    loadLaunchSettingsOverride();
   } catch (err) {
     showToast(`モデル設定の保存に失敗しました（${err.message}）`, {
       kind: 'error', actionLabel: '再試行', onAction: saveModelSettings,
@@ -5429,6 +5480,7 @@ async function init() {
   refreshRateLimits();
   setInterval(refreshRateLimits, 60000);
   document.getElementById('modelSettingsBtn').addEventListener('click', openModelSettingsDialog);
+  loadLaunchSettingsOverride();
   document.getElementById('modelSettingsSubmit').addEventListener('click', saveModelSettings);
   const modelSettingsDialog = document.getElementById('modelSettingsDialog');
   document.getElementById('modelSettingsDialogCloseBtn').addEventListener('click', () => modelSettingsDialog.close());
