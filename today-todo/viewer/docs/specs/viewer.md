@@ -58,6 +58,9 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
   （CLIは登録済みのbgセッションの `--resume` にプロンプト以外の引数があると、別jobIdのコピーを起動するため）。
   返信のジョブはCLIが保存した元の `-n`・model・effort・permission-modeのまま動く。
   ジョブが削除済みで控えたtranscriptから再開するとき（AC-CC2-2）と分岐（AC-BR-SRV-3）は、CLIに保存済みのオプションが無いため付ける。
+- AC-MS-SRV-4: `POST /api/session/launch`・`POST /api/session/branch` は任意で `model`・`effort`（文字列）を受け取り、渡された項目は
+  AC-MS-SRV-3で付けるフラグの値として `override` より優先する（空文字はその項目のフラグを付けない）。検証はAC-MS-SRV-2と同じで、不正なら400。
+  既存ジョブへの返信（AC-CC2-2の `blocked`・`done`・`failed`）には従来どおり付けない。
 
 ### 1.6 トークンのAPI換算コスト（CO）
 
@@ -113,6 +116,7 @@ viewerはこのファイルを書き換えない。
 transcriptの `parentUuid` をたどった部分履歴を新しいセッションIDのtranscriptとして書き出し、それを `--resume` する。
 
 - AC-BR-SRV-1: `GET /api/session/transcript` の各エントリに、元の行の `uuid`（無ければ `null`）を含める。
+- AC-SLG-SRV-1: `GET /api/session/transcript` の `tool_result` エントリに、`tool_use_id` が一致する `tool_use` のツール名を `name` として含める（無ければ `null`）。
 - AC-BR-SRV-2: `POST /api/session/branch` `{ "file", "groupId", "columnName", "groupTitle", "uuid", "text", "jobId"? }` は、カードに紐付くジョブ（`jobId` を付けたときは現在または `history` のうちそのジョブ）の
   transcript（`linkScanPath`、無ければ `transcriptPath`）から、`uuid` の行を起点に `parentUuid` を根までたどった行だけを元の順序で取り出し、
   `sessionId` を新しいUUIDに置き換えて同じディレクトリの `<新UUID>.jsonl` に書き出す。元のtranscriptは変更しない。
@@ -263,6 +267,9 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-MS-1: ヘッダーの「モデル設定」ボタンで `<dialog>` を開き、グローバル設定（model・effortLevel・モデル別effortLevel）を
   読み取り専用で表示する。同じダイアログでviewer起動分のmodel（候補: 未設定/opus/sonnet/haiku/fable、自由入力可）と
   effort（未設定/low/medium/high/xhigh/max）を選んで保存でき、保存失敗はAC-H2-2に従い通知する。
+- AC-MS-2: カード詳細の入力欄とセッションログの返信欄の送信ボタンの左に、model（既定/opus/sonnet/haiku/fable）とeffort（既定/low〜max）の選択を置く。
+  初期値はAC-MS-1で保存した値（自由入力のmodelは選択肢に追加して選ぶ）で、別のカードを開いたときと保存したときに初期値へ戻す。
+  送信（AC-DV-6のコメント依頼はカード詳細の選択、分岐は送信した欄の選択）時に選んだ値を `model`・`effort` として渡す（AC-MS-SRV-4）。返信には反映されない。
 - AC-CO-1: ヘッダーの「コスト」ボタンで `<dialog>` を開き、月ごとのAPI換算コスト（合計USD・モデル別内訳）を表示する。
   「API換算の概算であり実請求額ではない」旨を併記し、`unpricedTokens` が1以上の月はその件数を注記する。
 - AC-CO-2: カード詳細のヘッダーに、そのカードのAPI換算コスト（`$x.xx`、紐付くtranscriptが無ければ非表示）を表示する。
@@ -308,6 +315,8 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   「資料」ボタンを含む。AC-CC3-1・AC-BR-1・AC-AP-1）と入力欄を置く。保存済みのコメント（`data/comments-*.json`）はカード詳細に表示しない。
   セッションが無いカードは「まだClaudeに依頼していません」と表示する。見出しには現在のセッションの状態ラベル（AC-CC2-5）を出す。
   ログはカード詳細を開いている間5秒ごとに取り直し（AC-UX2-1）、`/api/sessions` の更新で現在のセッションが変わればそれに追従する。
+- AC-SLG-1: セッションログ（カード詳細・セッションログダイアログ）の `tool_use`・`tool_result` は既定で折り畳み、見出しに
+  `tool_use: <ツール名>`・`tool_result: <ツール名>`（名前が `null` なら `tool_result`）を出す。見出しを押すと本文を開閉する。
 - AC-CSL-2: カードに `history`（AC-SH-SRV-1）があるとき、セッション見出しに表示するセッションの選択（現在＋過去を新しい順、起動日時と状態を表示）を出し、
   選んだセッションのログを表示する。過去のセッションを表示中は見出しに「過去のログ表示中・送信先は現在のセッション」と出す。入力欄の送信先は常に現在のセッション。
   過去のセッションのログの「ここから分岐」は、そのセッションを分岐元にする（`/api/session/branch` に `jobId` を付ける。AC-BR-SRV-2）。

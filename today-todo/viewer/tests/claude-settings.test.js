@@ -124,3 +124,35 @@ test('launchはoverrideの設定済み項目だけを--model/--effortで渡す',
     await server.stop();
   }
 });
+
+// AC-MS-SRV-4
+test('launchのmodel/effort指定は保存済みの設定より優先され、不正値は400', async () => {
+  const fixture = setupFixture();
+  const callLog = path.join(fixture.root, 'claude-calls.log');
+  writeFakeClaude(path.join(fixture.root, 'bin'), { callLogPath: callLog, delayMs: 0 });
+  const server = await startViewerServer({
+    VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir,
+    VIEWER_CLAUDE_SETTINGS: path.join(fixture.root, 'missing.json'),
+    PATH: `${path.join(fixture.root, 'bin')}:${process.env.PATH}`,
+  });
+  const launchWith = async (extra) => (await fetch(`${server.baseUrl}/api/session/launch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      file: 'todo-2026-01-01.md', groupId: 'group-a', columnName: 'demo-project',
+      groupTitle: 'demo-project', text: '実行してください', ...extra,
+    }),
+  })).status;
+  try {
+    await postSettings(server.baseUrl, { model: 'sonnet', effort: 'low' });
+    assert.equal(await launchWith({ model: 'opus', effort: '' }), 200);
+    const lines = fs.readFileSync(callLog, 'utf-8').split('\n').filter(Boolean);
+    assert.match(lines.at(-1), /^--bg --model opus -n /);
+
+    fs.rmSync(path.join(fixture.dataDir, 'sessions-todo-2026-01-01.json'));
+    assert.equal(await launchWith({ model: '--dangerous' }), 400);
+    assert.equal(await launchWith({ effort: 'ultra' }), 400);
+  } finally {
+    await server.stop();
+  }
+});
