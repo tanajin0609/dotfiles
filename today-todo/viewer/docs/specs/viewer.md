@@ -170,7 +170,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   500ではなく `403 { "error": "workspace not trusted", "cwd": "<起動ディレクトリ>" }` を返す。
 - AC-WT-SRV-2: `POST /api/workspace/trust` に `{ "cwd": "<絶対パス>" }` を送ると、Claude Codeの設定ファイル（既定 `~/.claude.json`、
   環境変数 `VIEWER_CLAUDE_CONFIG` で上書き可）の `projects["<cwd>"].hasTrustDialogAccepted` を `true` にして `200 { "trusted": true }` を返す。
-  他のキーは保持する。`cwd` が `PROJECTS_ROOT` 配下の実在ディレクトリでなければ400で、設定ファイルを変更しない。
+  他のキーは保持する。`cwd` が `PROJECTS_ROOT` 配下の実在ディレクトリ（またはAC-SK-SRV-2の起動ディレクトリ）でなければ400で、設定ファイルを変更しない。
   この設定ファイルはClaude Codeの非公開の内部形式のため、CLIの更新で効かなくなりうる（その場合もAC-WT-1の手動手順は有効）。
 
 ### 1.14 列のbacklog同期（CS）
@@ -202,6 +202,19 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   todoファイルの行の `#<連番>`・出典パス・notionコメントを保ったまま本文だけを差し替える（削除なら行を消す）。
   出典の backlog.md の該当項目（AC-CB-SRV-1 と同じ突合。継続行を含む）も同じく差し替え・削除し、`sourceUpdated: true` を返す。
 - AC-CB-UI-1: カード詳細のタスク行に「編集」「削除」ボタンを置く。編集は行内の入力欄（`Ctrl+Enter`で保存・`Esc`で取消）、削除は確認ダイアログの後に行う。
+
+### 1.16 スキル（SK）
+
+- AC-SK-SRV-1: `GET /api/skills` は `200 { "skills": [{ "name", "description" }] }` を名前順で返す。対象はスキルディレクトリ
+  （既定 `~/.claude/skills`、環境変数 `VIEWER_SKILLS_DIR` で上書き可）直下の `<dir>/SKILL.md` で、frontmatterの `name`（無ければディレクトリ名）と
+  `description`（`|`・`>` のブロック形式は行を空白でつなぐ。無ければ空文字）を返す。`SKILL.md` の無いディレクトリと `.` で始まるディレクトリは除く。ディレクトリが無ければ空配列。
+- AC-SK-SRV-2: `POST /api/skills/create` `{ "text" }` は、`claude --bg <model/effort指定（AC-MS-SRV-3のoverride）> -n "skill作成 ▸ <text先頭>" -- "/skill-creator <text>"` を
+  起動ディレクトリ（既定 `~/.claude`、環境変数 `VIEWER_SKILL_CWD` で上書き可）で実行し、`data/skill-sessions.json` の先頭に
+  `{ "jobId", "text", "launchedAt" }` を記録して `200 { "jobId" }` を返す。`text` が空なら400、起動失敗はAC-WT-SRV-1と同じ形で返す。
+- AC-SK-SRV-3: `GET /api/skills/sessions` は `200 { "sessions": [{ "jobId", "text", "launchedAt", "state", ... }] }` を新しい順で返す（状態の項目はAC-SL-SRV-1と同じ）。
+- AC-SK-SRV-4: `POST /api/skills/reply` `{ "jobId", "text" }` は記録済みのjobIdだけを受け付け（他は404）、AC-CC2-2の返信と同じく扱う：
+  `working` なら起動せず `200 { "launched": false, "reason": "already-running" }`、それ以外は `claude stop` して待った後に
+  `claude --bg --resume <sessionId> -- <指示>`（指示はAC-CC2-2の回答形式）を実行する。返ったjobIdが元と違えば記録をそのjobIdに置き換え、`200 { "launched": true, "jobId" }` を返す。
 
 ## 2. 画面
 
@@ -447,6 +460,17 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   `/api/workspace/trust` を呼び、成功したら同じ送信を再試行する（「新規セッションで依頼」の再試行も `newSession: true` のまま送る）。失敗時はAC-H2-2に従い通知する。
 - AC-UX6-1: AC-CC3-1の選択肢に `description` があれば、ボタンの直下に可視テキストで表示し、ボタンの `aria-describedby` で紐付ける
   （`title` 属性だけに頼らない）。選択肢ごとに「ボタン＋説明」を縦に並べた単位とし、単位どうしは折り返して並べる。
+
+### 2.5a スキル（SK）
+
+- AC-SK-1: ヘッダーの「スキル」ボタンで `<dialog>` を開き、スキル一覧（AC-SK-SRV-1。名前と説明。絞り込み入力つき）、依頼欄、
+  skill作成セッションの一覧（AC-SK-SRV-3。状態ラベル・依頼文・起動日時）を表示する。
+- AC-SK-2: 依頼欄の「作成を依頼」でAC-SK-SRV-2を呼び、起動したセッションを選択してログを表示する。セッション一覧の行を押すとそのログ
+  （セッションログと同じ描画。AskUserQuestionの選択肢を含み、「ここから分岐」は出さない）を表示し、「このセッションに送信」でAC-SK-SRV-4を呼ぶ。
+  ダイアログを開いている間は5秒ごとに一覧と選択中のログを取り直す。失敗はAC-H2-2に従い通知する。
+- AC-SK-3: 依頼を送る入力欄（カード詳細の入力欄・セッションログの返信欄・ドキュメントのコメント・スキル画面の依頼欄）で、行頭または空白の直後に `/` を入力すると、
+  カーソル位置の `/<入力中の文字>` に名前が前方一致（無ければ部分一致）するスキルを最大8件、説明つきで候補表示する。↑↓で選び、Enter・Tabで
+  `/<name> ` に置き換え、Escで閉じる（候補表示中のEnterは送信しない）。候補はクリックでも選べる。スキル一覧は初回に取得し、スキル画面を開くたびに取り直す。
 
 ### 2.6 キーボード操作（C1・C2・C5・L4）
 

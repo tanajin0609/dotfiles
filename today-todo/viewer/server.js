@@ -36,6 +36,14 @@ const CLAUDE_CONFIG_PATH = process.env.VIEWER_CLAUDE_CONFIG
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\[\]-]{0,63}$/;
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
+const SKILLS_DIR = process.env.VIEWER_SKILLS_DIR
+  ? path.resolve(process.env.VIEWER_SKILLS_DIR)
+  : path.join(os.homedir(), '.claude', 'skills');
+const SKILL_CWD = process.env.VIEWER_SKILL_CWD
+  ? path.resolve(process.env.VIEWER_SKILL_CWD)
+  : path.join(os.homedir(), '.claude');
+const SKILL_SESSIONS_PATH = path.join(DATA_DIR, 'skill-sessions.json');
+
 const CLAUDE_PROJECTS_DIR = process.env.VIEWER_CLAUDE_PROJECTS_DIR
   ? path.resolve(process.env.VIEWER_CLAUDE_PROJECTS_DIR)
   : path.join(os.homedir(), '.claude', 'projects');
@@ -232,6 +240,7 @@ function sendLaunchFailure(res, err, cwd) {
 
 function isTrustableCwd(cwd) {
   if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return false;
+  if (path.resolve(cwd) === SKILL_CWD) return fs.existsSync(SKILL_CWD);
   let real;
   try {
     real = fs.realpathSync(cwd);
@@ -1151,6 +1160,50 @@ function listAllSessions() {
   return sessions.sort((a, b) => String(b.launchedAt || '').localeCompare(String(a.launchedAt || '')));
 }
 
+function readSkillFrontmatter(text) {
+  const lines = text.split(/\r?\n/);
+  if (lines[0] !== '---') return {};
+  const fields = {};
+  for (let i = 1; i < lines.length && lines[i] !== '---'; i++) {
+    const m = lines[i].match(/^(name|description):\s*(.*)$/);
+    if (!m) continue;
+    let value = m[2].trim();
+    if (value === '|' || value === '>' || value === '') {
+      const block = [];
+      while (i + 1 < lines.length && /^\s+\S/.test(lines[i + 1])) block.push(lines[++i].trim());
+      value = block.join(' ');
+    }
+    fields[m[1]] = value.replace(/^(['"])(.*)\1$/, '$2');
+  }
+  return fields;
+}
+
+function listSkills() {
+  if (!fs.existsSync(SKILLS_DIR)) return [];
+  const skills = [];
+  for (const dir of fs.readdirSync(SKILLS_DIR)) {
+    if (dir.startsWith('.')) continue;
+    const skillPath = path.join(SKILLS_DIR, dir, 'SKILL.md');
+    if (!fs.existsSync(skillPath)) continue;
+    const { name, description } = readSkillFrontmatter(fs.readFileSync(skillPath, 'utf-8'));
+    skills.push({ name: name || dir, description: description || '' });
+  }
+  return skills.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function readSkillSessions() {
+  try {
+    return JSON.parse(fs.readFileSync(SKILL_SESSIONS_PATH, 'utf-8'));
+  } catch {
+    return [];
+  }
+}
+
+function writeSkillSessions(sessions) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(SKILL_SESSIONS_PATH, JSON.stringify(sessions));
+}
+
 // 5h/7dの使用率はステータスラインのstdinにしか渡されないため、statuslineが書き出したスナップショットを読む。
 function readRateLimits() {
   try {
@@ -1763,6 +1816,65 @@ const server = http.createServer(async (req, res) => {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(LAUNCH_SETTINGS_PATH, JSON.stringify({ model, effort }));
     return sendJson(res, 200, { override: { model, effort } });
+  }
+
+  if (url.pathname === '/api/skills' && req.method === 'GET') {
+    return sendJson(res, 200, { skills: listSkills() });
+  }
+
+  if (url.pathname === '/api/skills/sessions' && req.method === 'GET') {
+    return sendJson(res, 200, { sessions: readSkillSessions().map((s) => ({ ...s, ...sessionInfoFor(s) })) });
+  }
+
+  if (url.pathname === '/api/skills/create' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+    if (!text) return sendJson(res, 400, { error: 'invalid payload' });
+    const name = `skill作成 ▸ ${text}`.slice(0, 60);
+    let result;
+    try {
+      result = await launchBackground(['--bg', ...buildLaunchSettingArgs(readLaunchSettings()), '-n', name, '--', `/skill-creator ${text}`], SKILL_CWD, name);
+    } catch (err) {
+      return sendLaunchFailure(res, err, SKILL_CWD);
+    }
+    if (!result.jobId) return sendJson(res, 500, { error: 'launch failed', detail: 'job id not found' });
+    writeSkillSessions([{ jobId: result.jobId, text, launchedAt: new Date().toISOString() }, ...readSkillSessions()]);
+    return sendJson(res, 200, { jobId: result.jobId });
+  }
+
+  if (url.pathname === '/api/skills/reply' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+    if (typeof payload.jobId !== 'string' || !text) return sendJson(res, 400, { error: 'invalid payload' });
+    const record = readSkillSessions().find((s) => s.jobId === payload.jobId);
+    if (!record) return sendJson(res, 404, { error: 'session not found' });
+    if (isSessionBusy(record.jobId)) return sendJson(res, 200, { launched: false, reason: 'already-running' });
+    const jobState = readJobState(record.jobId);
+    const transcriptPath = resolveTranscriptPath(record.jobId);
+    const sessionId = (jobState && jobState.sessionId) || sessionIdFromTranscriptPath(transcriptPath);
+    if (!sessionId) return sendJson(res, 404, { error: 'transcript not found' });
+    await runClaudeQuietly(['stop', record.jobId]);
+    await sleep(STOP_SETTLE_MS);
+    let result;
+    try {
+      result = await launchBackground(['--bg', '--resume', sessionId, '--', buildReplyPrompt(jobState, transcriptPath, text)], SKILL_CWD, null);
+    } catch (err) {
+      return sendLaunchFailure(res, err, SKILL_CWD);
+    }
+    if (!result.jobId) return sendJson(res, 500, { error: 'launch failed', detail: 'job id not found' });
+    // CLIが別jobIdのコピーで再開しても、画面からは同じ作成セッションとして追い続けたいので記録を差し替える。
+    writeSkillSessions(readSkillSessions().map((s) => (s.jobId === record.jobId ? { ...s, jobId: result.jobId } : s)));
+    return sendJson(res, 200, { launched: true, jobId: result.jobId });
   }
 
   if (url.pathname === '/api/workspace/trust' && req.method === 'POST') {

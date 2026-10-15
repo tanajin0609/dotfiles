@@ -900,6 +900,25 @@
     display: flex; flex-direction: column; gap: 10px;
   }
   .session-list { display: flex; flex-direction: column; gap: 6px; }
+  .skills-dialog .modal-box { width: min(1100px, 96vw); }
+  .skills-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 18px; padding: 14px 18px; min-height: 0; }
+  .skills-pane { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .skills-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; max-height: 62vh; display: flex; flex-direction: column; gap: 6px; }
+  .skills-list li { border: 1px solid var(--line); border-radius: var(--radius); padding: 7px 10px; background: var(--raised); }
+  .skills-list .skill-name, .skill-suggest .skill-name { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-sm); }
+  .skills-list .skill-desc { font-size: var(--fs-xs); color: var(--ink-mute); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .skills-list li[title] { cursor: help; }
+  .skill-session-list { max-height: 20vh; overflow-y: auto; }
+  .skill-session-list .session-card[aria-pressed="true"] { border-color: var(--accent); }
+  .skill-log-list { max-height: 36vh; min-height: 8em; border: 1px solid var(--line); border-radius: var(--radius); }
+  #skillRequestInput { border: 1px solid var(--input-line); border-radius: var(--radius); padding: 7px 11px; background: var(--raised); color: var(--ink); resize: vertical; }
+  .skill-suggest {
+    position: fixed; z-index: 1000; margin: 0; padding: 4px; list-style: none; max-width: min(520px, 90vw);
+    background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 6px 20px rgb(0 0 0 / .18);
+  }
+  .skill-suggest li { padding: 5px 8px; border-radius: var(--radius); cursor: pointer; }
+  .skill-suggest li[aria-selected="true"] { background: var(--chip-bg); }
+  .skill-suggest .skill-desc { font-size: var(--fs-xs); color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .session-list .meta { color: var(--ink-mute); }
 
   /* ---------- フォーカスモード ---------- */
@@ -1036,6 +1055,7 @@
     <div class="hdr-tools" role="group" aria-label="ツール">
       <button id="sessionListBtn" type="button" class="btn btn-icon" aria-label="viewerから起動したセッションの一覧" data-tip="セッション一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
       <button id="costBtn" type="button" class="btn btn-icon" aria-label="トークンのAPI換算コスト（月間）" data-tip="コスト"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.6 0-4.5 1.3-4.5 3.2 0 4.3 9 2.4 9 6.6 0 1.9-1.9 3.2-4.5 3.2-2.2 0-3.9-.9-4.7-2.2"/></svg></button>
+      <button id="skillsBtn" type="button" class="btn btn-icon" aria-label="スキル一覧・スキル作成" data-tip="スキル"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h6M8 11h4"/></svg></button>
       <button id="modelSettingsBtn" type="button" class="btn btn-icon" aria-label="Claude Codeのモデル設定（model・effort）" data-tip="モデル設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
       <span class="hdr-sep" aria-hidden="true"></span>
       <button id="settingsToggle" type="button" class="btn btn-icon" popovertarget="settingsPopover" aria-label="表示設定（テーマ・列の初期表示）" data-tip="表示設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
@@ -1219,7 +1239,7 @@
       <div class="modal-comment-form">
         <div class="field">
           <label id="modalCommentLabel" class="field-label">Claudeへの依頼・返信</label>
-          <div id="modalCommentInput" class="rich-input" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="modalCommentLabel" data-placeholder="依頼・返信を入力（タスクをここにドラッグすると引用が入ります）" aria-describedby="modalCommentHint"></div>
+          <div id="modalCommentInput" data-skill-suggest class="rich-input" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="modalCommentLabel" data-placeholder="依頼・返信を入力（タスクをここにドラッグすると引用が入ります）" aria-describedby="modalCommentHint"></div>
           <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」（現在のセッションへ送信）／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
         </div>
         <div class="modal-comment-actions">
@@ -1276,7 +1296,7 @@
     <div class="session-log-reply">
       <div class="field">
         <label id="sessionLogReplyLabel" class="field-label">返信</label>
-        <div id="sessionLogReplyInput" class="rich-input" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="sessionLogReplyLabel"
+        <div id="sessionLogReplyInput" data-skill-suggest class="rich-input" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="sessionLogReplyLabel"
           data-placeholder="セッションへの返信・追加の指示を入力"
           aria-describedby="sessionLogReplyHint"></div>
         <span class="input-hint" id="sessionLogReplyHint"><kbd>Enter</kbd> で「このセッションに送信」／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
@@ -1362,6 +1382,40 @@
     <div class="new-card-form">
       <p class="input-hint">viewerから起動したセッション（全todoファイル、新しい順）。返信は表示中のtodoファイルのセッションのみ可能です。</p>
       <div id="sessionListBody" class="session-list"></div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="skillsDialog" class="app-dialog skills-dialog" aria-labelledby="skillsDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="skillsDialogTitle">スキル</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="skillsCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+    <div class="skills-body">
+      <section class="skills-pane" aria-labelledby="skillsListHeading">
+        <h3 id="skillsListHeading" class="shortcut-section">スキル一覧（~/.claude/skills）</h3>
+        <input id="skillsFilterInput" type="search" placeholder="名前・説明で絞り込み" aria-label="スキルを絞り込み">
+        <ul id="skillsList" class="skills-list"></ul>
+      </section>
+      <section class="skills-pane" aria-labelledby="skillSessionsHeading">
+        <h3 id="skillSessionsHeading" class="shortcut-section">skill作成セッション</h3>
+        <div id="skillSessionList" class="session-list skill-session-list"></div>
+        <div id="skillLogList" class="session-log-list skill-log-list"></div>
+        <div class="field">
+          <label for="skillRequestInput" class="field-label">依頼（作りたいskill・選択中セッションへの返信）</label>
+          <textarea id="skillRequestInput" rows="3" data-skill-suggest placeholder="例: 議事録を要約して決定事項だけ抜き出すskill" aria-describedby="skillRequestHint"></textarea>
+          <span class="input-hint" id="skillRequestHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「作成を依頼」</span>
+        </div>
+        <div class="modal-comment-actions">
+          <button id="skillReplyBtn" type="button" class="btn btn-secondary" disabled><span>このセッションに送信</span></button>
+          <button id="skillCreateBtn" type="button" class="btn btn-primary"><span>作成を依頼</span></button>
+        </div>
+      </section>
     </div>
   </div>
 </dialog>
@@ -2136,6 +2190,7 @@ function renderAnnotation(frame, layer, placed, item, editing) {
       quote.className = 'anno-quote';
       quote.textContent = item.quote;
       const input = document.createElement('textarea');
+      input.dataset.skillSuggest = '';
       input.rows = 3;
       input.value = item.comment;
       input.placeholder = 'コメント';
@@ -3619,7 +3674,7 @@ function buildSessionLogEntryRow(entry, view) {
   body.textContent = entry.kind === 'tool_use' ? entry.input : entry.text;
   container.appendChild(body);
   if (isTool) row.appendChild(container);
-  if (entry.kind === 'text' && entry.role === 'assistant' && entry.uuid) {
+  if (entry.kind === 'text' && entry.role === 'assistant' && entry.uuid && !view.noBranch) {
     const branchBtn = document.createElement('button');
     branchBtn.type = 'button';
     branchBtn.className = 'btn btn-icon btn--sm';
@@ -5301,6 +5356,293 @@ function renderGlobalModelSettings(global) {
   }
 }
 
+let skillsCache = null;
+let skillsDialogFocusReturn = null;
+let skillsDialogTimer = null;
+let skillSessions = [];
+const skillLogView = { ...createSessionLogView('skill', 'skillLogList', 'skillRequestInput'), noBranch: true };
+
+async function loadSkills() {
+  try {
+    const res = await fetch('/api/skills');
+    if (res.ok) skillsCache = (await res.json()).skills;
+  } catch {
+    // 取れなければ候補を出さないだけで、入力自体は妨げない。
+  }
+  return skillsCache || [];
+}
+
+function renderSkillsList() {
+  const query = document.getElementById('skillsFilterInput').value.trim().toLowerCase();
+  const list = document.getElementById('skillsList');
+  const skills = (skillsCache || []).filter((sk) => !query || `${sk.name} ${sk.description}`.toLowerCase().includes(query));
+  list.replaceChildren(...skills.map((sk) => {
+    const li = document.createElement('li');
+    const name = document.createElement('div');
+    name.className = 'skill-name';
+    name.textContent = `/${sk.name}`;
+    const desc = document.createElement('div');
+    desc.className = 'skill-desc';
+    desc.textContent = sk.description;
+    li.title = sk.description;
+    li.append(name, desc);
+    return li;
+  }));
+  if (!skills.length) list.textContent = skillsCache && skillsCache.length ? '該当するスキルはありません' : 'スキルはありません';
+}
+
+function selectedSkillSession() {
+  return skillSessions.find((s) => s.jobId === skillLogView.jobId) || null;
+}
+
+function renderSkillSessions() {
+  const container = document.getElementById('skillSessionList');
+  document.getElementById('skillReplyBtn').disabled = !selectedSkillSession();
+  if (!skillSessions.length) {
+    container.textContent = 'まだskill作成を依頼していません';
+    return;
+  }
+  container.replaceChildren(...skillSessions.map((s) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'session-card';
+    row.setAttribute('aria-pressed', String(s.jobId === skillLogView.jobId));
+    const head = document.createElement('span');
+    head.className = 'session-card-head';
+    const title = document.createElement('span');
+    title.className = 'title';
+    title.textContent = s.text;
+    head.append(title);
+    const state = document.createElement('span');
+    state.className = `chip-state ${s.state}`;
+    state.append(buildSessionStateMarker(s.state), sessionStatusLabel(s));
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = s.launchedAt ? new Date(s.launchedAt).toLocaleString('ja-JP') : '起動日時不明';
+    row.append(head, state, meta);
+    row.addEventListener('click', () => selectSkillSession(s.jobId));
+    return row;
+  }));
+}
+
+function selectSkillSession(jobId) {
+  if (skillLogView.jobId !== jobId) {
+    skillLogView.renderedKeys = null;
+    document.getElementById('skillLogList').replaceChildren();
+  }
+  skillLogView.jobId = jobId;
+  renderSkillSessions();
+  const session = selectedSkillSession();
+  if (session) fetchAndRenderSessionLog(skillLogView, session);
+}
+
+async function refreshSkillSessions() {
+  try {
+    const res = await fetch('/api/skills/sessions');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    skillSessions = (await res.json()).sessions;
+  } catch (err) {
+    showToast(`skill作成セッションの読み込みに失敗しました（${err.message}）`, { kind: 'error' });
+    return;
+  }
+  renderSkillSessions();
+  const session = selectedSkillSession();
+  if (session) fetchAndRenderSessionLog(skillLogView, session);
+}
+
+async function openSkillsDialog() {
+  const dialog = document.getElementById('skillsDialog');
+  if (dialog.open) return;
+  skillsDialogFocusReturn = captureFocusReturn();
+  dialog.showModal();
+  attachToastRegionToTopmostDialog();
+  await loadSkills();
+  renderSkillsList();
+  await refreshSkillSessions();
+  skillsDialogTimer = setInterval(refreshSkillSessions, 5000);
+}
+
+async function createSkill() {
+  const input = document.getElementById('skillRequestInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const button = document.getElementById('skillCreateBtn');
+  button.disabled = true;
+  const response = await postJson('/api/skills/create', { text });
+  button.disabled = false;
+  if (isUntrustedWorkspace(response)) {
+    showUntrustedWorkspaceToast(response.data.cwd, createSkill);
+    return;
+  }
+  if (!response.ok) {
+    showFailureToast(`skill作成の依頼に失敗しました: ${formatFailureReason(response)}`, createSkill);
+    return;
+  }
+  input.value = '';
+  showToast(`skill作成セッションを起動しました（id: ${response.data.jobId}）`);
+  skillLogView.jobId = response.data.jobId;
+  skillLogView.renderedKeys = null;
+  await refreshSkillSessions();
+}
+
+async function replySkillSession() {
+  const input = document.getElementById('skillRequestInput');
+  const text = input.value.trim();
+  const session = selectedSkillSession();
+  if (!text || !session) return;
+  const button = document.getElementById('skillReplyBtn');
+  button.disabled = true;
+  const response = await postJson('/api/skills/reply', { jobId: session.jobId, text });
+  button.disabled = false;
+  if (!response.ok) {
+    showFailureToast(`送信に失敗しました: ${formatFailureReason(response)}`, replySkillSession);
+    return;
+  }
+  if (!response.data.launched) {
+    showToast('このセッションは稼働中です。完了または入力待ちになってから送ってください');
+    return;
+  }
+  input.value = '';
+  skillLogView.jobId = response.data.jobId;
+  await refreshSkillSessions();
+}
+
+// 依頼欄で「/」から始まる語を打っている間だけ、スキル名の候補を出す。
+const SKILL_SUGGEST_LIMIT = 8;
+const skillSuggest = { input: null, items: [], index: 0, replace: null, el: null };
+
+function findSkillQueryAtCaret(input) {
+  if (input.tagName === 'TEXTAREA') {
+    const before = input.value.slice(0, input.selectionStart);
+    const m = before.match(/(?:^|\s)\/([\w:.-]*)$/);
+    if (!m || input.selectionStart !== input.selectionEnd) return null;
+    const start = input.selectionStart - m[1].length - 1;
+    return {
+      query: m[1],
+      replace: (text) => {
+        input.value = input.value.slice(0, start) + text + input.value.slice(input.selectionStart);
+        input.setSelectionRange(start + text.length, start + text.length);
+      },
+      rect: input.getBoundingClientRect(),
+    };
+  }
+  const selection = window.getSelection();
+  if (!selection.rangeCount || !selection.isCollapsed) return null;
+  const range = selection.getRangeAt(0);
+  const node = range.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE || !input.contains(node)) return null;
+  const offset = range.startOffset;
+  const m = node.data.slice(0, offset).match(/(?:^|[\s​])\/([\w:.-]*)$/);
+  if (!m) return null;
+  const start = offset - m[1].length - 1;
+  const caretRect = range.getBoundingClientRect();
+  return {
+    query: m[1],
+    replace: (text) => {
+      node.data = node.data.slice(0, start) + text + node.data.slice(offset);
+      const caret = document.createRange();
+      caret.setStart(node, start + text.length);
+      caret.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(caret);
+    },
+    rect: caretRect.height ? caretRect : input.getBoundingClientRect(),
+  };
+}
+
+function matchSkills(query) {
+  const skills = skillsCache || [];
+  const q = query.toLowerCase();
+  const prefix = skills.filter((sk) => sk.name.toLowerCase().startsWith(q));
+  const matched = prefix.length ? prefix : skills.filter((sk) => sk.name.toLowerCase().includes(q));
+  return matched.slice(0, SKILL_SUGGEST_LIMIT);
+}
+
+function closeSkillSuggest() {
+  if (skillSuggest.el) skillSuggest.el.remove();
+  Object.assign(skillSuggest, { input: null, items: [], index: 0, replace: null, el: null });
+}
+
+function renderSkillSuggest(rect) {
+  const el = skillSuggest.el;
+  el.replaceChildren(...skillSuggest.items.map((sk, i) => {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', String(i === skillSuggest.index));
+    const name = document.createElement('div');
+    name.className = 'skill-name';
+    name.textContent = `/${sk.name}`;
+    const desc = document.createElement('div');
+    desc.className = 'skill-desc';
+    desc.textContent = sk.description;
+    li.append(name, desc);
+    li.addEventListener('mousedown', (e) => e.preventDefault());
+    li.addEventListener('click', () => acceptSkillSuggest(i));
+    return li;
+  }));
+  if (!rect) return;
+  el.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - el.offsetWidth - 8))}px`;
+  const below = rect.bottom + 4;
+  el.style.top = `${below + el.offsetHeight > window.innerHeight ? Math.max(8, rect.top - el.offsetHeight - 4) : below}px`;
+}
+
+function acceptSkillSuggest(index) {
+  const skill = skillSuggest.items[index];
+  if (skill && skillSuggest.replace) skillSuggest.replace(`/${skill.name} `);
+  closeSkillSuggest();
+}
+
+async function updateSkillSuggest(input) {
+  if (!skillsCache) await loadSkills();
+  const found = findSkillQueryAtCaret(input);
+  const items = found ? matchSkills(found.query) : [];
+  if (!items.length) {
+    closeSkillSuggest();
+    return;
+  }
+  if (!skillSuggest.el || skillSuggest.input !== input) {
+    closeSkillSuggest();
+    const el = document.createElement('ul');
+    el.className = 'skill-suggest';
+    el.setAttribute('role', 'listbox');
+    el.setAttribute('aria-label', 'スキルの候補');
+    // dialogはtop layerに出るため、候補も同じdialogの中に置かないと下に隠れる。
+    (input.closest('dialog') || document.body).appendChild(el);
+    skillSuggest.el = el;
+    skillSuggest.input = input;
+  }
+  skillSuggest.items = items;
+  skillSuggest.index = Math.min(skillSuggest.index, items.length - 1);
+  skillSuggest.replace = found.replace;
+  renderSkillSuggest(found.rect);
+}
+
+function setupSkillSuggest() {
+  document.addEventListener('input', (e) => {
+    if (e.target instanceof HTMLElement && e.target.closest('[data-skill-suggest]')) updateSkillSuggest(e.target.closest('[data-skill-suggest]'));
+  }, true);
+  // 入力欄自身のEnter送信より先に拾うため、documentのcaptureで処理する。
+  document.addEventListener('keydown', (e) => {
+    if (!skillSuggest.el || e.isComposing || !skillSuggest.input.contains(e.target)) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const n = skillSuggest.items.length;
+      skillSuggest.index = (skillSuggest.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      renderSkillSuggest(null);
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      acceptSkillSuggest(skillSuggest.index);
+    } else if (e.key === 'Escape') {
+      closeSkillSuggest();
+    } else {
+      return;
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+  document.addEventListener('focusout', (e) => {
+    if (skillSuggest.input && skillSuggest.input.contains(e.target)) closeSkillSuggest();
+  }, true);
+}
+
 let launchSettingsOverride = { model: '', effort: '' };
 
 async function loadLaunchSettingsOverride() {
@@ -5479,6 +5821,24 @@ async function init() {
   });
   refreshRateLimits();
   setInterval(refreshRateLimits, 60000);
+  document.getElementById('skillsBtn').addEventListener('click', openSkillsDialog);
+  const skillsDialog = document.getElementById('skillsDialog');
+  document.getElementById('skillsCloseBtn').addEventListener('click', () => skillsDialog.close());
+  skillsDialog.addEventListener('click', (e) => {
+    if (e.target === skillsDialog) skillsDialog.close();
+  });
+  skillsDialog.addEventListener('close', () => {
+    clearInterval(skillsDialogTimer);
+    skillsDialogTimer = null;
+    attachToastRegionToTopmostDialog();
+    restoreFocusReturn(skillsDialogFocusReturn);
+    skillsDialogFocusReturn = null;
+  });
+  document.getElementById('skillsFilterInput').addEventListener('input', renderSkillsList);
+  document.getElementById('skillCreateBtn').addEventListener('click', createSkill);
+  document.getElementById('skillReplyBtn').addEventListener('click', replySkillSession);
+  bindSubmitShortcut(document.getElementById('skillRequestInput'), createSkill);
+  setupSkillSuggest();
   document.getElementById('modelSettingsBtn').addEventListener('click', openModelSettingsDialog);
   loadLaunchSettingsOverride();
   document.getElementById('modelSettingsSubmit').addEventListener('click', saveModelSettings);
