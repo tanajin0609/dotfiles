@@ -204,3 +204,35 @@ test('sync-column サブコマンドはサーバーを起動せずに同じ同�
   }
   assert.equal(fs.readFileSync(todoPath, 'utf-8'), before);
 });
+
+// AC-CS-SRV-6・AC-CS-SRV-7
+test('継続行が単独で転記された残骸行を消し、本文の相対リンクを転記元基準の絶対パスにする', async () => {
+  const fixture = setupFixture();
+  const todoPath = path.join(fixture.todoDir, fixture.todoFile);
+  const backlog = path.join(fixture.root, 'grp', 'inbox', 'docs', 'tasks', 'backlog.md');
+  const changes = path.join(fixture.root, 'grp', 'inbox', 'docs', 'changes');
+  fs.writeFileSync(todoPath, [
+    '# 2026-01-01', '', '## grp', '', '### inbox',
+    `- [ ] #1 継続行のあるタスク 「エラー文」 → ${backlog}`,
+    `「エラー文」 → ${backlog}`,
+    `- [ ] #2 リンク付き → [p](${changes}/v1/proposal.md) → ${backlog}`,
+    '手で足したメモ',
+    '',
+  ].join('\n'));
+  writeBacklog(fixture.root, 'grp/inbox', [
+    '- [ ] #1 継続行のあるタスク', '「エラー文」',
+    '- [ ] #2 リンク付き → [p](../changes/v1/proposal.md)',
+    '- [ ] #3 新規リンク [q](../changes/v2/design.md) と [w](https://example.com/)', '',
+  ].join('\n'));
+  await withServer(fixture, async (baseUrl) => {
+    const res = await sync(baseUrl, { file: fixture.todoFile, column: 'grp' });
+    assert.equal(res.status, 200);
+  });
+  assert.equal(fs.readFileSync(todoPath, 'utf-8'), [
+    '# 2026-01-01', '', '## grp', '', '### inbox',
+    `- [ ] #1 継続行のあるタスク 「エラー文」 → ${backlog}`,
+    `- [ ] #2 リンク付き → [p](${changes}/v1/proposal.md) → ${backlog}`,
+    `- [ ] #3 新規リンク [q](${changes}/v2/design.md) と [w](https://example.com/) → ${backlog}`,
+    '手で足したメモ', '',
+  ].join('\n'));
+});
