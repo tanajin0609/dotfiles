@@ -737,7 +737,7 @@
   }
   .card-panel { inset: 0 0 0 auto; margin: 0; width: min(var(--card-panel-w, 540px), 100vw); height: 100vh; }
   .panel-resize-handle { position: absolute; top: 0; bottom: 0; left: 0; width: 6px; cursor: ew-resize; z-index: 2; touch-action: none; }
-  .panel-resize-handle:hover, .panel-resize-handle.is-dragging { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+  .panel-resize-handle:hover, .panel-resize-handle:focus-visible, .panel-resize-handle.is-dragging { background: color-mix(in srgb, var(--accent) 35%, transparent); }
   .card-panel::backdrop { background: color-mix(in srgb, var(--overlay) 45%, transparent); backdrop-filter: none; }
   .card-panel .modal-box { width: 100%; height: 100%; border-radius: 0; border-width: 0 0 0 1px; }
   .session-log-dialog { width: min(720px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
@@ -1198,7 +1198,7 @@
 </main>
 
 <dialog id="cardDialog" class="app-dialog card-panel" aria-labelledby="modalTitle">
-  <div class="panel-resize-handle" id="cardPanelResizeHandle" title="ドラッグで幅を変更"></div>
+  <div class="panel-resize-handle" id="cardPanelResizeHandle" title="ドラッグで幅を変更" role="separator" aria-orientation="vertical" aria-label="カード詳細の幅（←で広げる・→で狭める）" tabindex="0"></div>
   <div class="modal-box">
     <div class="modal-header">
       <div class="modal-header-text">
@@ -1613,7 +1613,8 @@ function attachToastRegionToTopmostDialog() {
 
 // durationMs: 省略時は失敗(error)なら閉じるまで残し、それ以外は既定時間で消す。nullで常に残す。
 // key: 同じkeyのトーストが出ていれば置き換える。戻り値はトーストを閉じる関数。
-function showToast(message, { kind = 'info', actionLabel, onAction, key, durationMs } = {}) {
+// onClose: トーストが消えたときに呼ぶ。操作ボタンで消えたときだけ引数が 'action'。
+function showToast(message, { kind = 'info', actionLabel, onAction, onClose, key, durationMs } = {}) {
   attachToastRegionToTopmostDialog();
   const region = document.getElementById('toastRegion');
   if (key) {
@@ -1624,9 +1625,13 @@ function showToast(message, { kind = 'info', actionLabel, onAction, key, duratio
   toast.className = `toast ${kind}`;
   if (key) toast.dataset.toastKey = key;
   let timer = null;
-  const dismiss = () => {
+  let closed = false;
+  const dismiss = (reason) => {
+    if (closed) return;
+    closed = true;
     clearTimeout(timer);
     toast.remove();
+    if (onClose) onClose(reason);
   };
   toastDismissers.set(toast, dismiss);
 
@@ -1640,7 +1645,7 @@ function showToast(message, { kind = 'info', actionLabel, onAction, key, duratio
     actionBtn.className = 'toast-action';
     actionBtn.textContent = actionLabel;
     actionBtn.addEventListener('click', () => {
-      dismiss();
+      dismiss('action');
       onAction();
     });
     toast.appendChild(actionBtn);
@@ -1650,7 +1655,7 @@ function showToast(message, { kind = 'info', actionLabel, onAction, key, duratio
   closeBtn.className = 'toast-close';
   closeBtn.textContent = '×';
   closeBtn.setAttribute('aria-label', '通知を閉じる');
-  closeBtn.addEventListener('click', dismiss);
+  closeBtn.addEventListener('click', () => dismiss());
   toast.appendChild(closeBtn);
 
   const list = region.querySelector(`[data-toast-kind="${kind === 'error' ? 'error' : 'info'}"]`);
@@ -4458,6 +4463,7 @@ function buildModalTaskRow(column, group, task) {
   row.className = 'modal-task' + (task.done ? ' done' : '');
   row.dataset.taskId = task.id;
   row.draggable = !task.done;
+  row.hidden = pendingTaskDeletes.has(task.id);
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.checked = task.done;
@@ -4579,7 +4585,7 @@ function buildModalTaskRow(column, group, task) {
   setButtonLabel(deleteBtn, '削除');
   deleteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (confirm(`このタスクを削除しますか？\n${taskBody}`)) sendTaskEdit(currentFile, task, { remove: true });
+    deleteTaskWithUndo(currentFile, task, row);
   });
   actions.appendChild(deleteBtn);
   return row;
@@ -4629,6 +4635,32 @@ function startTaskEdit(row, main, body, task, taskBody) {
   input.focus();
 }
 
+// 削除は取り消せないため、通知が消えるまで送信を保留する。ページを離れたら送らない（タスクは残る）。
+const pendingTaskDeletes = new Set();
+
+function deleteTaskWithUndo(file, task, row) {
+  pendingTaskDeletes.add(task.id);
+  // 押したボタンごと行が消えるとフォーカスが body に飛ぶため、隣の行（無ければ追加欄）へ移す。
+  const siblings = [...row.parentElement.children].filter((el) => el !== row && !el.hidden);
+  const next = siblings.find((el) => row.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) || siblings.at(-1);
+  row.hidden = true;
+  (next?.querySelector('input[type="checkbox"]') || document.getElementById('modalTaskInput')).focus();
+  const body = plainTextFromMarkdown(splitTaskSource(task.text).body);
+  const label = body.length > TOAST_TASK_TEXT_MAX ? `${body.slice(0, TOAST_TASK_TEXT_MAX)}…` : body;
+  showToast(`タスクを削除しました: ${label}`, {
+    actionLabel: '元に戻す',
+    onAction: () => {
+      for (const el of document.querySelectorAll(`.modal-task[data-task-id="${CSS.escape(String(task.id))}"]`)) el.hidden = false;
+    },
+    onClose: (reason) => {
+      pendingTaskDeletes.delete(task.id);
+      if (reason !== 'action') sendTaskEdit(file, task, { remove: true });
+    },
+    key: `task-delete:${task.id}`,
+    durationMs: TASK_TOGGLE_UNDO_DURATION_MS,
+  });
+}
+
 async function sendTaskEdit(file, task, change) {
   const response = await runOwnBoardWrite(file, () => postJson('/api/tasks/edit', { file, taskId: task.id, ...change }));
   if (!response.ok) {
@@ -4640,11 +4672,13 @@ async function sendTaskEdit(file, task, change) {
   const found = groupId ? findGroupById(groupId) : null;
   if (found) openModal(found.column, found.group);
   else if (groupId) closeModal();
-  showToast(change.remove ? 'タスクを削除しました' : 'タスクを更新しました');
+  if (!change.remove) showToast('タスクを更新しました');
 }
 
 const CARD_PANEL_WIDTH_KEY = 'viewer:cardPanelWidth';
 const CARD_PANEL_MIN_W = 420;
+const CARD_PANEL_KEY_STEP = 32;
+const CARD_PANEL_KEY_STEP_LARGE = 96;
 // ボードが左に見えたまま残るよう、サイドバー幅ぶんは常に空ける
 const CARD_PANEL_BOARD_RESERVE = 320;
 
@@ -4653,7 +4687,13 @@ function clampCardPanelWidth(width) {
 }
 
 function applyCardPanelWidth(width) {
-  document.documentElement.style.setProperty('--card-panel-w', `${clampCardPanelWidth(width)}px`);
+  const clamped = clampCardPanelWidth(width);
+  document.documentElement.style.setProperty('--card-panel-w', `${clamped}px`);
+  const handle = document.getElementById('cardPanelResizeHandle');
+  handle.setAttribute('aria-valuenow', String(clamped));
+  handle.setAttribute('aria-valuemin', String(CARD_PANEL_MIN_W));
+  handle.setAttribute('aria-valuemax', String(Math.max(CARD_PANEL_MIN_W, window.innerWidth - CARD_PANEL_BOARD_RESERVE)));
+  return clamped;
 }
 
 function setupCardPanelResize() {
@@ -4673,6 +4713,13 @@ function setupCardPanelResize() {
     };
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
+  });
+  handle.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const step = (e.shiftKey ? CARD_PANEL_KEY_STEP_LARGE : CARD_PANEL_KEY_STEP) * (e.key === 'ArrowLeft' ? 1 : -1);
+    const current = Number(handle.getAttribute('aria-valuenow')) || document.getElementById('cardDialog').getBoundingClientRect().width;
+    localStorage.setItem(CARD_PANEL_WIDTH_KEY, String(applyCardPanelWidth(current + step)));
   });
 }
 
