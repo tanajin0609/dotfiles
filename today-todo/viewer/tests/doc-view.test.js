@@ -50,7 +50,7 @@ test('GET /api/doc/resolveは出典のディレクトリから上へさかのぼ
   const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
   const resolve = (ref) => fetch(`${server.baseUrl}/api/doc/resolve?ref=${encodeURIComponent(ref)}&base=${encodeURIComponent(backlog)}`);
   try {
-    for (const ref of ['ops/inbox/order-1', 'inbox/order-1']) {
+    for (const ref of ['ops/inbox/order-1', 'inbox/order-1', 'order-1']) {
       const res = await resolve(ref);
       assert.equal(res.status, 200, ref);
       const body = await res.json();
