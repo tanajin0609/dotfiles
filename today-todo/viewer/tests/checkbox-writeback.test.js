@@ -32,3 +32,30 @@ test('ボードのチェックを、行末に埋め込まれた元のbacklog.md�
   }
   assert.equal(fs.readFileSync(backlog, 'utf-8'), '## 進行中\n\n- [x] 対象タスク <!-- notion:p1 -->\n- [ ] 別タスク\n');
 });
+
+// AC-CB-SRV-1・AC-CS-SRV-7
+test('todo側で絶対パスに変換したリンクを含む行も、相対リンクのままのbacklog.md行へ書き戻す', async () => {
+  const fixture = setupFixture();
+  const backlog = path.join(fixture.projectDir, 'docs', 'tasks', 'backlog.md');
+  const abs = path.join(fixture.projectDir, 'docs', 'changes', 'v1', 'proposal.md');
+  fs.mkdirSync(path.dirname(backlog), { recursive: true });
+  fs.writeFileSync(backlog, '- [ ] #1 対象 → [p](../changes/v1/proposal.md)\n');
+  fs.writeFileSync(path.join(fixture.todoDir, fixture.todoFile), [
+    '# 2026-01-01', '', '## demo-project', '', '### demo-project',
+    `- [ ] #1 対象 → [p](${abs}) → ${backlog}`, '',
+  ].join('\n'));
+  const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
+  try {
+    const board = await (await fetch(`${server.baseUrl}/api/board?file=${fixture.todoFile}`)).json();
+    const taskId = board.columns[0].groups[0].tasks[0].id;
+    const res = await fetch(`${server.baseUrl}/api/checkbox`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: fixture.todoFile, taskId }),
+    });
+    assert.deepEqual(await res.json(), { ok: true, done: true, sourceUpdated: true });
+  } finally {
+    await server.stop();
+  }
+  assert.equal(fs.readFileSync(backlog, 'utf-8'), '- [x] #1 対象 → [p](../changes/v1/proposal.md)\n');
+});

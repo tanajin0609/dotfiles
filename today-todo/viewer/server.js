@@ -509,8 +509,8 @@ function rewriteTaskLine(md, taskId, newText) {
 }
 
 // backlog.md側の該当項目（タスク行＋継続行）を差し替え・削除する。1件に絞れなければnull。
-function rewriteSourceItem(srcMd, aggCore, newText) {
-  const index = findSourceLine(srcMd, aggCore);
+function rewriteSourceItem(srcMd, aggCore, newText, srcPath) {
+  const index = findSourceLine(srcMd, aggCore, srcPath);
   if (index == null) return null;
   const lines = srcMd.split('\n');
   let end = index + 1;
@@ -539,8 +539,14 @@ function computeAggCore(rawText) {
   return withoutPath.replace(/\s*<!--\s*notion:[^>]*-->\s*$/, '').trim();
 }
 
+// todo ファイルからは転記元基準の相対リンクを辿れないため、転記・突き合わせの前に絶対パスへ揃える。
+function absolutizeLinks(text, backlogPath) {
+  return text.replace(/\]\((?![a-z][a-z0-9+.-]*:|\/|#)([^)\s]+)\)/gi,
+    (_, rel) => `](${path.resolve(path.dirname(backlogPath), rel)})`);
+}
+
 // 元ファイル内でaggCoreの前方一致になる行を探し、1件に絞れた場合のみ行番号を返す。
-function findSourceLine(srcMd, aggCore) {
+function findSourceLine(srcMd, aggCore, srcPath) {
   const lines = srcMd.split('\n');
   const candidates = [];
   for (let i = 0; i < lines.length; i++) {
@@ -550,7 +556,7 @@ function findSourceLine(srcMd, aggCore) {
       .replace(/^#\d+\s+/, '')
       .replace(/\s*<!--\s*notion:[^>]*-->\s*$/, '')
       .trim();
-    if (srcCore && aggCore.startsWith(srcCore)) candidates.push(i);
+    if (srcCore && (aggCore.startsWith(srcCore) || aggCore.startsWith(absolutizeLinks(srcCore, srcPath)))) candidates.push(i);
   }
   return candidates.length === 1 ? candidates[0] : null;
 }
@@ -858,7 +864,7 @@ const STATUS_HEADING_RE = /^(進行中|未着手|保留|完了)/;
 const NOTION_RE = /\s*<!--\s*notion:([^>\s]*)\s*-->/;
 
 // todo-import Step1 と同じ規則で backlog.md の項目を取り出す（継続行は空白で連結して1行にする）。
-function parseBacklogItems(md) {
+function parseBacklogItems(md, backlogPath) {
   const items = [];
   let heading = '';
   let current = null;
@@ -878,13 +884,13 @@ function parseBacklogItems(md) {
         done: task[1] === 'x',
         heading,
         number: numMatch ? parseInt(numMatch[1], 10) : null,
-        first: first.replace(NOTION_RE, '').trim(),
+        first: absolutizeLinks(first.replace(NOTION_RE, '').trim(), backlogPath),
         rest: [],
         notionId: notion ? notion[1] : null,
       };
       items.push(current);
     } else if (current) {
-      current.rest.push(line.trim());
+      current.rest.push(absolutizeLinks(line.trim(), backlogPath));
     }
   }
   return items;
@@ -952,7 +958,7 @@ function syncColumnSection(md, columnName, columnDir) {
   for (const src of sources) {
     const project = nameCount.get(src.project) > 1 ? `${src.project}（${src.parent}）` : src.project;
     const backlogMd = fs.readFileSync(src.path, 'utf-8');
-    for (const item of parseBacklogItems(backlogMd)) {
+    for (const item of parseBacklogItems(backlogMd, src.path)) {
       const match = existing.find((e) => !e.state && e.agg &&
         ((item.notionId && e.agg.notionId === item.notionId) || (item.first && e.agg.core.startsWith(item.first))));
       if (item.done) {
@@ -979,11 +985,13 @@ function syncColumnSection(md, columnName, columnDir) {
   const isStillInBacklog = (agg) => {
     const p = path.resolve(columnDir, agg.source);
     if (syncedPaths.has(p) || !fs.existsSync(p)) return false;
-    return parseBacklogItems(fs.readFileSync(p, 'utf-8')).some((item) => !item.done &&
+    return parseBacklogItems(fs.readFileSync(p, 'utf-8'), p).some((item) => !item.done &&
       ((item.notionId && agg.notionId === item.notionId) || (item.first && agg.core.startsWith(item.first))));
   };
   for (const e of existing) {
     if (e.state === 'replaced') continue;
+    // 継続行が単独の行として転記された残骸。
+    if (!e.agg && / → \S*docs\/tasks\/backlog\.md(?:\s*<!--.*?-->)?\s*$/.test(e.line)) continue;
     if (!e.state && e.agg && !e.agg.done && e.agg.source && !isStillInBacklog(e.agg)) continue;
     push(e.card, e.state === 'done' ? e.line.replace(/^- \[ \]/, '- [x]') : e.line);
   }
@@ -1607,7 +1615,7 @@ const server = http.createServer(async (req, res) => {
     const sourcePath = extractSourcePath(toggled.rawText);
     if (sourcePath && fs.existsSync(sourcePath)) {
       const srcMd = fs.readFileSync(sourcePath, 'utf-8');
-      const srcLineIndex = findSourceLine(srcMd, computeAggCore(toggled.rawText));
+      const srcLineIndex = findSourceLine(srcMd, computeAggCore(toggled.rawText), sourcePath);
       if (srcLineIndex != null) {
         const srcLines = srcMd.split('\n');
         const srcTask = srcLines[srcLineIndex].match(/^(\s*- \[)([ x])(\] )(.+)$/);
@@ -1697,7 +1705,7 @@ const server = http.createServer(async (req, res) => {
     let sourceUpdated = false;
     const sourcePath = extractSourcePath(rewritten.rawText);
     if (sourcePath && fs.existsSync(sourcePath)) {
-      const updatedSrc = rewriteSourceItem(fs.readFileSync(sourcePath, 'utf-8'), computeAggCore(rewritten.rawText), newText);
+      const updatedSrc = rewriteSourceItem(fs.readFileSync(sourcePath, 'utf-8'), computeAggCore(rewritten.rawText), newText, sourcePath);
       if (updatedSrc != null) {
         fs.writeFileSync(sourcePath, updatedSrc);
         sourceUpdated = true;
