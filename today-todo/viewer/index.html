@@ -1974,9 +1974,10 @@ async function fetchRelatedDocs(absPath) {
   }
 }
 
-async function openRelatedDocs(absPath) {
+async function openRelatedDocs(absPath, fallbackRef, sourcePath) {
   const found = await fetchRelatedDocs(absPath);
   if (!found || found.docs.length === 0) {
+    if (fallbackRef) return openDocRef(fallbackRef, sourcePath);
     showToast('表示できるドキュメントがありません');
     return;
   }
@@ -4530,7 +4531,9 @@ function buildModalTaskRow(column, group, task) {
       const changeDoc = [...body.querySelectorAll('a[href]')]
         .map((link) => resolveDocLink(link.getAttribute('href'), sourcePath))
         .find((p) => p && p.includes('/docs/changes/'));
-      openRelatedDocs(changeDoc || sourcePath);
+      // ops系は docs/specs/ が無く related が404になるため、本文に平文で書かれた作業ディレクトリのパスで開く。
+      const workDoc = body.textContent.match(/(?<![\w./-])[\w.-]+(?:\/[\w.-]+)*\/[\w.-]+\.md\b/);
+      openRelatedDocs(changeDoc || sourcePath, workDoc && workDoc[0].replace(/\/[^/]+$/, ''), sourcePath);
     });
     actions.appendChild(relatedBtn);
   }
