@@ -3,8 +3,8 @@
 # このファイルは「何を見るか」の実行側。
 
 meta:
-  version: "2.1"
-  updated: "2026-09-09"
+  version: "2.2"
+  updated: "2026-10-16"
   companion: uiux-heuristics.md
   id_convention: |
     <PREFIX>-<NN> を原則とする。A11Y-* のみ POUR の4区分を挟んで <PREFIX>-<P|O|U|R>-<NN>。
@@ -153,6 +153,15 @@ items:
     auto: false
     severity: medium
 
+  - id: A11Y-P-09
+    category: accessibility
+    ref: WCAG 1.2.1 (A)
+    check: 音声のみ・映像のみの収録済みメディアに代替がある
+    rule: 音声のみはテキスト書き起こし、音声の無い動画は内容を説明するテキストか音声トラック。字幕（A11Y-P-07）とは別基準
+    requires: [code, screenshot]
+    auto: false
+    severity: medium
+
   # === アクセシビリティ / 操作可能 =============================
   - id: A11Y-O-01
     category: accessibility
@@ -259,6 +268,43 @@ items:
     auto: true
     severity: medium
 
+  - id: A11Y-O-11
+    category: accessibility
+    ref: WCAG 2.4.6 (AA)
+    check: 見出しとラベルが内容・目的を説明している
+    rule: 「詳細」「その他」だけの見出しや「こちら」だけのラベルにしない。レベルの飛びは A11Y-R-01 の担当
+    requires: [code, screenshot]
+    auto: false
+    severity: low
+
+  - id: A11Y-O-12
+    category: accessibility
+    ref: WCAG 2.2.1 (A)
+    check: 時間制限を解除・延長できる
+    rule: セッションタイムアウト、情報や操作を含むトーストの自動消去が対象。20時間超・リアルタイム性が本質の場合は例外
+    requires: [code, runtime]
+    auto: false
+    severity: medium
+    note: undo付きトーストの消去は NOTIF-03 と重複する。トーストに限る場合は NOTIF-03 に寄せて片方のみ出す
+
+  - id: A11Y-O-13
+    category: accessibility
+    ref: WCAG 2.4.12 (AAA)
+    check: フォーカス中の要素が一部も隠れない
+    rule: A11Y-O-07 (2.4.11) の拡張。AA目標の案件では推奨として出す
+    requires: [runtime]
+    auto: false
+    severity: low
+
+  - id: A11Y-O-14
+    category: accessibility
+    ref: WCAG 2.4.13 (AAA)
+    check: フォーカスインジケータが十分な大きさとコントラストを持つ
+    rule: 2 CSS px 厚の外周相当以上の面積、かつ非フォーカス時との差が 3:1 以上。AA目標の案件では推奨として出す
+    requires: [code, screenshot]
+    auto: false
+    severity: low
+
   # === アクセシビリティ / 理解可能 =============================
   - id: A11Y-U-01
     category: accessibility
@@ -330,6 +376,15 @@ items:
     auto: false
     severity: medium
     note: WCAG 2.2で新設
+
+  - id: A11Y-U-08
+    category: accessibility
+    ref: WCAG 3.3.9 (AAA)
+    check: 認証で物体認識・個人コンテンツの識別も要求しない
+    rule: A11Y-U-06 (3.3.8) では許容される「画像から信号機を選ぶ」等の例外も無くした版。AA目標の案件では推奨として出す
+    requires: [flow, runtime]
+    auto: false
+    severity: low
 
   # === アクセシビリティ / 堅牢 =================================
   - id: A11Y-R-01
@@ -523,6 +578,52 @@ items:
     auto: false
     severity: medium
 
+  - id: GST-06
+    category: layout
+    ref: 閉合
+    check: 罫線・囲みが過剰でない
+    rule: 余白と整列で表や区画が読めるなら罫線を減らす。逆に、罫線を除いたせいで行の対応が追えないなら戻す
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  - id: GST-07
+    category: layout
+    ref: 共通運命
+    check: 一緒に動く要素が意味の塊と一致している
+    rule: アニメーション・スクロール追従・展開で同時に動く要素が、同じグループの要素だけになっている
+    requires: [runtime, screenshot]
+    auto: false
+    severity: low
+
+  - id: NORM-01
+    category: layout
+    ref: Norman/マッピング
+    check: 操作と結果の対応が空間的に分かる
+    rule: 操作部品が影響対象の近く・同じ並び順にある（例：各行の操作は行内、並び替え矢印の向きと移動方向が一致）
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: NORM-02
+    category: layout
+    ref: Norman/概念モデル
+    check: UIが示す動作イメージと実際の挙動が一致している
+    rule: 「ゴミ箱」なら後で戻せる、「下書き」なら公開されない、等の比喩どおりに振る舞う
+    requires: [flow, runtime]
+    auto: false
+    severity: high
+    note: 「削除」が即時かつ復元不能な場合は NN-03 と重複する。比喩と挙動のずれが論点でなければ NN-03 に寄せる
+
+  - id: NORM-03
+    category: layout
+    ref: Norman/制約
+    check: 無効化した操作に理由が示されている
+    rule: disabled にするなら押せない理由（未入力の項目名等）を近くに出すか、押させてエラーで案内する
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+
   # === Laws of UX ==============================================
   - id: LAW-HICK
     category: cognition
@@ -568,6 +669,35 @@ items:
     requires: [code, runtime]
     auto: false
     severity: medium
+
+  - id: LAW-FITTS
+    category: cognition
+    ref: フィッツの法則
+    check: 頻用・主要なターゲットが大きく、手元に近い
+    rule: 主要ボタンを小さく端に置かない。逆に破壊的操作を頻用操作の隣に大きく置かない。寸法の最小値は A11Y-O-06 の担当
+    requires: [screenshot]
+    auto: false
+    severity: medium
+    note: モバイルの親指位置が論点なら MOB-01 に寄せて片方のみ出す
+
+  - id: LAW-SERIAL
+    category: cognition
+    ref: 系列位置効果
+    check: 重要な項目が並びの先頭か末尾にある
+    rule: ナビ・リスト・選択肢で重要度の高いものを中央に埋もれさせない
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  - id: LAW-AESTHETIC
+    category: cognition
+    ref: 美的ユーザビリティ効果
+    check: 見た目の完成度の高さで使い勝手の問題を見逃していない
+    rule: レビュー側の自己点検。整ったカンプでも、操作の手順数・エラー時の挙動・状態設計を必ず別に確認する
+    requires: [screenshot, flow]
+    auto: false
+    severity: low
+    note: 単独では指摘として出さない。他の項目の見落とし防止に使う
 
   # === UIの状態設計 ============================================
   - id: STATE-EMPTY
@@ -694,6 +824,22 @@ items:
     auto: false
     severity: medium
 
+  - id: FORM-11
+    category: form
+    check: 項目の多いフォームにエラーサマリがある
+    rule: 送信時にフォーム冒頭へエラー一覧を出し、各項目へリンクする。FORM-06 のフォーカス移動と併用してよい
+    requires: [code, runtime, screenshot]
+    auto: false
+    severity: medium
+
+  - id: FORM-12
+    category: form
+    check: パスワード入力に表示切替がある
+    rule: 確認用の再入力欄を求めるより、表示切替で入力内容を確かめられるようにする
+    requires: [screenshot, code]
+    auto: true
+    severity: low
+
   # === マイクロコピー ==========================================
   - id: COPY-01
     category: copy
@@ -726,6 +872,32 @@ items:
     requires: [screenshot, code]
     auto: false
     severity: low
+
+  - id: COPY-05
+    category: copy
+    check: ボタンが押した結果を予告している
+    rule: 「次へ」でなく「確認画面へ進む」。まだ確定しない／ここで確定する、の区別が付く
+    requires: [screenshot, flow]
+    auto: false
+    severity: medium
+    note: 動詞が無いことが論点なら COPY-01 に寄せて片方のみ出す
+
+  - id: COPY-06
+    category: copy
+    check: 主語がユーザー側になっている
+    rule: 「システムが処理を完了しました」でなく「保存しました」
+    requires: [screenshot, code]
+    auto: false
+    severity: low
+
+  - id: COPY-07
+    category: copy
+    check: 謝罪より次の行動を示している
+    rule: 「申し訳ございません。エラーが発生しました」でなく「読み込めませんでした。[再試行]」
+    requires: [screenshot, code]
+    auto: false
+    severity: low
+    note: 次の行動の欠落自体がエラー表示の論点なら NN-09 に寄せて片方のみ出す
 
   # === ダークパターン ==========================================
   - id: DARK-01
@@ -798,7 +970,7 @@ items:
   - id: MOB-01
     category: mobile
     check: 主要操作がサムゾーン内にある
-    rule: 画面下部が押しやすい。破壊的操作は親指の自然位置に置かない
+    rule: 画面下部が押しやすい。主要導線を上部だけに置かない。破壊的操作は親指の自然位置に置かない
     requires: [screenshot]
     auto: false
     severity: medium
@@ -840,6 +1012,23 @@ items:
     requires: [code]
     auto: true
     severity: medium
+
+  - id: MOB-07
+    category: mobile
+    check: 横持ち・折りたたみ端末で破綻しない
+    rule: 画面回転を固定していない（WCAG 1.3.4 は向きの固定を禁止）。折りたたみの開閉で入力内容・スクロール位置を失わない
+    requires: [runtime, code]
+    auto: false
+    severity: medium
+
+  - id: MOB-08
+    category: mobile
+    check: 低速回線でも主要タスクが完了できる
+    rule: 重い画像・動画を主要操作の前に読み込ませない。タイムアウト時に再試行でき、送信の多重実行が起きない
+    requires: [runtime]
+    auto: false
+    severity: medium
+    note: 通信断で入力が消えるのは STATE-OFFLINE の担当。片方のみ出す
 
   # === パフォーマンス / 体感速度 ===============================
   - id: PERF-01
@@ -935,6 +1124,14 @@ items:
     auto: false
     severity: medium
 
+  - id: IA-07
+    category: ia
+    check: 検索と閲覧の両方の経路がある
+    rule: 項目が多いサイト・アプリで、カテゴリをたどる経路と検索の経路の片方しか無い状態を避ける
+    requires: [flow, screenshot]
+    auto: false
+    severity: medium
+
   # === オンボーディング / 権限 =================================
   - id: ONB-01
     category: onboarding
@@ -966,6 +1163,23 @@ items:
     auto: false
     severity: medium
 
+  - id: ONB-05
+    category: onboarding
+    check: ツアーより文脈内で教えている
+    rule: 初回の空状態や操作箇所のヒントで教える。起動時に全機能を順に説明するツアーに頼らない
+    requires: [flow, screenshot]
+    auto: false
+    severity: low
+    note: 空状態の設計自体が論点なら STATE-EMPTY に寄せて片方のみ出す
+
+  - id: ONB-06
+    category: onboarding
+    check: 進捗表示が過度な圧力になっていない
+    rule: プロフィール完成度等で、任意項目を必須のように見せたり、未完了を責める文言を使ったりしない
+    requires: [screenshot, flow]
+    auto: false
+    severity: low
+
   # === 多言語 / 可変長 =========================================
   - id: I18N-01
     category: i18n
@@ -992,6 +1206,23 @@ items:
     requires: [code, screenshot]
     auto: false
     severity: medium
+
+  - id: I18N-04
+    category: i18n
+    check: RTL言語への対応方針が決まっている
+    rule: 対象ロケールにRTLがあるなら dir 属性と論理プロパティ（margin-inline-start 等）で組み、方向を持つアイコンを反転する
+    requires: [code]
+    auto: true
+    severity: medium
+    note: 対象ロケールにRTLが無い案件では対象外
+
+  - id: I18N-05
+    category: i18n
+    check: 数値の桁区切り・小数点・単位の位置がロケールに従う
+    rule: 文字列連結で組まず Intl.NumberFormat 等を使う
+    requires: [code]
+    auto: true
+    severity: low
 
   # === デザイントークン ========================================
   - id: TOKEN-01
@@ -1056,6 +1287,259 @@ items:
     auto: false
     severity: medium
     note: NN-04 の用語部分と重複する。用語のみなら TERM-01 に寄せて片方のみ出す
+
+  # === プラットフォームガイドライン ============================
+  - id: PLAT-01
+    category: platform
+    ref: Apple HIG / Material Design 3
+    check: 戻る操作がOS標準どおりに働く
+    rule: iOSは左上の戻るとエッジスワイプ、Androidはシステムの戻る（予測型バックジェスチャー含む）。Webのブラウザバックは IA-06 の担当
+    requires: [runtime]
+    auto: false
+    severity: high
+
+  - id: PLAT-02
+    category: platform
+    ref: Apple HIG / Material Design 3
+    check: 標準コンポーネントの意味を変えていない
+    rule: スイッチを即時反映以外に使う、タブを画面遷移以外に使う、等をしない
+    requires: [screenshot, runtime]
+    auto: false
+    severity: medium
+
+  - id: PLAT-03
+    category: platform
+    ref: Material Design 3
+    check: FABを画面の主要アクション1つに限っている
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  - id: PLAT-04
+    category: platform
+    ref: Material Design 3
+    check: 重なりの階層がエレベーションで表現されている
+    rule: メニュー・ダイアログ・シートが背景より上にあると分かる。ダークテーマでは影でなく面の明るさで表す
+    requires: [screenshot]
+    auto: false
+    severity: low
+    note: モーダルと背景の分離が論点なら GST-04 に寄せて片方のみ出す
+
+  - id: PLAT-05
+    category: platform
+    check: ブレークポイント間の中間幅で崩れない
+    rule: 定義済みブレークポイントだけでなく、その間の幅（例 768〜1024px）でも要素が重ならない・はみ出さない
+    requires: [runtime, code]
+    auto: false
+    severity: medium
+
+  # === テーマ（ダークモード）===================================
+  - id: THEME-01
+    category: theme
+    check: 全テーマでコントラスト基準を満たす
+    rule: ライト・ダーク・ハイコントラストのそれぞれで A11Y-P-02 / A11Y-P-03 を再計算する。片方のテーマでしか確認していない状態を避ける
+    requires: [code, screenshot]
+    auto: false
+    severity: high
+
+  - id: THEME-02
+    category: theme
+    check: OSのテーマ設定に従い、手動切替も保持される
+    rule: prefers-color-scheme を初期値にし、ユーザーが切り替えた値は次回も維持する。読み込み直後に一瞬別テーマが出ない
+    requires: [code, runtime]
+    auto: true
+    severity: low
+
+  - id: THEME-03
+    category: theme
+    check: ダークテーマで画像・ロゴ・影が破綻しない
+    rule: 透過PNGの黒いロゴが消える、影が見えず階層が分からない、真っ白な画像が眩しい、を避ける
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: THEME-04
+    category: theme
+    check: テーマごとに色の意味が保たれている
+    rule: ダーク化で成功・警告・エラーの色相が入れ替わったり、彩度が高すぎて文字がにじんで見えたりしない
+    requires: [code, screenshot]
+    auto: false
+    severity: low
+    note: 単一テーマ内の役割の混同は TOKEN-05 の担当
+
+  # === 通知 ====================================================
+  - id: NOTIF-01
+    category: notification
+    check: 通知の種類ごとにオン・オフできる
+    rule: 全通知の一括オン・オフしか無い状態を避ける。取引・セキュリティ通知と宣伝通知を同じスイッチにしない
+    requires: [screenshot, flow]
+    auto: false
+    severity: medium
+
+  - id: NOTIF-02
+    category: notification
+    check: 通知の頻度・タイミングが制御されている
+    rule: 同種の通知をまとめる、深夜に送らない、短時間に連投しない
+    requires: [flow]
+    auto: false
+    severity: medium
+    note: 同じ依頼の繰り返し（評価依頼等）は DARK-07 の担当。片方のみ出す
+
+  - id: NOTIF-03
+    category: notification
+    check: トーストに重要な情報や操作を載せたまま自動で消さない
+    rule: undo・エラー・リンクを含むトーストは、ホバー/フォーカス中は消さない、または閉じるまで残す。キーボードで到達できる
+    requires: [code, runtime]
+    auto: false
+    severity: medium
+
+  - id: NOTIF-04
+    category: notification
+    check: 通知から該当箇所へ直接移動できる
+    rule: 通知をタップしてトップ画面に戻されるだけ、にしない。対象が削除済みなら理由を示す
+    requires: [flow, runtime]
+    auto: false
+    severity: medium
+
+  # === テーブル・一覧 ==========================================
+  - id: TABLE-01
+    category: table
+    ref: WCAG 1.3.1 (A)
+    check: データ表が表として構造化されている
+    rule: th と scope（または aria の grid/table）で見出しセルと列の関係を示す。レイアウト目的の table は使わない
+    requires: [code]
+    auto: true
+    severity: medium
+
+  - id: TABLE-02
+    category: table
+    check: 並べ替えの状態が分かる
+    rule: どの列で昇順か降順かを見た目と aria-sort の両方で示す
+    requires: [screenshot, code]
+    auto: false
+    severity: low
+
+  - id: TABLE-03
+    category: table
+    check: 長い表・横に広い表で見出しを見失わない
+    rule: 縦に長い表はヘッダー行、横に広い表は先頭列を固定する。数値列は右揃え
+    requires: [screenshot, runtime]
+    auto: false
+    severity: low
+
+  - id: TABLE-04
+    category: table
+    check: 一括操作で対象件数と範囲が分かる
+    rule: 「3件選択中」を表示し、ページをまたぐ全選択なのか表示中だけなのかを区別する
+    requires: [screenshot, runtime]
+    auto: false
+    severity: medium
+    note: 一括操作の有無そのものは NN-07 の担当
+
+  - id: TABLE-05
+    category: table
+    check: 絞り込み条件が見え、個別・一括で解除できる
+    rule: 適用中の条件をチップ等で示す。結果0件のときは解除手段を出す（STATE-EMPTY と併せて判定）
+    requires: [screenshot, runtime]
+    auto: false
+    severity: medium
+
+  - id: TABLE-06
+    category: table
+    check: 無限スクロールでフッターや現在位置を失わない
+    rule: フッターの導線に到達できる。詳細から戻ったときにスクロール位置と読込済み件数が復元される
+    requires: [runtime]
+    auto: false
+    severity: medium
+
+  # === データ可視化 ============================================
+  - id: VIZ-01
+    category: dataviz
+    ref: WCAG 1.1.1 (A)
+    check: グラフにテキストの代替がある
+    rule: 要点の文章、またはデータ表を併置する。画像化したグラフに alt で数値を詰め込まない
+    requires: [code, screenshot]
+    auto: false
+    severity: medium
+
+  - id: VIZ-02
+    category: dataviz
+    ref: WCAG 1.4.1 (A) / 1.4.11 (AA)
+    check: 系列を色だけで区別していない
+    rule: 直接ラベル・線種・マーカー形状を併用する。系列の線・棒は背景に対して 3:1 以上
+    requires: [screenshot, code]
+    auto: false
+    severity: medium
+    note: グラフ以外の色依存は A11Y-P-04 の担当。グラフなら VIZ-02 に寄せて片方のみ出す
+
+  - id: VIZ-03
+    category: dataviz
+    check: 軸・単位・基準が誤解を招かない
+    rule: 棒グラフの軸を0から始める、単位と期間を明記する、2軸グラフで相関を誇張しない
+    requires: [screenshot]
+    auto: false
+    severity: medium
+
+  - id: VIZ-04
+    category: dataviz
+    check: 凡例との往復を最小にしている
+    rule: 系列が少なければ線や棒の端に直接ラベルを置く。凡例の順序をグラフ上の並びと一致させる
+    requires: [screenshot]
+    auto: false
+    severity: low
+
+  # === AI機能のUI ==============================================
+  - id: AI-01
+    category: ai
+    ref: EU AI Act 第50条
+    check: AIが生成・応答していることが明示されている
+    rule: チャット相手がAIであること、表示中の文章・画像がAI生成であることが分かる。人間の担当者のように見せない
+    requires: [screenshot, flow]
+    auto: false
+    severity: high
+
+  - id: AI-02
+    category: ai
+    check: 生成中の進行が見え、途中で停止できる
+    rule: ストリーミング表示か段階表示で進行を示し、停止ボタンを置く。停止後に途中までの結果を残すか破棄するかが分かる
+    requires: [runtime, screenshot]
+    auto: false
+    severity: medium
+    note: 一般的な待ち時間の設計は PERF-04 の担当
+
+  - id: AI-03
+    category: ai
+    check: 出力を再生成・編集・取り消しできる
+    rule: 気に入らない出力をやり直せる。AIがデータを書き換える操作は、適用前にプレビューして承認するか、適用後に戻せる
+    requires: [flow, runtime]
+    auto: false
+    severity: high
+
+  - id: AI-04
+    category: ai
+    check: 出典と不確実性が示されている
+    rule: 事実を述べる出力には参照元へのリンクを付ける。誤りうることを、免責文の常設ではなく確認が必要な箇所で示す
+    requires: [screenshot, flow]
+    auto: false
+    severity: medium
+
+  - id: AI-05
+    category: ai
+    check: 入力データの扱いが利用前に分かる
+    rule: 入力が学習に使われるか、保存期間、オプトアウト手段を入力欄の近くか初回利用時に示す
+    requires: [flow, screenshot]
+    auto: false
+    severity: high
+    note: 個人情報の取得理由一般は PRIV-02 の担当。AI入力なら AI-05 に寄せて片方のみ出す
+
+  - id: AI-06
+    category: ai
+    check: 何ができて何ができないかが分かる
+    rule: 空の入力欄だけを置かず、入力例・対応範囲を示す。拒否や失敗の時は理由と代わりの手段を返す
+    requires: [screenshot, runtime]
+    auto: false
+    severity: medium
+
 
 # ---------------------------------------------------------------
 # レビュー運用のルール
