@@ -17,7 +17,7 @@ docs/
 ├── changes/
 │   └── <change-name>/
 │       ├── proposal.md
-│       ├── design.md
+│       ├── components.md
 │       ├── checklist.md
 │       └── specs/          ← delta spec（変更分の仕様）
 ├── specs/                  ← 正式なspec（唯一の正解、/archiveで反映）
@@ -35,12 +35,12 @@ tests/                      # 受け入れ条件を検証するテスト
 4. 標準ワークフロー: 仕様確認 → タスク整理(`docs/tasks/backlog.md`) → テスト作成 → 実装 → 検証・報告。
 5. 単一責任の原則、仕様書通りのエラーハンドリング、指示にない設定/一時ファイルの生成禁止。
 
-変更は `docs/changes/<change-name>/` を作業ディレクトリとして進める。`proposal.md`（提案）・`design.md`（設計）・`decisions.md`（意思決定が必要な論点。2026-08-31追加。複数案から選ぶ必要がある事項は`proposal.md`・`design.md`本文ではなくここに集約する）・`checklist.md`（タスク分解）に加え、その変更で大本specに入れた差分を `specs/`（delta spec）に **unified diff** で記録する。大本spec（`docs/specs/`）は作業中に**直接更新**し、delta specは大本の写しを持たずdiffだけを保持するため、内容の二重管理は発生しない（2026-08-17 改定。旧方式＝delta specを先に書いて`/archive`でマージする案からの変更理由は4.2）。`docs/specs/` が唯一の正解である点（コアルール1）は変わらず、`docs/changes/` は「その変更で仕様のどこが動いたか」を後から復元するための履歴として位置づける。
+変更は `docs/changes/<change-name>/` を作業ディレクトリとして進める。`proposal.md`（提案）・`components.md`（設計）・`decisions.md`（意思決定が必要な論点。2026-08-31追加。複数案から選ぶ必要がある事項は`proposal.md`・`components.md`本文ではなくここに集約する）・`checklist.md`（タスク分解）に加え、その変更で大本specに入れた差分を `specs/`（delta spec）に **unified diff** で記録する。大本spec（`docs/specs/`）は作業中に**直接更新**し、delta specは大本の写しを持たずdiffだけを保持するため、内容の二重管理は発生しない（2026-08-17 改定。旧方式＝delta specを先に書いて`/archive`でマージする案からの変更理由は4.2）。`docs/specs/` が唯一の正解である点（コアルール1）は変わらず、`docs/changes/` は「その変更で仕様のどこが動いたか」を後から復元するための履歴として位置づける。
 
 具体的な進行は以下のフローに従う。
 
 1. **`/explore`**（想定仕様・未実装）: 既存コードと既存資料の関連箇所を調査する。過去のPRやWikiなど、コード外で管理されている資料の場所を明示的に指定して調査させる。
-2. **`/todo-propose`**（旧称 `/propose`。2026-08-20に実装・改称。7章参照）: 調査結果をもとに `proposal.md`・`design.md`・`checklist.md`（ops系は `order.md`・`plan.md`）を生成する。着手時の変更ディレクトリ作成は実装済みの `/init-change`・`/init-ops-work` に委譲する。
+2. **`/todo-propose`**（旧称 `/propose`。2026-08-20に実装・改称。7章参照）: 調査結果をもとに `proposal.md`・`components.md`・`checklist.md`（ops系は `order.md`・`plan.md`）を生成する。着手時の変更ディレクトリ作成は実装済みの `/init-change`・`/init-ops-work` に委譲する。
 3. **人間レビュー**: 人間が `proposal.md` をレビューし、必要に応じて修正する。実装着手はこのレビュー・承認を経てから進む。
 4. **delta spec の記録**: 大本specを直接更新しつつ、その差分を `specs/` にdiffで残す（着手時に予定 → 完了時に確定の2段）。
 
@@ -71,7 +71,7 @@ tests/                      # 受け入れ条件を検証するテスト
 `docs/specs/` `docs/tasks/` 構成が実際にはほとんどのサブプロジェクトで整備されていない（2章参照）ことを受け、初期セットアップを素早く行うための以下のコマンドを追加する。
 
 1. **`/init-spec`** : プロジェクト全体の初期ディレクトリ構成（トップレベル `CLAUDE.md` が前提とする `docs/specs/`・`docs/tasks/`・`src/`・`tests/` 一式）をスケルトンとして作成する。
-2. **`/init-change`** : `docs/changes/<version>-<type>-<短い説明>-<日付>/`（例: `v0.2.0-feat-add-login-api-20260812`）配下に `proposal.md`・`design.md`・`decisions.md`・`checklist.md`・`specs/`（delta spec用）の雛形一式を作成する。`/explore` → `/todo-propose` の前段として、または `/todo-propose` を使わず手動で変更作業を始める際の初期化コマンドとして使う。
+2. **`/init-change`** : `docs/changes/<version>-<type>-<短い説明>-<日付>/`（例: `v0.2.0-feat-add-login-api-20260812`）配下に `proposal.md`・`components.md`・`decisions.md`・`checklist.md`・`specs/`（delta spec用）の雛形一式を作成する。`/explore` → `/todo-propose` の前段として、または `/todo-propose` を使わず手動で変更作業を始める際の初期化コマンドとして使う。
 
 ### 4.1 change-nameのバージョニング（2026-08-12 改定）
 
@@ -115,13 +115,14 @@ tests/                      # 受け入れ条件を検証するテスト
 _templates/dev/
 ├── docs/
 │   ├── specs/
+│   │   └── ubiquitous-language.md   ← 業務用語の雛形
 │   ├── tasks/
 │   │   └── backlog.md
 │   ├── refs/
 │   └── changes/
 │       └── <change-name>/
 │           ├── proposal.md
-│           ├── design.md
+│           ├── components.md
 │           ├── checklist.md
 │           └── specs/
 │               └── README.md   ← delta specの索引・手順（雛形）
@@ -183,7 +184,7 @@ git履歴という代替の追跡手段が存在しない（差分記録は `doc
 - 上記の帰結として、`01-reqs/`・`03-design/` だけを更新した変更（例: `v0.7.0-feat-element-delete-20260817`）は
   **「大本specを変更しない変更」として扱う**（2026-08-17 決定）。要件・設計の変更はdiffを取らず、
   `specs/README.md` に「大本specは変更なし（要件・設計のみ更新）」と1行書き、内容の説明はchangeの
-  `proposal.md`・`design.md` に委ねる。delta specのdiff対象を「大本spec」と一致させるための線引き。
+  `proposal.md`・`components.md` に委ねる。delta specのdiff対象を「大本spec」と一致させるための線引き。
 - **`VERSION` の置き場所は大本specディレクトリ直下**とする（4.1は `docs/specs/VERSION` と書いているが、
   ディレクトリ名が異なる場合はその大本specディレクトリに置く）。<project-a>は
   `docs/02-specs/VERSION`（2026-08-17 に `0.7.1` で作成。`v0.6.0`〜`v0.7.1` は自己申告値だったため、
@@ -425,8 +426,8 @@ dotfiles の README「共有する範囲 — 業務ドメインを混入させ�
 命名規則の整理（7.1）に伴い、実装と同日に `/todo-propose` へ改称した。
 
 - 対象サブプロジェクトに `docs/specs/` があるか否かでdev系/ops系を自動判定し、
-  dev系なら `proposal.md`・`design.md`・`decisions.md`・`checklist.md`、ops系なら `order.md`・`plan.md` を埋める。
-  意思決定が必要な論点は `proposal.md`・`design.md` 本文ではなく `decisions.md` に集約する
+  dev系なら `proposal.md`・`components.md`・`decisions.md`・`checklist.md`、ops系なら `order.md`・`plan.md` を埋める。
+  意思決定が必要な論点は `proposal.md`・`components.md` 本文ではなく `decisions.md` に集約する
   （2026-08-31追加。責務分離により意思決定を追いやすくする施策）。
 - ディレクトリの雛形作成は重複させず、既存の `/init-change`・`/init-ops-work` に委譲する
   （責務分割。`/todo-propose` の責務は既存資材の調査と内容の執筆・`backlog.md`への同期）。

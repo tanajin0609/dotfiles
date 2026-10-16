@@ -3,7 +3,7 @@ name: init-change
 model: haiku
 description: |
   既存の SDD サブプロジェクト内に、変更1件ぶんのディレクトリ
-  docs/changes/<version>-<type>-<短い説明>-<日付>/ を作り、proposal.md・design.md・decisions.md・checklist.md・specs/
+  docs/changes/<version>-<type>-<短い説明>-<日付>/ を作り、proposal.md・components.md・decisions.md・checklist.md・specs/
   の雛形を用意する。新しい改修・機能追加に着手する直前、実装より先に提案と設計を
   書き起こす段階で使う。バージョンは docs/specs/VERSION から算出し、日付は自動付与する。
   docs/tasks/backlog.md への1行追記も必須ステップとして行う。
@@ -11,7 +11,7 @@ description: |
 
 # /init-change — 変更ディレクトリ初期化
 
-`docs/changes/<version>-<type>-<短い説明>-<日付>/` を新規作成し、`proposal.md`・`design.md`・`decisions.md`・`checklist.md`・`specs/`（delta spec用）の雛形を用意する。
+`docs/changes/<version>-<type>-<短い説明>-<日付>/` を新規作成し、`proposal.md`・`components.md`・`decisions.md`・`checklist.md`・`specs/`（delta spec用）の雛形を用意する。
 `/explore` → `/todo-propose` の前段、または `/todo-propose` を使わず手動で変更作業を始める際に使う。
 どちらの経路でも `docs/tasks/backlog.md` への追記は本コマンド内で必ず行う（省略不可。`directry-rules.md` 4.3・4.4）。
 詳細ルールは `self-work/directry-rules/directry-rules.md` の1章・4章（特に4.1・4.4）を参照。
@@ -60,7 +60,7 @@ description: |
 
 4. **テンプレートコピーとプレースホルダー置換**
    - `$HOME/projects/_templates/dev/docs/changes/<change-name>/` の
-     `proposal.md`・`design.md`・`decisions.md`・`checklist.md`・`specs/` を `docs/changes/<version>-<change-name>-<日付>/` にコピーする:
+     `proposal.md`・`components.md`・`decisions.md`・`checklist.md`・`specs/` を `docs/changes/<version>-<change-name>-<日付>/` にコピーする:
      ```bash
      cp -R $HOME/projects/_templates/dev/docs/changes/\<change-name\>/. docs/changes/<version>-<change-name>-<日付>/
      ```
@@ -71,7 +71,7 @@ description: |
 5. **backlog.mdへの追記（必須）**
    - カレントディレクトリの `docs/tasks/backlog.md` が無ければ、`mkdir -p docs/tasks` の上、
      `$HOME/projects/_templates/dev/docs/tasks/backlog.md` を `docs/tasks/backlog.md` としてコピーして新規作成する。
-   - `## 進行中` に `todo-format` skill の書式で1行追記する（同じ変更ディレクトリへのリンクを持つ行が既に無いか確認してから）。
+   - `## 進行中` の下に `### <テーマ名>`（change-name ではなく日本語の成果物名。`todo-format` skill「見出し」）を立て、その下に同 skill の書式で1行追記する（同じ変更ディレクトリへのリンクを持つ行が既に無いか確認してから）。
      ```
      - [ ] <何をするかの要約> → [docs/changes/<version>-<change-name>-<日付>/proposal.md](../changes/<version>-<change-name>-<日付>/proposal.md)
      ```

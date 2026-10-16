@@ -70,7 +70,7 @@ checklist.md には delta spec（`docs/changes/<dir>/specs/`）の手順を書�
 
 | 手順 | 担当 | 人がやること |
 |---|---|---|
-| 着手時の変更予定の記入 | 行わない（予定は proposal.md・design.md が持つ） | なし |
+| 着手時の変更予定の記入 | 行わない（予定は proposal.md・components.md が持つ） | なし |
 | spec 編集の直前に `specs/base/` へコピー | PreToolUse hook（`docs/specs/**` への Edit/Write を検知）。アーカイブ前の change が複数あるときはブロックして指定させる | 複数あるときの指定のみ |
 | diff の生成、README の確定、base/ の削除、変更理由の記入 | `/archive` が完了チェックの前に実行する。変更理由は diff と proposal.md から埋める | なし |
 | 保証索引 | `/archive` が下書きを作る。diff で追加・変更された受け入れ条件を「新規」、diff の範囲にあって変更されていない条件を「維持」とし、`tests/` を AC ID で grep してテスト列を埋める。AC ID が無いプロジェクトでは AI がテストを読んで下書きし、確信度が低い行は Gaps に回す | 下書きの確認 |
