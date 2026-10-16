@@ -60,6 +60,7 @@ cp -r "$MEM_DIR" ~/memory-backup-$(date +%Y%m%d-%H%M%S)
 - MEMORY.md から参照されていない**孤児ファイル**
 - MEMORY.md に載っているが**実体が無い**リンク切れ
 - **中身が薄いファイル**（本文が数行しかない / `Why` と `How to apply` が無い）→ 他へ畳めないか
+- `type: feedback` で本文に skill/command のパス・名前があるのに `metadata.applies_to`（対象の絶対パス配列）が無いファイル → `/self-improve` から辿れないので付与候補。横断的な行動規範には付けない
 
 ```bash
 cd "$MEM_DIR"
