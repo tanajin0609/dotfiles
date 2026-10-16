@@ -15,12 +15,14 @@ test('全todoファイルのセッションを起動の新しい順に返し、�
   fs.writeFileSync(path.join(fixture.dataDir, 'sessions-todo-2026-01-02.json'), JSON.stringify({
     g2: { jobId: 'nojob02', name: 'new', launchedAt: '2026-01-02T00:00:00.000Z' },
   }));
-  const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
+  const jobsDir = path.join(fixture.root, 'jobs');
+  fs.mkdirSync(jobsDir, { recursive: true });
+  const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir, VIEWER_CLAUDE_JOBS_DIR: jobsDir });
   try {
     const res = await fetch(`${server.baseUrl}/api/sessions/all`);
     assert.equal(res.status, 200);
     const { sessions } = await res.json();
-    assert.deepEqual(sessions.map((s) => [s.file, s.groupId, s.name, s.state]), [
+    assert.deepEqual(sessions.map((s) => [s.card.file, s.card.groupId, s.name, s.state]), [
       ['todo-2026-01-02.md', 'g2', 'new', 'unknown'],
       ['todo-2026-01-01.md', 'g1', 'old', 'unknown'],
     ]);
