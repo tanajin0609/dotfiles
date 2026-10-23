@@ -35,6 +35,8 @@ skill / command は出自と内容によって4つに分類し、このリポジ
 | 3. 業務横断の業務ルール | 複数案件に共通する運用ルール | `~/.claude/local/`（symlink 対象外・git 管理外） |
 | 4. 案件固有のルール | 特定プロジェクトの規約・ワークフロー | そのプロジェクトのrepo側（`.claude/`） |
 
+例外として、再配布が許可されたライセンスの他人の skill は、出典とライセンスを「外部由来の skill」節に明記したうえでここに置く。
+
 ```
 ~/.claude/
 ├── CLAUDE.md   ─┐
@@ -156,6 +158,19 @@ mv ~/.claude/skills.bak.<実行時刻> ~/.claude/skills      # 退避してい�
 
 Windows の場合も同様に、対象を削除してから `.bak.<実行時刻>` を元の名前に戻してください。
 
+## 外部由来の skill
+
+次の skill は他人の成果物で、自作ではない。ライセンス条項に従って同梱している。
+
+| skill | 出典 | ライセンス |
+| --- | --- | --- |
+| skill-creator | anthropics/skills | Apache License 2.0（同ディレクトリの LICENSE.txt） |
+| mcp-builder | anthropics/skills | Apache License 2.0（同上） |
+| theme-factory | anthropics/skills | Apache License 2.0（同上） |
+| web-artifacts-builder | anthropics/skills | Apache License 2.0（同上） |
+| webapp-testing | anthropics/skills | Apache License 2.0（同上） |
+| doc-coauthoring | anthropics/skills | 未確認（LICENSE.txt 未同梱。frontmatter に `model: opus` を追記している） |
+
 ## 利用可能な skill / command 一覧
 
 <!-- SKILL_INDEX:START (gen_skill_index.py で自動生成。手で編集しない) -->
@@ -173,7 +188,6 @@ Windows の場合も同様に、対象を削除してから `.bak.<実行時刻>
 | diagram | skill | 自動（descriptionに合致する文脈で発火） | 図を描くとき（「図にして」「図で説明して」「シーケンス図/クラス図/状態遷移図を書いて」「構成図・フロー図がほしい」）に、伝えたい内容と読み手から適切な図種（UML等）を選び、Mermaid（既定）・PlantUML・draw.io（.drawio）で描く。draw.io は、依頼者が draw.io / .drawio を指定したとき、または既存の .drawio を直すときに使う。アーキテクチャ・データモデル・処理フロー・状態遷移・分岐ロジックを説明していて、文章だけでは関係性が伝わらないと判断したときにも使う。 |
 | doc-coauthoring | skill | 自動（descriptionに合致する文脈で発火） | Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks. |
 | explain-visually | skill | 自動（descriptionに合致する文脈で発火） | 長大な設計文書・Pull Request・Issueを読み解き、図と短い文を組み合わせた解説HTMLを生成してブラウザで開く。生成したページ内の識別子を指定すると、その項目だけを掘り下げたページも作る。 |
-| frontend-design | skill | 自動（descriptionに合致する文脈で発火） | Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction, typography, and making choices that don't read as templated defaults. |
 | github-conventions | skill | 自動（descriptionに合致する文脈で発火） | worktree/ブランチの命名・分割判断、コミット粒度、push前の確認、PRのタイトル/本文の 書き方をまとめたGitHub運用ルール。EnterWorktreeでworktreeを作る前、複数の変更を ブランチに分けるかまとめるか迷ったとき、git commitやgit push・PR作成をする前に必ず 参照する。セッション内でだけ通じる省略名や作業コードネーム（「群B」「M1」「フェーズ2」等） をそのままworktree名やPRタイトルに使うと、そのセッションを見ていない人がブランチ一覧や PR一覧を眺めても何の変更か分からなくなる。また`credential.helper`未設定によるpush時の ハングなど、push前に踏みがちな落とし穴も扱う。 |
 | github-pr-review-draft | skill | 自動（descriptionに合致する文脈で発火） | 他の開発者のGitHub PRを下読みしてレビューコメント案を作り、人間が承認した内容だけを保留(PENDING)レビュー経由で投稿する。自作PRの修正ループには codex-pr-review-loop / claude-pr-review-loop を使う。 |
 | insights-ja | skill | 自動（descriptionに合致する文脈で発火） | `/insights` が生成した英語の利用状況レポート（HTML）を、構成を保ったまま日本語の Markdown に翻訳して所定のディレクトリへ保存する。`/insights` を実行した直後に 「日本語で読みたい」「日本語化して」と言われたとき、または過去に生成済みの レポートHTMLを後から日本語で読み直したいときに使う。翻訳と保存のみを行い、 レポートの再生成（セッション再分析）はしない。 |
@@ -181,7 +195,6 @@ Windows の場合も同様に、対象を削除してから `.bak.<実行時刻>
 | mcp-builder | skill | 自動（descriptionに合致する文脈で発火） | Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK). |
 | memory-inventory | skill | 自動（descriptionに合致する文脈で発火） | auto memory（~/.claude/projects/<project>/memory/）を棚卸しする。実測と鮮度検証で整理案を作り、AskUserQuestion でカテゴリ単位に合意を取りながら反映する。削除は archive 退避で可逆に保つ。「メモリ棚卸し」「memory-inventory」「メモリを整理して」で発動。 |
 | model-routing | skill | 自動（descriptionに合致する文脈で発火） | タスクの性質に応じてOpus/Sonnet/Haikuやサブエージェントのmodelパラメータを使い分け、トークン消費を抑えつつ出力品質を落とさないための判断基準。「どのモデルを使うべきか」「コストを抑えたい」「サブエージェントのモデルを選ぶ」「モデルを切り替えるべきか」と考えたときに使う。 |
-| pdf | skill | 自動（descriptionに合致する文脈で発火） | Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, and OCR on scanned PDFs to make them searchable. If the user mentions a .pdf file or asks to produce one, use this skill. |
 | repair-skill | skill | 自動（descriptionに合致する文脈で発火） | 失敗した Claude Code セッションのID（またはjsonlパス）を受け取り、そのセッションが使ったスキル・スラッシュコマンドの欠陥を履歴から診断し、判断のブレを独立サンプリングで確認したうえで、修正前後のテストで改善を確かめてから反映する。「このセッション失敗したので直して」「<セッションID> 直しておいて」と言われたときに使う。新規作成・大幅改訂した指示の反復改善は self-improve を使う。 |
 | security-by-design | skill | 自動（descriptionに合致する文脈で発火） | セキュリティ・バイ・デザイン（CISA "Secure by Design" / NIST SSDF / OWASP Proactive Controls）の 観点で、設計段階からセキュリティを組み込む。3モードを持つ: (A) 設計時の脅威モデリング — proposal.md/components.md 作成中に STRIDE で脅威を洗い出しセキュリティ節を書く、 (B) 設計・差分レビュー — 設計書やコード差分をデフォルト堅牢化・認証・ログ・依存関係の観点で指摘する、 (C) 既存システムの段階適用 — 改修対象モジュールに限って今回入れられる対策を提案する。 「セキュリティ観点で見て」「脅威モデリングして」「セキュアバイデザインでレビューして」 「この改修でついでに入れられるセキュリティ対策は？」と言われたとき、または認証・権限・個人情報・ 外部入力・外部公開APIを扱う設計を書くときに使う。 |
 | semver | skill | 自動（descriptionに合致する文脈で発火） | セマンティックバージョニング（SemVer 2.0.0）のルールに基づき、変更内容から メジャー/マイナー/パッチのどれをインクリメントすべきかを判断する。パッケージや 仕様書（docs/specs/ 等）のバージョン番号をどう上げるか迷ったとき、Conventional Commits のtype（feat/fix/docs 等）からバージョン増分を導きたいときに使う。 |
@@ -194,7 +207,6 @@ Windows の場合も同様に、対象を削除してから `.bak.<実行時刻>
 | uiux-review | skill | 自動（descriptionに合致する文脈で発火） | UI/UXのヒューリスティック評価を行う。スクリーンショット・デザインカンプ・ワイヤーフレーム・HTML/CSS・画面遷移図・実機のいずれかを入力に、ニールセンの10原則、WCAG 2.2、フォーム設計、マイクロコピー、ダークパターン、モバイル固有、デザイントークンの整合、ダークテーマ、通知、テーブル・グラフ、AI機能のUIなどの観点から指摘を深刻度・確信度付きで出す。「この画面のUI/UXをレビューして」「ユーザビリティの問題点を教えて」「アクセシビリティをチェックして」「ダークパターンがないか確認して」「このフォームの使いやすさは」「このデザインを見て」「デザインシステムの整合をチェックして」と言われたときに使う。 |
 | web-artifacts-builder | skill | 自動（descriptionに合致する文脈で発火） | Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts. |
 | webapp-testing | skill | 自動（descriptionに合致する文脈で発火） | Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs. |
-| xlsx | skill | 自動（descriptionに合致する文脈で発火） | Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .xltx, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \"the xlsx in my downloads\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved. |
 | archive | command | `/archive` | dev系サブプロジェクト（docs/specs/ あり）の docs/changes/<change-name>/ を対象に、実装・ ドキュメント管理（checklist.md・specs/README.md・decisions.md・proposal.md）が完了しているかを検証したうえで docs/changes/archives/ へ移動する。directry-rules.md 1章で「未実装コマンド」とされていた /archive の実装。完了の最終判断は常にユーザーが行い、コマンドは事実確認と移動作業だけを担う。 「このchangeをアーカイブして」「完了したものをまとめてアーカイブして」と言われたときに使う。 ops系サブプロジェクトの yyyymmdd-<slug>/ は対象外（directry-rules.md 5章の既存フローに従う）。 |
 | bals | command | `/bals` | 計画や設計について、共通理解に達するまで容赦なくインタビューする。決定木の各分岐を一つひとつ解決していく。計画をストレステストしたいとき、設計についてグリルされたいとき、または「grill me」と言ったときに使用する。 |
 | checkpoint | command | `/checkpoint` | 長セッションの中間状態を保存する。API 500/401/レート制限による進捗喪失に備え、ユーザーが「checkpoint」「中間保存」「途中経過を残す」と言ったとき、または長時間の作業の節目で使用する。 |
