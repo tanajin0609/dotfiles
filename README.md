@@ -170,6 +170,7 @@ Windows の場合も同様に、対象を削除してから `.bak.<実行時刻>
 | web-artifacts-builder | anthropics/skills | Apache License 2.0（同上） |
 | webapp-testing | anthropics/skills | Apache License 2.0（同上） |
 | doc-coauthoring | anthropics/skills | 未確認（LICENSE.txt 未同梱。frontmatter に `model: opus` を追記している） |
+| landing-page-design | elayadesign/ai-design-skills | MIT License（同ディレクトリの LICENSE.txt） |
 
 ## 利用可能な skill / command 一覧
 
@@ -185,6 +186,7 @@ Windows の場合も同様に、対象を削除してから `.bak.<実行時刻>
 | code-naming | skill | 自動（descriptionに合致する文脈で発火） | コードの識別子（変数・関数・メソッド・クラス・型・ファイル）に名前を付けるときに使う。get の濫用をやめ、何をして値を得るのかが名前から読み取れる状態にする。実装時と、実装計画でメソッド名・クラス名を決めるときの両方で使う。 |
 | code-review-checklist | skill | 自動（descriptionに合致する文脈で発火） | Googleエンジニアリング・プラクティス（"What to look for in a code review"）に基づく、 観点網羅型のコードレビューを行う。設計・機能性・複雑性（オーバーエンジニアリング）・ テスト・命名・コメント（WHY vs WHAT）・スタイル・ドキュメンテーション・コンテキスト整合性の 各観点を一行ずつ確認し、「システムのコードの健康状態を改善するか」を最上位基準に判定する。 差分/PR/ブランチ/パスに対して「コードレビューして」「レビュー観点でチェックして」 「Googleの基準でレビューして」と言われたとき、あるいはコードレビューの相談を受けたときに使う。 ツール自体でPRコメント投稿は行わないコードレビュー専用skill（marketplace公式pluginの `code-review`とは別物）。指摘はReportFindingsで報告する。 |
 | design-antipatterns | skill | 自動（descriptionに合致する文脈で発火） | 流行が去ると「手抜き」「押し付け」と嫌われるデザイン定型（自動カルーセル、同意ダイアログの誘導、ニューモーフィズム、半透明UIの可読性低下、Corporate Memphis、量産型LP構成、AI生成UIの定型など）を、UIを作る前の回避チェックとレビュー時の検出の両方に使う。UIやLPを新規生成・改修するとき、「AIっぽい見た目を避けたい」「ありがちなデザインになっていないか見て」「デザインのアンチパターンをチェックして」と言われたときに使う。 |
+| landing-page-design | skill | 自動（descriptionに合致する文脈で発火） | LP・マーケサイト・Web UI 構築時の、ヒアリング項目・ページ構成・コンバージョン重視のコピー・SEO と、タイポ/余白/角丸/背景/アイコン/モーションの厳格な視覚ルール。外部由来（elayadesign/ai-design-skills）。 |
 | diagram | skill | 自動（descriptionに合致する文脈で発火） | 図を描くとき（「図にして」「図で説明して」「シーケンス図/クラス図/状態遷移図を書いて」「構成図・フロー図がほしい」）に、伝えたい内容と読み手から適切な図種（UML等）を選び、Mermaid（既定）・PlantUML・draw.io（.drawio）で描く。draw.io は、依頼者が draw.io / .drawio を指定したとき、または既存の .drawio を直すときに使う。アーキテクチャ・データモデル・処理フロー・状態遷移・分岐ロジックを説明していて、文章だけでは関係性が伝わらないと判断したときにも使う。 |
 | doc-coauthoring | skill | 自動（descriptionに合致する文脈で発火） | Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks. |
 | explain-visually | skill | 自動（descriptionに合致する文脈で発火） | 長大な設計文書・Pull Request・Issueを読み解き、図と短い文を組み合わせた解説HTMLを生成してブラウザで開く。生成したページ内の識別子を指定すると、その項目だけを掘り下げたページも作る。 |
