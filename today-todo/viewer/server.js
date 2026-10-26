@@ -844,7 +844,7 @@ function insertStandaloneTaskAfterColumnHeading(md, columnName, newLine) {
   return `${md}${sep}\n## ${columnName}\n${newLine}\n`;
 }
 
-const SYNC_SKIP_DIRS = new Set(['node_modules', '.git', 'archives']);
+const SYNC_SKIP_DIRS = new Set(['node_modules', '.git', 'archives', '.claude']);
 
 // todo-import の `find -maxdepth 6 -path "*/docs/tasks/backlog.md"` と同じ範囲を列ディレクトリ配下で探す。
 function findBacklogFiles(dir, depth = 0) {

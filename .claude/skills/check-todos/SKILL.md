@@ -12,7 +12,7 @@ description: |
 ## Step 1: backlog.md を列挙する
 
 ```bash
-find $HOME/projects -maxdepth 6 -path "*/docs/tasks/backlog.md"
+find $HOME/projects -maxdepth 6 -path "*/docs/tasks/backlog.md" -not -path "*/.claude/*"
 ```
 
 `self-work/<サブプロジェクト>/docs/tasks/backlog.md`（5階層）・`ops-work/<カテゴリ>/<テナント>/docs/tasks/backlog.md`

@@ -185,7 +185,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 ### 1.14 列のbacklog同期（CS）
 
 - AC-CS-SRV-1: `POST /api/board/sync-column`（`{ "file", "column" }`）は、`PROJECTS_ROOT/<column>` 配下の `docs/tasks/backlog.md`
-  （深さ6まで、`node_modules`・`.git`・`archives` は除外）から、todo-import skill と同じ規則でtodoファイルの `## <column>` 節だけを書き換え、
+  （深さ6まで、`node_modules`・`.git`・`archives`・`.claude`（worktree の作業用コピー）は除外）から、todo-import skill と同じ規則でtodoファイルの `## <column>` 節だけを書き換え、
   `200 { "items": <未完了項目数> }` を返す。他の節は変更しない。節が無ければ末尾に追加する。
 - AC-CS-SRV-2: 既存行と同じ項目（notion page_id が一致、または既存行の本文が backlog 項目の1行目で始まる）は番号を引き継ぎ、backlog側の見出しが変わっていれば
   新しいカード（`### <プロジェクト名> ▸ <見出し>`）へ移す。backlog側で完了なら `- [x]` にし、既存行が `- [x]` なら backlog 側が未完了でも戻さない。

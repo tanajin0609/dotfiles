@@ -236,3 +236,18 @@ test('継続行が単独で転記された残骸行を消し、本文の相対�
     '手で足したメモ', '',
   ].join('\n'));
 });
+
+// AC-CS-SRV-1: `.claude/worktrees` 配下の backlog.md は作業用コピーなので同期対象にしない
+test('プロジェクト配下の .claude/worktrees にある backlog.md のコピーは拾わず、既存の番号を保つ', async () => {
+  const fixture = setupFixture();
+  const todoPath = path.join(fixture.todoDir, fixture.todoFile);
+  const backlog = writeBacklog(fixture.root, 'grp/inbox', '- [ ] 既存タスク\n');
+  writeBacklog(fixture.root, 'grp/inbox/.claude/worktrees/w1', '- [ ] 既存タスク\n');
+  fs.writeFileSync(todoPath, `# 2026-01-01\n\n## grp\n\n### inbox\n- [ ] #12 既存タスク → ${backlog}\n`);
+  await withServer(fixture, async (baseUrl) => {
+    const res = await sync(baseUrl, { file: fixture.todoFile, column: 'grp' });
+    assert.deepEqual(await res.json(), { items: 1 });
+  });
+  assert.equal(fs.readFileSync(todoPath, 'utf-8'),
+    `# 2026-01-01\n\n## grp\n\n### inbox\n- [ ] #12 既存タスク → ${backlog}\n`);
+});

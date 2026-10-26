@@ -44,7 +44,7 @@ Step 1 の前にそれを実行する。外部（チケット管理ツール等�
 `check-todos` skill の Step1・2 とまったく同じ手順を使う（重複実装しない）。
 
 ```bash
-find $HOME/projects -maxdepth 6 -path "*/docs/tasks/backlog.md"
+find $HOME/projects -maxdepth 6 -path "*/docs/tasks/backlog.md" -not -path "*/.claude/*"
 ```
 
 見つかった backlog.md をそれぞれ Read で読み、以下の基準で対象を絞る。
