@@ -4,16 +4,14 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { setupFixture, startViewerServer } = require('./helpers');
+const { setupFixture, startViewerServer, TEST_JOBS_DIR } = require('./helpers');
 
-// server.jsのCLAUDE_JOBS_DIRは`~/.claude/jobs`に固定のため、ランダムなhex名のジョブディレクトリを一時的に作って必ず消す。
 // AC-SLG-SRV-1
 test('tool_resultには対応するtool_useのツール名を付け、対応が無ければnull', async () => {
   const fixture = setupFixture();
   const jobId = crypto.randomBytes(16).toString('hex');
-  const jobDir = path.join(os.homedir(), '.claude', 'jobs', jobId);
+  const jobDir = path.join(TEST_JOBS_DIR, jobId);
   fs.mkdirSync(jobDir, { recursive: true });
   const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
   try {

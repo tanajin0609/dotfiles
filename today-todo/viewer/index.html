@@ -910,6 +910,10 @@
   .skills-list li[title] { cursor: help; }
   .skill-session-list { max-height: 20vh; overflow-y: auto; }
   .skill-session-list .session-card[aria-pressed="true"] { border-color: var(--accent); }
+  .session-manager-list { max-height: 44vh; }
+  .session-manager-log { max-height: 52vh; }
+  .session-card .card-badge { font-size: var(--fs-xs); color: var(--accent); }
+  #sessionCreateCwd, #sessionCreateName, #sessionCreateInput, #sessionManageReplyInput { border: 1px solid var(--input-line); border-radius: var(--radius); padding: 7px 11px; background: var(--raised); color: var(--ink); }
   .skill-log-list { max-height: 36vh; min-height: 8em; border: 1px solid var(--line); border-radius: var(--radius); }
   #skillRequestInput { border: 1px solid var(--input-line); border-radius: var(--radius); padding: 7px 11px; background: var(--raised); color: var(--ink); resize: vertical; }
   .skill-suggest {
@@ -1053,7 +1057,7 @@
     </div>
     <div class="hdr-spacer"></div>
     <div class="hdr-tools" role="group" aria-label="ツール">
-      <button id="sessionListBtn" type="button" class="btn btn-icon" aria-label="viewerから起動したセッションの一覧" data-tip="セッション一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
+      <button id="sessionListBtn" type="button" class="btn btn-icon" aria-label="全セッションの一覧（管理・新規作成）" data-tip="セッション一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
       <button id="costBtn" type="button" class="btn btn-icon" aria-label="トークンのAPI換算コスト（月間）" data-tip="コスト"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.6 0-4.5 1.3-4.5 3.2 0 4.3 9 2.4 9 6.6 0 1.9-1.9 3.2-4.5 3.2-2.2 0-3.9-.9-4.7-2.2"/></svg></button>
       <button id="skillsBtn" type="button" class="btn btn-icon" aria-label="スキル一覧・スキル作成" data-tip="スキル"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h6M8 11h4"/></svg></button>
       <button id="modelSettingsBtn" type="button" class="btn btn-icon" aria-label="Claude Codeのモデル設定（model・effort）" data-tip="モデル設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
@@ -1369,7 +1373,7 @@
   </div>
 </dialog>
 
-<dialog id="sessionListDialog" class="app-dialog" aria-labelledby="sessionListDialogTitle">
+<dialog id="sessionListDialog" class="app-dialog skills-dialog" aria-labelledby="sessionListDialogTitle">
   <div class="modal-box">
     <div class="modal-header">
       <div class="modal-header-text">
@@ -1379,9 +1383,34 @@
         <button id="sessionListCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
-    <div class="new-card-form">
-      <p class="input-hint">viewerから起動したセッション（全todoファイル、新しい順）。返信は表示中のtodoファイルのセッションのみ可能です。</p>
-      <div id="sessionListBody" class="session-list"></div>
+    <div class="skills-body">
+      <section class="skills-pane" aria-labelledby="sessionCreateHeading">
+        <h3 id="sessionCreateHeading" class="shortcut-section">新規作成</h3>
+        <input id="sessionCreateCwd" type="text" aria-label="起動ディレクトリ" placeholder="起動ディレクトリ（絶対パス）">
+        <input id="sessionCreateName" type="text" aria-label="セッション名" placeholder="名前（任意。空なら依頼文の先頭）">
+        <textarea id="sessionCreateInput" rows="3" data-skill-suggest aria-label="依頼文" placeholder="依頼文"></textarea>
+        <div class="modal-comment-actions">
+          <select id="sessionCreateLaunchModel" class="launch-select" aria-label="起動するmodel">
+            <option value="">model: 既定</option><option value="opus">opus</option><option value="sonnet">sonnet</option><option value="haiku">haiku</option><option value="fable">fable</option>
+          </select>
+          <select id="sessionCreateLaunchEffort" class="launch-select" aria-label="起動するeffort">
+            <option value="">effort: 既定</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option>
+          </select>
+          <button id="sessionCreateBtn" type="button" class="btn btn-primary"><span>新規作成</span></button>
+        </div>
+        <h3 class="shortcut-section">全セッション（~/.claude/jobs）</h3>
+        <div id="sessionListBody" class="session-list skill-session-list session-manager-list"></div>
+      </section>
+      <section class="skills-pane" aria-labelledby="sessionManageHeading">
+        <h3 id="sessionManageHeading" class="shortcut-section">選択中のセッション</h3>
+        <div id="sessionManageLog" class="session-log-list skill-log-list session-manager-log"></div>
+        <textarea id="sessionManageReplyInput" rows="3" data-skill-suggest aria-label="返信"></textarea>
+        <div class="modal-comment-actions">
+          <button id="sessionManageStopBtn" type="button" class="btn btn-secondary" disabled><span>停止</span></button>
+          <button id="sessionManageDeleteBtn" type="button" class="btn btn-secondary" disabled><span>削除</span></button>
+          <button id="sessionManageReplyBtn" type="button" class="btn btn-primary" disabled><span>送信</span></button>
+        </div>
+      </section>
     </div>
   </div>
 </dialog>
@@ -1979,9 +2008,10 @@ async function fetchRelatedDocs(absPath) {
   }
 }
 
-async function openRelatedDocs(absPath) {
+async function openRelatedDocs(absPath, fallbackRef, sourcePath) {
   const found = await fetchRelatedDocs(absPath);
   if (!found || found.docs.length === 0) {
+    if (fallbackRef) return openDocRef(fallbackRef, sourcePath);
     showToast('表示できるドキュメントがありません');
     return;
   }
@@ -4536,7 +4566,9 @@ function buildModalTaskRow(column, group, task) {
       const changeDoc = [...body.querySelectorAll('a[href]')]
         .map((link) => resolveDocLink(link.getAttribute('href'), sourcePath))
         .find((p) => p && p.includes('/docs/changes/'));
-      openRelatedDocs(changeDoc || sourcePath);
+      // ops系は docs/specs/ が無く related が404になるため、本文に平文で書かれた作業ディレクトリのパスで開く。
+      const workDoc = body.textContent.match(/(?<![\w./-])[\w.-]+(?:\/[\w.-]+)*\/[\w.-]+\.md\b/);
+      openRelatedDocs(changeDoc || sourcePath, workDoc && workDoc[0].replace(/\/[^/]+$/, ''), sourcePath);
     });
     actions.appendChild(relatedBtn);
   }
@@ -5282,18 +5314,30 @@ async function openCostDialog() {
 
 let sessionListFocusReturn = null;
 
-function renderSessionList(sessions) {
+let managedSessions = [];
+let sessionListTimer = null;
+const sessionManageView = { ...createSessionLogView('manage', 'sessionManageLog', 'sessionManageReplyInput'), noBranch: true };
+
+function selectedManagedSession() {
+  return managedSessions.find((s) => s.jobId === sessionManageView.jobId) || null;
+}
+
+function renderSessionList() {
   const container = document.getElementById('sessionListBody');
-  container.replaceChildren();
-  if (!sessions.length) {
+  const selected = selectedManagedSession();
+  document.getElementById('sessionManageReplyBtn').disabled = !selected;
+  document.getElementById('sessionManageDeleteBtn').disabled = !selected;
+  document.getElementById('sessionManageStopBtn').disabled = !selected || !['working', 'blocked'].includes(selected.state);
+  if (!managedSessions.length) {
     container.textContent = 'セッションはありません';
     return;
   }
-  for (const s of sessions) {
-    const title = s.name || s.groupId;
+  container.replaceChildren(...managedSessions.map((s) => {
+    const title = s.name || s.jobId;
     const row = document.createElement('button');
     row.type = 'button';
     row.className = 'session-card';
+    row.setAttribute('aria-pressed', String(s.jobId === sessionManageView.jobId));
     const head = document.createElement('span');
     head.className = 'session-card-head';
     const name = document.createElement('span');
@@ -5305,31 +5349,141 @@ function renderSessionList(sessions) {
     state.append(buildSessionStateMarker(s.state), sessionStatusLabel(s));
     const meta = document.createElement('span');
     meta.className = 'meta';
-    meta.textContent = `${s.launchedAt ? new Date(s.launchedAt).toLocaleString('ja-JP') : '起動日時不明'}　${s.file}`;
+    meta.textContent = `${s.launchedAt ? new Date(s.launchedAt).toLocaleString('ja-JP') : '起動日時不明'}　${s.cwd || ''}`;
     row.append(head, state, meta);
-    row.addEventListener('click', () => {
-      openSessionLogModal({ name: s.file.replace(/\.md$/, '') }, { id: s.groupId, title, session: s });
-    });
-    container.append(row);
+    if (s.card) {
+      const badge = document.createElement('span');
+      badge.className = 'card-badge';
+      badge.textContent = `カード: ${s.card.name || s.card.groupId}（${s.card.file}）`;
+      row.append(badge);
+    }
+    row.addEventListener('click', () => openManagedSession(s));
+    return row;
+  }));
+}
+
+function openManagedSession(s) {
+  if (!s.card) {
+    selectManagedSession(s.jobId);
+    return;
   }
+  const found = s.card.file === currentFile ? findGroupById(s.card.groupId) : null;
+  document.getElementById('sessionListDialog').close();
+  if (found) {
+    openModal(found.column, found.group);
+  } else {
+    openSessionLogModal({ name: s.card.file.replace(/\.md$/, '') }, { id: s.card.groupId, title: s.card.name || s.name || s.jobId, session: s });
+  }
+}
+
+function selectManagedSession(jobId) {
+  if (sessionManageView.jobId !== jobId) {
+    sessionManageView.renderedKeys = null;
+    document.getElementById('sessionManageLog').replaceChildren();
+  }
+  sessionManageView.jobId = jobId;
+  renderSessionList();
+  const session = selectedManagedSession();
+  if (session) fetchAndRenderSessionLog(sessionManageView, session);
+}
+
+async function refreshSessionList() {
+  try {
+    const res = await fetch('/api/sessions/all');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    managedSessions = data.sessions;
+    const cwdInput = document.getElementById('sessionCreateCwd');
+    if (!cwdInput.value) cwdInput.value = data.defaultCwd;
+  } catch (err) {
+    showToast(`セッション一覧の読み込みに失敗しました（${err.message}）`, { kind: 'error', actionLabel: '再試行', onAction: refreshSessionList });
+    return false;
+  }
+  renderSessionList();
+  const session = selectedManagedSession();
+  if (session) fetchAndRenderSessionLog(sessionManageView, session);
+  return true;
 }
 
 async function openSessionListDialog() {
   const dialog = document.getElementById('sessionListDialog');
   if (dialog.open) return;
-  try {
-    const res = await fetch('/api/sessions/all');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    renderSessionList((await res.json()).sessions);
-  } catch (err) {
-    showToast(`セッション一覧の読み込みに失敗しました（${err.message}）`, {
-      kind: 'error', actionLabel: '再試行', onAction: openSessionListDialog,
-    });
-    return;
-  }
+  if (!await refreshSessionList()) return;
+  resetLaunchSelects('sessionCreate');
   sessionListFocusReturn = captureFocusReturn();
   dialog.showModal();
   attachToastRegionToTopmostDialog();
+  sessionListTimer = setInterval(refreshSessionList, 5000);
+}
+
+async function createManagedSession() {
+  const input = document.getElementById('sessionCreateInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const cwd = document.getElementById('sessionCreateCwd').value.trim();
+  const button = document.getElementById('sessionCreateBtn');
+  button.disabled = true;
+  const response = await postJson('/api/sessions/create', {
+    cwd, name: document.getElementById('sessionCreateName').value.trim(), text, ...readLaunchSelects('sessionCreate'),
+  });
+  button.disabled = false;
+  if (isUntrustedWorkspace(response)) {
+    showUntrustedWorkspaceToast(response.data.cwd, createManagedSession);
+    return;
+  }
+  if (!response.ok) {
+    showFailureToast(`セッションの作成に失敗しました: ${formatFailureReason(response)}`, createManagedSession);
+    return;
+  }
+  input.value = '';
+  document.getElementById('sessionCreateName').value = '';
+  showToast(`セッションを起動しました（id: ${response.data.jobId}）`);
+  sessionManageView.jobId = response.data.jobId;
+  sessionManageView.renderedKeys = null;
+  document.getElementById('sessionManageLog').replaceChildren();
+  await refreshSessionList();
+}
+
+async function replyManagedSession() {
+  const input = document.getElementById('sessionManageReplyInput');
+  const text = input.value.trim();
+  const session = selectedManagedSession();
+  if (!text || !session) return;
+  const button = document.getElementById('sessionManageReplyBtn');
+  button.disabled = true;
+  const response = await postJson('/api/sessions/reply', { jobId: session.jobId, text });
+  button.disabled = false;
+  if (isUntrustedWorkspace(response)) {
+    showUntrustedWorkspaceToast(response.data.cwd, replyManagedSession);
+    return;
+  }
+  if (!response.ok) {
+    showFailureToast(`送信に失敗しました: ${formatFailureReason(response)}`, replyManagedSession);
+    return;
+  }
+  if (!response.data.launched) {
+    showToast('このセッションは稼働中です。完了または入力待ちになってから送ってください');
+    return;
+  }
+  input.value = '';
+  sessionManageView.jobId = response.data.jobId;
+  await refreshSessionList();
+}
+
+async function stopOrDeleteManagedSession(action) {
+  const session = selectedManagedSession();
+  if (!session) return;
+  if (action === 'delete' && !confirm(`「${session.name || session.jobId}」を削除しますか？（claude rm。ログも消えます）`)) return;
+  const response = await postJson(`/api/sessions/${action}`, { jobId: session.jobId });
+  if (!response.ok) {
+    showFailureToast(`${action === 'delete' ? '削除' : '停止'}に失敗しました: ${formatFailureReason(response)}`, () => stopOrDeleteManagedSession(action));
+    return;
+  }
+  if (action === 'delete') {
+    sessionManageView.jobId = null;
+    document.getElementById('sessionManageLog').replaceChildren();
+  }
+  await refreshSessionList();
 }
 
 function formatRateLimitWindow(label, window) {
@@ -5863,6 +6017,9 @@ async function init() {
     if (e.target === sessionListDialog) sessionListDialog.close();
   });
   sessionListDialog.addEventListener('close', () => {
+    clearInterval(sessionListTimer);
+    sessionListTimer = null;
+    attachToastRegionToTopmostDialog();
     restoreFocusReturn(sessionListFocusReturn);
     sessionListFocusReturn = null;
   });
@@ -5884,6 +6041,12 @@ async function init() {
   document.getElementById('skillsFilterInput').addEventListener('input', renderSkillsList);
   document.getElementById('skillCreateBtn').addEventListener('click', createSkill);
   document.getElementById('skillReplyBtn').addEventListener('click', replySkillSession);
+  document.getElementById('sessionCreateBtn').addEventListener('click', createManagedSession);
+  document.getElementById('sessionManageReplyBtn').addEventListener('click', replyManagedSession);
+  document.getElementById('sessionManageStopBtn').addEventListener('click', () => stopOrDeleteManagedSession('stop'));
+  document.getElementById('sessionManageDeleteBtn').addEventListener('click', () => stopOrDeleteManagedSession('delete'));
+  bindSubmitShortcut(document.getElementById('sessionCreateInput'), createManagedSession);
+  bindSubmitShortcut(document.getElementById('sessionManageReplyInput'), replyManagedSession);
   bindSubmitShortcut(document.getElementById('skillRequestInput'), createSkill);
   setupSkillSuggest();
   document.getElementById('modelSettingsBtn').addEventListener('click', openModelSettingsDialog);

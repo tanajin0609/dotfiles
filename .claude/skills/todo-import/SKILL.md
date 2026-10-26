@@ -15,12 +15,12 @@ description: |
 
 `/todo-import <列名>`（例: `/todo-import ops-work`）で、その列（= グループ名）だけを backlog.md から
 同期する。backlog.md を手で直した後、ビューワーの「列を再取得」で反映させる前に使う（「列を再取得」は
-todo-YYYY-MM-DD.md を読み直すだけで backlog.md は読まないため）。全体実行は外部ソース取り込みと全プロジェクトの
-集計を伴い重いので、1列の反映のために走らせない。
+todo-YYYY-MM-DD.md を読み直すだけで backlog.md は読まないため）。全体実行は全プロジェクトの集計と過去分のアーカイブを
+伴い重いので、1列の反映のために走らせない。
 
 列指定時は以下だけが全体実行と異なる。指定が無ければ全 Step を通常どおり実行する。
 
-- Step 0・Step 3 は実行しない。
+- Step 0 は実行する（外部ソースの新着が無いと列指定でも取り込みたいタスクが出てこないため）。Step 3 は実行しない。
 - Step 1 の探索範囲を `$HOME/projects/<列名>` 配下に限る。
 - Step 2 で今日の todo-YYYY-MM-DD.md が無ければ、何も書かずに「今日のファイルが無いので引数なしで実行してください」と伝えて終了する。
 - Step 4 で書き換えるのは `## <列名>` 節（次の `## ` の手前まで）だけ。他の列は1文字も変えない。
@@ -44,7 +44,7 @@ Step 1 の前にそれを実行する。外部（チケット管理ツール等�
 `check-todos` skill の Step1・2 とまったく同じ手順を使う（重複実装しない）。
 
 ```bash
-find $HOME/projects -maxdepth 6 -path "*/docs/tasks/backlog.md"
+find $HOME/projects -maxdepth 6 -path "*/docs/tasks/backlog.md" -not -path "*/.claude/*"
 ```
 
 見つかった backlog.md をそれぞれ Read で読み、以下の基準で対象を絞る。

@@ -3,8 +3,8 @@
 # このファイルは「何を見るか」の実行側。
 
 meta:
-  version: "2.2"
-  updated: "2026-10-16"
+  version: "2.3"
+  updated: "2026-10-20"
   companion: uiux-heuristics.md
   id_convention: |
     <PREFIX>-<NN> を原則とする。A11Y-* のみ POUR の4区分を挟んで <PREFIX>-<P|O|U|R>-<NN>。
@@ -63,17 +63,60 @@ output_format: |
 
 # 出力全体の構成（指摘1件の形だけでなく、全体の順序もこれに従う）
 output_structure: |
-  1. サマリ（3行以内。高が何件か、最優先の1件は何か）
-  2. 深刻度: 高 → 中 → 低 の順（category順・id順にはしない）
-  3. 要確認（別枠。質問形式）
-  4. 良い点（指摘が3件以上あるときのみ1〜2件。深刻度・確信度は付けない）
+  1. サマリ（3行以内。前提とした目的、高が何件か、最優先の1件は何か）
+  2. シナリオ別ウォークスルー表（walkthrough を実施したときのみ）
+  3. 深刻度: 高 → 中 → 低 の順（category順・id順にはしない）
+  4. 要確認（別枠。質問形式）
+  5. 良い点（指摘が3件以上あるときのみ1〜2件。深刻度・確信度は付けない）
   指摘が0件の場合は「指摘なし」と明記し、代わりに要確認を厚く出す。
+
+# ○=迷わない / △=迷うが辿り着ける / ×=詰まる。△は low〜medium、×は WALK-* の既定 severity で指摘にする
+walkthrough_format: |
+  シナリオ: <ゴール>
+  | # | 画面・セクション | ユーザーの意図 | 何をする画面か(WALK-01) | 次の操作(WALK-02) | ゴールとの対応(WALK-03) | 進捗の手応え(WALK-04) | 詰まる点 → 指摘id |
 
 # ---------------------------------------------------------------
 # チェック項目
 # ---------------------------------------------------------------
 
 items:
+
+  # === シナリオ・ウォークスルー ================================
+  # 目的とシナリオが確定しているときだけ、各ステップに対して4問を問う（SKILL.md 手順1.5）
+  - id: WALK-01
+    category: walkthrough
+    ref: 認知的ウォークスルー
+    check: この画面（セクション）で何をすればいいかが分かる
+    rule: 見出し・主要CTA・初期表示から、画面の目的がシナリオ上の意図と結び付く
+    requires: [screenshot, flow, runtime]
+    auto: false
+    severity: high
+
+  - id: WALK-02
+    category: walkthrough
+    ref: 認知的ウォークスルー
+    check: 次に何をすれば（どこを押せば）よいかが分かる
+    rule: 次の操作が見える位置にあり、操作できると分かる見た目をしている。折りたたみ・ホバー・スクロールの先に隠れていない
+    requires: [screenshot, flow, runtime]
+    auto: false
+    severity: high
+
+  - id: WALK-03
+    category: walkthrough
+    ref: 認知的ウォークスルー
+    check: その操作がゴールに近づくと理解できる
+    rule: ラベルの語彙がユーザーのゴールの言葉と一致する
+    requires: [screenshot, flow, runtime]
+    auto: false
+    severity: medium
+
+  - id: WALK-04
+    category: walkthrough
+    ref: 認知的ウォークスルー
+    check: 操作後に、進んだことと次の状態が分かる
+    requires: [flow, runtime]
+    auto: false
+    severity: medium
 
   # === アクセシビリティ / 知覚可能 =============================
   - id: A11Y-P-01

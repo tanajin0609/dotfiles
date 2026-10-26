@@ -4,9 +4,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { setupFixture, startViewerServer } = require('./helpers');
+const { setupFixture, startViewerServer, TEST_JOBS_DIR } = require('./helpers');
 
 const M = 1_000_000;
 
@@ -87,9 +86,8 @@ test('カード別コストは紐付くジョブのtranscriptとsubagentsを合�
   writeJsonl(path.join(projectsDir, 'p1', 'sess', 'subagents', 'agent-a.jsonl'), [
     usageLine({ id: 'm6', model: 'claude-sonnet-5', timestamp: '2026-09-01T03:00:00.000Z', usage: { input_tokens: 0, output_tokens: M } }),
   ]);
-  // CLAUDE_JOBS_DIRは差し替え不可のため、実ホーム配下にランダム名のジョブを一時的に作る。
   const jobId = crypto.randomBytes(12).toString('hex');
-  const jobDir = path.join(os.homedir(), '.claude', 'jobs', jobId);
+  const jobDir = path.join(TEST_JOBS_DIR, jobId);
   fs.mkdirSync(jobDir, { recursive: true });
   fs.writeFileSync(path.join(jobDir, 'state.json'), JSON.stringify({ state: 'done', linkScanPath: transcript }));
   fs.writeFileSync(path.join(fixture.dataDir, 'sessions-todo-2026-01-01.json'), JSON.stringify({

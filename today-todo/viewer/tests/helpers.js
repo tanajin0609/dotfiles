@@ -78,7 +78,11 @@ function spawnAndWaitListening(port, env, timeoutMs) {
 }
 
 // server.jsを子プロセスで起動し、listenが成功するまで待って返す。
+// 未指定のテストが実 ~/.claude/jobs に書いて、失敗時に残骸を残さないよう既定で一時ディレクトリへ向ける。
+const TEST_JOBS_DIR = makeTempDir('viewer-jobs-');
+
 async function startViewerServer(env) {
+  env = { VIEWER_CLAUDE_JOBS_DIR: TEST_JOBS_DIR, ...env };
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const port = await findFreePort();
     const { child, addrInUse } = await spawnAndWaitListening(port, env, 5000);
@@ -236,6 +240,7 @@ function countLines(filePath) {
 
 module.exports = {
   SERVER_PATH,
+  TEST_JOBS_DIR,
   findFreePort,
   makeTempDir,
   setupFixture,

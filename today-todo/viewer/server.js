@@ -844,7 +844,7 @@ function insertStandaloneTaskAfterColumnHeading(md, columnName, newLine) {
   return `${md}${sep}\n## ${columnName}\n${newLine}\n`;
 }
 
-const SYNC_SKIP_DIRS = new Set(['node_modules', '.git', 'archives']);
+const SYNC_SKIP_DIRS = new Set(['node_modules', '.git', 'archives', '.claude']);
 
 // todo-import の `find -maxdepth 6 -path "*/docs/tasks/backlog.md"` と同じ範囲を列ディレクトリ配下で探す。
 function findBacklogFiles(dir, depth = 0) {
@@ -1153,19 +1153,61 @@ function sessionInfoFor(linked) {
   return info;
 }
 
-function listAllSessions() {
+function listCardLinkedSessions() {
   if (!fs.existsSync(DATA_DIR)) return [];
-  const sessions = [];
+  const linkedSessions = [];
   for (const name of fs.readdirSync(DATA_DIR)) {
     const m = name.match(/^sessions-(todo-\d{4}-\d{2}-\d{2})\.json$/);
     if (!m) continue;
     const file = `${m[1]}.md`;
     for (const [groupId, linked] of Object.entries(readSessionsMap(file))) {
-      if (!linked || !linked.jobId) continue;
-      sessions.push({ file, groupId, name: linked.name || null, launchedAt: linked.launchedAt || null, ...sessionInfoFor(linked) });
+      if (linked && linked.jobId) linkedSessions.push({ file, groupId, linked });
     }
   }
+  return linkedSessions;
+}
+
+function listAllSessions() {
+  const cardByJobId = new Map(listCardLinkedSessions().map(({ file, groupId, linked }) => [linked.jobId, { file, groupId, linked }]));
+  const sessions = [];
+  const jobIds = fs.existsSync(CLAUDE_JOBS_DIR) ? fs.readdirSync(CLAUDE_JOBS_DIR) : [];
+  for (const jobId of jobIds) {
+    let raw;
+    try {
+      raw = JSON.parse(fs.readFileSync(path.join(CLAUDE_JOBS_DIR, jobId, 'state.json'), 'utf-8'));
+    } catch {
+      continue;
+    }
+    // createdAtの無いstate.jsonはCLIが作ったジョブではない（テスト等の残骸）。
+    if (!raw.createdAt) continue;
+    const card = cardByJobId.get(jobId);
+    cardByJobId.delete(jobId);
+    sessions.push({
+      name: raw.name || null, cwd: raw.cwd || null, launchedAt: raw.createdAt,
+      ...sessionInfoFor({ jobId }),
+      card: card ? { file: card.file, groupId: card.groupId, name: card.linked.name || null } : null,
+    });
+  }
+  for (const { file, groupId, linked } of cardByJobId.values()) {
+    sessions.push({
+      name: linked.name || null, cwd: null, launchedAt: linked.launchedAt || null,
+      ...sessionInfoFor({ jobId: linked.jobId }),
+      card: { file, groupId, name: linked.name || null },
+    });
+  }
   return sessions.sort((a, b) => String(b.launchedAt || '').localeCompare(String(a.launchedAt || '')));
+}
+
+async function replyToJob(jobId, text, cwd) {
+  const jobState = readJobState(jobId);
+  const transcriptPath = resolveTranscriptPath(jobId);
+  const sessionId = (jobState && jobState.sessionId) || sessionIdFromTranscriptPath(transcriptPath);
+  if (!sessionId) return { status: 404, body: { error: 'transcript not found' } };
+  await runClaudeQuietly(['stop', jobId]);
+  await sleep(STOP_SETTLE_MS);
+  const result = await launchBackground(['--bg', '--resume', sessionId, '--', buildReplyPrompt(jobState, transcriptPath, text)], cwd, null);
+  if (!result.jobId) return { status: 500, body: { error: 'launch failed', detail: 'job id not found' } };
+  return { status: 200, body: { launched: true, jobId: result.jobId } };
 }
 
 function readSkillFrontmatter(text) {
@@ -1776,7 +1818,71 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/sessions/all' && req.method === 'GET') {
-    return sendJson(res, 200, { sessions: listAllSessions() });
+    return sendJson(res, 200, { sessions: listAllSessions(), defaultCwd: PROJECTS_ROOT });
+  }
+
+  if (url.pathname === '/api/sessions/create' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+    if (!text || !isTrustableCwd(payload.cwd)) return sendJson(res, 400, { error: 'invalid payload' });
+    const settings = resolveLaunchSettings(payload);
+    if (!isValidLaunchSettings(settings)) return sendJson(res, 400, { error: 'invalid launch settings' });
+    const name = (typeof payload.name === 'string' && payload.name.trim()) || text.slice(0, 60);
+    let result;
+    try {
+      result = await launchBackground(['--bg', ...buildLaunchSettingArgs(settings), '-n', name, '--', text], payload.cwd, name);
+    } catch (err) {
+      return sendLaunchFailure(res, err, payload.cwd);
+    }
+    if (!result.jobId) return sendJson(res, 500, { error: 'launch failed', detail: 'job id not found' });
+    return sendJson(res, 200, { jobId: result.jobId });
+  }
+
+  if (url.pathname === '/api/sessions/reply' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+    if (typeof payload.jobId !== 'string' || !/^[0-9a-f-]+$/.test(payload.jobId) || !text) return sendJson(res, 400, { error: 'invalid payload' });
+    const jobState = readJobState(payload.jobId);
+    if (!jobState) return sendJson(res, 404, { error: 'session not found' });
+    // カード側の記録（sessions-*.json）の差し替えはカード詳細の返信が担うため、ここから送ると記録とずれる。
+    if (listCardLinkedSessions().some(({ linked }) => linked.jobId === payload.jobId)) {
+      return sendJson(res, 409, { error: 'card session' });
+    }
+    if (isSessionBusy(payload.jobId)) return sendJson(res, 200, { launched: false, reason: 'already-running' });
+    const cwd = jobState.cwd || PROJECTS_ROOT;
+    let reply;
+    try {
+      reply = await replyToJob(payload.jobId, text, cwd);
+    } catch (err) {
+      return sendLaunchFailure(res, err, cwd);
+    }
+    if (reply.status === 200) {
+      writeSkillSessions(readSkillSessions().map((s) => (s.jobId === payload.jobId ? { ...s, jobId: reply.body.jobId } : s)));
+    }
+    return sendJson(res, reply.status, reply.body);
+  }
+
+  if ((url.pathname === '/api/sessions/stop' || url.pathname === '/api/sessions/delete') && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    if (typeof payload.jobId !== 'string' || !/^[0-9a-f-]+$/.test(payload.jobId)) return sendJson(res, 400, { error: 'invalid payload' });
+    await runClaudeQuietly(['stop', payload.jobId]);
+    if (url.pathname === '/api/sessions/delete') await runClaudeQuietly(['rm', payload.jobId]);
+    return sendJson(res, 200, {});
   }
 
   if (url.pathname === '/api/rate-limits' && req.method === 'GET') {
@@ -1867,19 +1973,14 @@ const server = http.createServer(async (req, res) => {
     const record = readSkillSessions().find((s) => s.jobId === payload.jobId);
     if (!record) return sendJson(res, 404, { error: 'session not found' });
     if (isSessionBusy(record.jobId)) return sendJson(res, 200, { launched: false, reason: 'already-running' });
-    const jobState = readJobState(record.jobId);
-    const transcriptPath = resolveTranscriptPath(record.jobId);
-    const sessionId = (jobState && jobState.sessionId) || sessionIdFromTranscriptPath(transcriptPath);
-    if (!sessionId) return sendJson(res, 404, { error: 'transcript not found' });
-    await runClaudeQuietly(['stop', record.jobId]);
-    await sleep(STOP_SETTLE_MS);
-    let result;
+    let reply;
     try {
-      result = await launchBackground(['--bg', '--resume', sessionId, '--', buildReplyPrompt(jobState, transcriptPath, text)], SKILL_CWD, null);
+      reply = await replyToJob(record.jobId, text, SKILL_CWD);
     } catch (err) {
       return sendLaunchFailure(res, err, SKILL_CWD);
     }
-    if (!result.jobId) return sendJson(res, 500, { error: 'launch failed', detail: 'job id not found' });
+    if (reply.status !== 200) return sendJson(res, reply.status, reply.body);
+    const result = reply.body;
     // CLIが別jobIdのコピーで再開しても、画面からは同じ作成セッションとして追い続けたいので記録を差し替える。
     writeSkillSessions(readSkillSessions().map((s) => (s.jobId === record.jobId ? { ...s, jobId: result.jobId } : s)));
     return sendJson(res, 200, { launched: true, jobId: result.jobId });

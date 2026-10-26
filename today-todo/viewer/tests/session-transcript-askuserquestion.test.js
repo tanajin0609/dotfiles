@@ -4,16 +4,12 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { setupFixture, startViewerServer } = require('./helpers');
+const { setupFixture, startViewerServer, TEST_JOBS_DIR } = require('./helpers');
 
-// server.jsのCLAUDE_JOBS_DIRは`~/.claude/jobs`に固定で環境変数による差し替えができないため、
-// このテストは実ホームディレクトリ配下にランダムなhex名のジョブディレクトリを一時的に作り、
-// 完了後に必ず削除する（他のジョブと衝突しないよう十分な長さのランダムIDを使う）。
 function makeTestJobDir() {
   const jobId = crypto.randomBytes(16).toString('hex');
-  const jobDir = path.join(os.homedir(), '.claude', 'jobs', jobId);
+  const jobDir = path.join(TEST_JOBS_DIR, jobId);
   fs.mkdirSync(jobDir, { recursive: true });
   return { jobId, jobDir };
 }

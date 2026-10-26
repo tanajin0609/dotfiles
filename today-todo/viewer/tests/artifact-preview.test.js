@@ -4,14 +4,12 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { setupFixture, startViewerServer } = require('./helpers');
+const { setupFixture, startViewerServer, TEST_JOBS_DIR } = require('./helpers');
 
-// server.jsのCLAUDE_JOBS_DIRは`~/.claude/jobs`固定のため、実ホーム配下にランダム名のジョブを一時的に作り、必ず削除する。
 function makeTestJobDir() {
   const jobId = crypto.randomBytes(16).toString('hex');
-  const jobDir = path.join(os.homedir(), '.claude', 'jobs', jobId);
+  const jobDir = path.join(TEST_JOBS_DIR, jobId);
   fs.mkdirSync(jobDir, { recursive: true });
   return { jobId, jobDir };
 }

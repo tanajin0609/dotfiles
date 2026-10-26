@@ -53,7 +53,7 @@ backlog.md・change の checklist.md・today-todo の役割分担と情報の流
 
 | 種別 | 置き場所 | 作成者（コマンド/フロー） | 目的 | 実装を含むか |
 |---|---|---|---|---|
-| `proposal.md` / `design.md` / `checklist.md` | `<subproject>/docs/changes/<version>-<type>-...-<日付>/` | `/todo-propose`（dev系）、`/init-change`で雛形作成 | 単一サブプロジェクト内の1変更について、着手前に提案・設計を書き起こす | **含まない**（承認後、別途の実装依頼で着手） |
+| `proposal.md` / `components.md` / `checklist.md` | `<subproject>/docs/changes/<version>-<type>-...-<日付>/` | `/todo-propose`（dev系）、`/init-change`で雛形作成 | 単一サブプロジェクト内の1変更について、着手前に提案・設計を書き起こす | **含まない**（承認後、別途の実装依頼で着手） |
 | `order.md` / `plan.md` | `<subproject>/yyyymmdd-<slug>/` | `/todo-propose`（ops系）、`/init-ops-work`で雛形作成 | 単一サブプロジェクトへの1依頼について、作業計画を書き起こす（承認ゲート） | **含まない**（`plan.md`承認後、`src/`実装に着手） |
 | `today-todo/plan-YYYY-MM-DD.md`（またはトピック別に`plan-YYYY-MM-DD-<topic>.md`） | `projects/today-todo/` 直下 | `/todo-execute`（2026-08-24追加。それ以前はアドホックなコーディネーターセッション、専用コマンドなし） | **複数サブプロジェクトを横断**して、その場で実装まで進める実行計画（並列サブエージェントへのファイル競合マップ・モデル割当・実行順序）を記録する。`/todo-execute`は`proposal-YYYY-MM-DD.md`のマイルストーンのうちユーザーが指定したものを対象に、この計画を作ってから実行する | **含む**（計画と同じセッションで実装まで進める前提） |
 | `today-todo/proposal-YYYY-MM-DD.md` | `projects/today-todo/` 直下 | `/todo-propose`（引数なし・today-todoバッチモード）の完了報告ステップ | バッチモードが**複数サブプロジェクトに起票した提案書・作業計画書の横断まとめ**（判定集計・起票パス一覧・発見事項・留保・マイルストーン提案）を1ファイルに残す。散らばった成果物への入口として、承認判断をここから始める | **含まない**（各提案の承認・実装は別途） |

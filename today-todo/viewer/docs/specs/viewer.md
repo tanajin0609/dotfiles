@@ -84,9 +84,18 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
 
 ### 1.7 セッション一覧（SL）
 
-- AC-SL-SRV-1: `GET /api/sessions/all` は `200 { "sessions": [{ "file", "groupId", "name", "jobId", "launchedAt", "state", "tempo", "detail", "updatedAt" }] }`
-  を返す。対象は `data/sessions-*.json` の全エントリ（viewerから起動したセッション、完了済みを含む）で、`launchedAt` の新しい順。
-  `state` 以降はAC-H5相当の `sessionInfoFor` と同じ値（ジョブが消えていれば `state: "unknown"`、他は `null`）。`state` はAC-JS-SRV-1で正規化した値。
+- AC-SL-SRV-1: `GET /api/sessions/all` は `200 { "sessions": [{ "jobId", "name", "cwd", "launchedAt", "state", "tempo", "detail", "updatedAt", "questions", "card" }], "defaultCwd" }`
+  を `launchedAt` の新しい順で返す（`defaultCwd` はプロジェクトルート＝todoディレクトリの親）。対象はClaude Codeのジョブディレクトリ（`~/.claude/jobs`、`VIEWER_CLAUDE_JOBS_DIR` で上書き可）にある全ジョブ
+  （`claude rm` されていないbgジョブ。viewer外で起動したもの・完了済みを含む。state.jsonに `createdAt` の無いものはCLIのジョブでないため除く）と、`data/sessions-*.json` に記録されたがジョブが消えたもの（`state: "unknown"`）。
+  `name`・`cwd`・`launchedAt`（`createdAt`）はstate.jsonの値、`state` 以降はAC-H5相当の `sessionInfoFor` と同じ値で、`state` はAC-JS-SRV-1で正規化した値。
+  `card` はそのジョブを現在のジョブとして紐付けたカード `{ "file", "groupId", "name" }`（`data/sessions-*.json`。無ければ `null`）。
+- AC-SL-SRV-2: `POST /api/sessions/create` `{ "cwd", "name"?, "text", "model"?, "effort"? }` は、`cwd` がAC-WT-SRV-2で信頼設定できるディレクトリ
+  （プロジェクトルート配下の実在ディレクトリ）でなければ400、`text` が空なら400。`claude --bg <AC-MS-SRV-3・4と同じmodel/effort指定> -n <name（空なら text の先頭60文字）> -- <text>`
+  を `cwd` で実行し、`200 { "jobId" }` を返す。カードには紐付けない。起動失敗はAC-WT-SRV-1と同じ形で返す。
+- AC-SL-SRV-3: `POST /api/sessions/reply` `{ "jobId", "text" }` は、ジョブが無ければ404、カードに紐付いたジョブ（AC-SL-SRV-1の `card`）は409（カード詳細から返信する）。
+  他はAC-SK-SRV-4と同じく扱う（起動ディレクトリはstate.jsonの `cwd`）。スキル作成セッション（`data/skill-sessions.json`）のjobIdが変わった場合はその記録も置き換える。
+- AC-SL-SRV-4: `POST /api/sessions/stop` `{ "jobId" }` は `claude stop <jobId>` を、`POST /api/sessions/delete` `{ "jobId" }` は `claude stop` → `claude rm <jobId>` を実行して
+  `200 {}` を返す（CLIの失敗は無視）。jobIdが `[0-9a-f-]+` でなければ400。`data/sessions-*.json`・`data/skill-sessions.json` の記録は変更しない。
 
 ### 1.7a ジョブの状態の判定（JS）
 
@@ -176,7 +185,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 ### 1.14 列のbacklog同期（CS）
 
 - AC-CS-SRV-1: `POST /api/board/sync-column`（`{ "file", "column" }`）は、`PROJECTS_ROOT/<column>` 配下の `docs/tasks/backlog.md`
-  （深さ6まで、`node_modules`・`.git`・`archives` は除外）から、todo-import skill と同じ規則でtodoファイルの `## <column>` 節だけを書き換え、
+  （深さ6まで、`node_modules`・`.git`・`archives`・`.claude`（worktree の作業用コピー）は除外）から、todo-import skill と同じ規則でtodoファイルの `## <column>` 節だけを書き換え、
   `200 { "items": <未完了項目数> }` を返す。他の節は変更しない。節が無ければ末尾に追加する。
 - AC-CS-SRV-2: 既存行と同じ項目（notion page_id が一致、または既存行の本文が backlog 項目の1行目で始まる）は番号を引き継ぎ、backlog側の見出しが変わっていれば
   新しいカード（`### <プロジェクト名> ▸ <見出し>`）へ移す。backlog側で完了なら `- [x]` にし、既存行が `- [x]` なら backlog 側が未完了でも戻さない。
@@ -294,9 +303,13 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-RL-1: 左側パネルの「Claude の使用率」に5h・7dの使用率（%・バー）とリセット時刻を表示し、60秒ごとに更新する。`rateLimits` が `null`、または該当ウィンドウが
   `null` なら当該表示を出さない（両方とも出さない場合は見出しごと隠す）。`resetsAt` を過ぎた値は「リセット済み（未更新）」と表示し、%を出さない。
   `capturedAt` をtitle属性で示す（値はClaude Codeが最後に応答した時点のもの）。
-- AC-SL-1: ヘッダーの「セッション一覧」ボタンで `<dialog>` を開き、`/api/sessions/all` の全セッションを新しい順に、状態・名前・起動日時・
-  todoファイル名とともに表示する。各行は `<button>` で、押すとセッションログ（AC-H5-1と同じダイアログ）を開く。0件なら「セッションはありません」と表示する。
-  返信（AC-CC2-1）は表示中のtodoファイルのセッションだけが対象で、他ファイルのセッションはログの閲覧のみ。
+- AC-SL-1: ヘッダーの「セッション一覧」ボタンで `<dialog>` を開き、左に `/api/sessions/all` の全セッションを新しい順に、状態・名前・起動日時・起動ディレクトリとともに表示する。
+  カードに紐付いたセッションには「カード: <カード名>」バッジを付ける。0件なら「セッションはありません」と表示する。ダイアログを開いている間は5秒ごとに一覧と選択中のログを取り直す。
+- AC-SL-2: 一覧の各行は `<button>` で、カードに紐付いたセッションは、表示中のtodoファイルのカードならそのカード詳細を、他ファイルならセッションログ（AC-H5-1と同じダイアログ。閲覧のみ）を開く。
+  それ以外の行は選択して右側にログ（セッションログと同じ描画。「ここから分岐」は出さない）を表示し、返信欄の「送信」でAC-SL-SRV-3を呼ぶ。
+- AC-SL-3: 選択中のセッションに「停止」「削除」ボタンを出す。削除は `confirm` で確認してからAC-SL-SRV-4を呼ぶ。停止は `working`・`blocked` のときだけ押せる。
+- AC-SL-4: 一覧の上に新規作成欄（起動ディレクトリ：既定はAC-SL-SRV-1の `defaultCwd`、名前：任意、依頼文、model/effortの選択：初期値はAC-MS-2と同じ）を置き、「新規作成」でAC-SL-SRV-2を呼んで
+  起動したセッションを選択する。未信頼ディレクトリはAC-WT-1と同じく「信頼して再試行」を出す。失敗はAC-H2-2に従い通知する。
 - AC-FM-1: 検索欄・フォーカス対象・「フォーカス」ボタンはボードのツールバーに置く。「フォーカス」ボタンはアイコン＋「Focus」で、フォーカスモード中は `aria-pressed="true"`、名称（`aria-label`・`data-tip`）を「カンバンに戻る」にする。
 - AC-M4-1 / AC-E1-1: フォーカスモードは `<dialog>` の `showModal()` で開き、ボードの上にフォーカス中のカードを中央に表示する（ボードは背後に残る）。
   ダイアログ内の閉じるボタン・`Esc`・「フォーカス」ボタン（`f`）でカンバンに戻る。
@@ -379,7 +392,9 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   （表示名は `root` からの相対パス、表示中のファイルを現在位置として示す）。AC-DV-2の一覧から開いた場合は一覧を差し替えない。
 - AC-DV-4: カード詳細の出典パス（AC-B6-1）を持つタスク行に「仕様・設計」ボタンを置く。押すと、本文の `.md` リンクのうち `/docs/changes/` 配下を指す
   最初のもの（無ければ出典パス）を `path` に `/api/doc/related` を呼び、一覧つきでドキュメント表示ダイアログを開く。先頭に表示するのは
-  AC-DV-2の優先順で最初に見つかったもの、無ければ一覧の先頭。`docs` が0件・404なら「表示できるドキュメントがありません」と通知する。
+  AC-DV-2の優先順で最初に見つかったもの、無ければ一覧の先頭。`docs` が0件・404のときは、本文テキスト中の最初の相対 `.md` パス
+  （`docs/specs/` を持たない ops系の `yyyymmdd-<slug>/instruction.md` など）のディレクトリを `ref`、出典パスを `base` に AC-DV-2と同じく開く。
+  それも無い・0件なら「表示できるドキュメントがありません」と通知する。
 
 - AC-DV-5: カード詳細から開いたドキュメント表示ダイアログには「選択部分を引用」ボタンを置く（カード詳細が開いていなければ出さない）。押すと本文の選択範囲を
   `> <ファイルの絶対パス>` に続けて各行 `> ` 付きの引用にし、カード詳細のコメント欄に引用チップ（AC-QC-1）として加えてダイアログを閉じ、コメント欄にフォーカスする
@@ -405,7 +420,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 
 ### 2.5 セッション（H5・B7・F3・F5・CC2・CC3・UX2・UX4・UX6・UX7）
 
-- AC-H5-1: セッション一覧（AC-SL-1）の各行は `<button type="button">` で、キーボード（Tab→Enter/Space）でセッションログダイアログを開ける。
+- AC-H5-1: セッション一覧（AC-SL-1）の各行は `<button type="button">` で、キーボード（Tab→Enter/Space）でAC-SL-2の操作ができる。
 - AC-B7-1: Claudeセッションの状態はタスクカード（ボード上の状態行と、カード詳細のセッション欄。AC-CSL-1）に表示し、左側パネルとヘッダーには置かない。
 - AC-F3-1: セッションログが空のとき、理由（「起動直後でまだログがありません」／「紐付くログがありません」）と「再取得」ボタンを出す。
 - AC-F5-1: 入力待ちセッションがn件（n≥1）のとき `document.title` を `(n) Today Todo` にし、faviconにも件数の目印を出す。0件で元に戻す。
