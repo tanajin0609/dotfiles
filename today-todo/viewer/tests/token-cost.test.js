@@ -115,3 +115,52 @@ test('カード別コストは紐付くジョブのtranscriptとsubagentsを合�
     fs.rmSync(jobDir, { recursive: true, force: true });
   }
 });
+
+// AC-CO-SRV-6
+test('完了カードのコスト一覧は全todoファイルの完了カードだけを新しいファイル順・高い順で返す', async () => {
+  const fixture = setupFixture();
+  const projectsDir = path.join(fixture.root, 'claude-projects');
+  fs.writeFileSync(path.join(fixture.todoDir, 'todo-2026-01-02.md'), [
+    '# 2026-01-02', '', '## demo-project', '', '### 安いカード', '- [x] a', '', '### 高いカード', '- [x] b', '- [x] c', '',
+    '### 未完了カード', '- [x] d', '- [ ] e', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(fixture.todoDir, 'todo-2026-01-01.md'), [
+    '# 2026-01-01', '', '## demo-project', '', '### 古いカード', '- [x] f', '',
+  ].join('\n'));
+  const writeCardTranscript = (name, outputTokens) => {
+    const transcriptPath = path.join(projectsDir, 'p1', `${name}.jsonl`);
+    writeJsonl(transcriptPath, [usageLine({
+      id: `id-${name}`, model: 'claude-opus-5-5', timestamp: '2026-09-01T03:00:00.000Z', usage: { input_tokens: 0, output_tokens: outputTokens },
+    })]);
+    return { jobId: `gone-${name}`, transcriptPath };
+  };
+  const server = await startViewerServer({
+    VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir, VIEWER_CLAUDE_PROJECTS_DIR: projectsDir,
+  });
+  try {
+    const board = await (await fetch(`${server.baseUrl}/api/board?file=todo-2026-01-02.md`)).json();
+    const idByTitle = Object.fromEntries(board.columns[0].groups.map((g) => [g.title, g.id]));
+    const oldBoard = await (await fetch(`${server.baseUrl}/api/board?file=todo-2026-01-01.md`)).json();
+    fs.writeFileSync(path.join(fixture.dataDir, 'sessions-todo-2026-01-02.json'), JSON.stringify({
+      [idByTitle['安いカード']]: writeCardTranscript('cheap', M),
+      [idByTitle['高いカード']]: writeCardTranscript('expensive', 2 * M),
+      [idByTitle['未完了カード']]: writeCardTranscript('open', 3 * M),
+    }));
+    fs.writeFileSync(path.join(fixture.dataDir, 'sessions-todo-2026-01-01.json'), JSON.stringify({
+      [oldBoard.columns[0].groups[0].id]: writeCardTranscript('old', M),
+    }));
+    const res = await fetch(`${server.baseUrl}/api/costs/done-cards`);
+    assert.equal(res.status, 200);
+    const { cards } = await res.json();
+    assert.deepEqual(cards.map((c) => [c.file, c.column, c.title]), [
+      ['todo-2026-01-02.md', 'demo-project', '高いカード'],
+      ['todo-2026-01-02.md', 'demo-project', '安いカード'],
+      ['todo-2026-01-01.md', 'demo-project', '古いカード'],
+    ]);
+    assertUsd(cards[0].usd, 40);
+    assert.equal(cards[0].groupId, idByTitle['高いカード']);
+    assert.equal(cards[0].tokens, 2 * M);
+  } finally {
+    await server.stop();
+  }
+});

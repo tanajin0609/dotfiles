@@ -1370,6 +1370,8 @@
     <div class="new-card-form">
       <p class="input-hint">Anthropic API単価で換算した概算（USD）です。実請求額ではありません。対象は全Claude Codeセッション（サブエージェント含む）。</p>
       <div id="costMonthly"></div>
+      <h3 class="shortcut-section">完了カード</h3>
+      <div id="costDoneCards"></div>
     </div>
   </div>
 </dialog>
@@ -1852,6 +1854,10 @@ function enhanceRichInput(el) {
   };
   el.addEventListener('paste', (e) => {
     e.preventDefault();
+    if (e.clipboardData.files.length > 0 && el.onPasteFiles) {
+      el.onPasteFiles(e.clipboardData.files);
+      return;
+    }
     document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
   });
   el.addEventListener('click', (e) => {
@@ -3628,7 +3634,7 @@ function renderSessionLogMessage(view, message, session) {
   list.appendChild(box);
 }
 
-// AskUserQuestionのinputをJSONとして解釈し、`multiSelect`でない質問だけ選択肢をボタン化する。
+// AskUserQuestionのinputをJSONとして解釈し、選択肢をボタン化する。
 // 壊れている（切り詰め等でJSONとして不正）場合や選択肢が無い場合はnullを返し、生ログ表示のみにする。
 function buildAskUserQuestionOptions(entry, view) {
   let payload;
@@ -3642,7 +3648,7 @@ function buildAskUserQuestionOptions(entry, view) {
   wrap.className = 'ask-user-question-options';
   const answers = new Map();
   questions.forEach((q, questionIndex) => {
-    if (q.multiSelect || !Array.isArray(q.options) || q.options.length === 0) return;
+    if (!Array.isArray(q.options) || q.options.length === 0) return;
     const block = document.createElement('div');
     block.className = 'ask-user-question-block';
     const label = document.createElement('div');
@@ -3666,9 +3672,15 @@ function buildAskUserQuestionOptions(entry, view) {
       btn.className = 'btn btn-secondary';
       btn.textContent = opt.label;
       btn.addEventListener('click', () => {
-        for (const other of buttons.querySelectorAll('button')) other.setAttribute('aria-pressed', String(other === btn));
-        answers.set(questionIndex, opt.label);
-        block.classList.add('is-answered');
+        if (q.multiSelect) {
+          btn.setAttribute('aria-pressed', String(btn.getAttribute('aria-pressed') !== 'true'));
+        } else {
+          for (const other of buttons.querySelectorAll('button')) other.setAttribute('aria-pressed', String(other === btn));
+        }
+        const selected = q.options.filter((_, i) => buttons.querySelectorAll('button')[i].getAttribute('aria-pressed') === 'true');
+        if (selected.length) answers.set(questionIndex, selected.map((o) => o.label).join(', '));
+        else answers.delete(questionIndex);
+        block.classList.toggle('is-answered', selected.length > 0);
         fillAskUserQuestionReply(view, questions, answers);
       });
       option.appendChild(btn);
@@ -3690,7 +3702,7 @@ function buildAskUserQuestionOptions(entry, view) {
 
 function fillAskUserQuestionReply(view, questions, answers) {
   document.getElementById(view.inputId).value = questions.length === 1
-    ? answers.get(0)
+    ? answers.get(0) ?? ''
     : [...answers].sort(([a], [b]) => a - b)
       .map(([questionIndex, label]) => `「${questions[questionIndex].question || ''}」: ${label}`)
       .join(' / ');
@@ -5295,13 +5307,33 @@ function renderMonthlyCosts(months) {
   }
 }
 
+function renderDoneCardCosts(cards) {
+  const container = document.getElementById('costDoneCards');
+  container.replaceChildren();
+  if (!cards.length) {
+    container.textContent = 'コストを集計できる完了カードはありません';
+    return;
+  }
+  const list = document.createElement('dl');
+  list.className = 'shortcut-list';
+  for (const card of cards) {
+    const dt = document.createElement('dt');
+    dt.textContent = `${card.file.replace(/^todo-|\.md$/g, '')}　${card.column} ▸ ${card.title}`;
+    const dd = document.createElement('dd');
+    dd.textContent = `${formatUsd(card.usd)}（${card.tokens.toLocaleString('ja-JP')} tokens）`;
+    list.append(dt, dd);
+  }
+  container.append(list);
+}
+
 async function openCostDialog() {
   const dialog = document.getElementById('costDialog');
   if (dialog.open) return;
   try {
-    const res = await fetch('/api/costs/monthly');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    renderMonthlyCosts((await res.json()).months);
+    const [monthlyRes, doneRes] = await Promise.all([fetch('/api/costs/monthly'), fetch('/api/costs/done-cards')]);
+    for (const res of [monthlyRes, doneRes]) if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderMonthlyCosts((await monthlyRes.json()).months);
+    renderDoneCardCosts((await doneRes.json()).cards);
   } catch (err) {
     showToast(`コストの読み込みに失敗しました（${err.message}）`, {
       kind: 'error', actionLabel: '再試行', onAction: openCostDialog,
@@ -6218,15 +6250,18 @@ async function init() {
     sessionLogReplyInput.classList.add('drag-over');
   });
   sessionLogReplyInput.addEventListener('dragleave', () => sessionLogReplyInput.classList.remove('drag-over'));
-  sessionLogReplyInput.addEventListener('drop', (e) => {
-    if (e.dataTransfer.files.length === 0) return;
-    e.preventDefault();
-    sessionLogReplyInput.classList.remove('drag-over');
+  sessionLogReplyInput.onPasteFiles = (files) => {
     if (!sessionLogView.groupId || !findGroupById(sessionLogView.groupId)) {
       showToast('添付は表示中のtodoファイルのセッションだけが対象です');
       return;
     }
-    attachDroppedFiles(sessionLogReplyInput, sessionLogView.groupId, e.dataTransfer.files);
+    attachDroppedFiles(sessionLogReplyInput, sessionLogView.groupId, files);
+  };
+  sessionLogReplyInput.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files.length === 0) return;
+    e.preventDefault();
+    sessionLogReplyInput.classList.remove('drag-over');
+    sessionLogReplyInput.onPasteFiles(e.dataTransfer.files);
   });
 
   const commentInput = document.getElementById('modalCommentInput');
@@ -6234,12 +6269,13 @@ async function init() {
     e.preventDefault();
     commentInput.classList.add('drag-over');
   });
+  commentInput.onPasteFiles = (files) => { if (modalGroup) attachDroppedFiles(commentInput, modalGroup.id, files); };
   commentInput.addEventListener('dragleave', () => commentInput.classList.remove('drag-over'));
   commentInput.addEventListener('drop', (e) => {
     e.preventDefault();
     commentInput.classList.remove('drag-over');
     if (e.dataTransfer.files.length > 0) {
-      if (modalGroup) attachDroppedFiles(commentInput, modalGroup.id, e.dataTransfer.files);
+      commentInput.onPasteFiles(e.dataTransfer.files);
       return;
     }
     const text = e.dataTransfer.getData('text/plain');

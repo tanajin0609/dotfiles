@@ -221,6 +221,22 @@ function buildCardCosts(file) {
   return cards;
 }
 
+function buildDoneCardCosts() {
+  const cards = [];
+  for (const file of listTodoFiles()) {
+    const costs = buildCardCosts(file);
+    const board = parseBoard(fs.readFileSync(path.join(TODO_DIR, file), 'utf-8'));
+    const rows = [];
+    for (const column of board.columns) {
+      for (const group of column.groups) {
+        if (group.done && costs[group.id]) rows.push({ file, groupId: group.id, column: column.name, title: group.title, ...costs[group.id] });
+      }
+    }
+    cards.push(...rows.sort((x, y) => y.usd - x.usd));
+  }
+  return cards;
+}
+
 function readGlobalClaudeSettings() {
   try {
     const { model, effortLevel, modelSettings } = JSON.parse(fs.readFileSync(CLAUDE_SETTINGS_PATH, 'utf-8'));
@@ -1903,6 +1919,10 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/costs/monthly' && req.method === 'GET') {
     return sendJson(res, 200, { months: buildMonthlyCosts() });
+  }
+
+  if (url.pathname === '/api/costs/done-cards' && req.method === 'GET') {
+    return sendJson(res, 200, { cards: buildDoneCardCosts() });
   }
 
   if (url.pathname === '/api/costs/cards' && req.method === 'GET') {
