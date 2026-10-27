@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>コストダッシュボード</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous" defer></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --surface-1: #fcfcfb; --surface-2: #f0efec; --line: #e2e1dc;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77766f;
+    --good: #0ca30c; --critical: #d03b3b;
+    --series: #2a78d6, #eb6834, #1baf7a, #eda100, #e87ba4, #008300, #6250d6, #e34948;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19; --surface-2: #262624; --line: #383835;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+      --series: #3987e5, #d95926, #199e70, #c98500, #d55181, #008300, #9085e9, #e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-1); color: var(--text-primary);
+    font: 14px/1.6 ui-sans-serif, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px; display: grid; gap: 24px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  .hint { color: var(--text-secondary); font-size: 12px; margin: 4px 0 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tile, .panel { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+  .tile-label { color: var(--text-secondary); font-size: 12px; }
+  .tile-value { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile-sub { color: var(--text-secondary); font-size: 12px; }
+  .delta-up::before { content: "▲ "; color: var(--critical); }
+  .delta-down::before { content: "▼ "; color: var(--good); }
+  .chart-box { position: relative; height: 320px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+  td.num, th.num { text-align: right; }
+  th button { all: unset; cursor: pointer; }
+  th button:focus-visible { outline: 2px solid currentColor; }
+  th[aria-sort="ascending"] button::after { content: " ↑"; }
+  th[aria-sort="descending"] button::after { content: " ↓"; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
+  .split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+  .scroll { max-height: 480px; overflow: auto; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>コストダッシュボード</h1>
+    <p class="hint">Anthropic API単価で換算した概算（USD）です。実請求額ではありません。対象は全Claude Codeセッション（サブエージェント含む）。</p>
+  </header>
+  <section class="tiles" id="tiles" aria-label="指標"></section>
+  <div class="split">
+    <section class="panel">
+      <h2>月別推移（モデル別）</h2>
+      <div class="chart-box"><canvas id="monthlyChart" role="img" aria-label="月ごとのUSDをモデル別に積み上げた棒グラフ。内訳は右の表を参照"></canvas></div>
+      <p class="hint" id="chartNote" hidden>グラフライブラリを読み込めなかったため、表のみ表示しています。</p>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>モデル別内訳</h2>
+        <label>月 <select id="monthSelect"></select></label>
+      </div>
+      <div id="modelBreakdown"></div>
+    </section>
+  </div>
+  <section class="panel">
+    <h2>完了カード</h2>
+    <div class="scroll" id="doneCards"></div>
+  </section>
+</main>
+<script>
+const usdFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const formatUsd = (usd) => usdFormat.format(usd);
+const formatTokens = (n) => `${n.toLocaleString('ja-JP')} tokens`;
+const seriesColors = getComputedStyle(document.documentElement).getPropertyValue('--series').split(',').map((s) => s.trim());
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+let months = [];
+let doneCards = [];
+const modelColor = new Map();
+
+function el(tag, props = {}, children = []) {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children);
+  return node;
+}
+
+// 色はモデル（実体）に固定し、月を切り替えても塗り替えない。9番目以降は補助色にする。
+function assignModelColors() {
+  const totals = new Map();
+  for (const m of months) for (const row of m.byModel) totals.set(row.model, (totals.get(row.model) || 0) + row.usd);
+  [...totals.entries()].sort((a, b) => b[1] - a[1]).forEach(([model], i) => {
+    modelColor.set(model, i < seriesColors.length ? seriesColors[i] : cssVar('--text-muted'));
+  });
+}
+
+function renderTiles() {
+  const [current, previous] = months;
+  const doneTotal = doneCards.reduce((sum, c) => sum + c.usd, 0);
+  const tile = (label, value, sub) => el('div', { className: 'tile' }, [
+    el('div', { className: 'tile-label', textContent: label }),
+    el('div', { className: 'tile-value', textContent: value }),
+    sub,
+  ]);
+  let delta = el('div', { className: 'tile-sub', textContent: '前月データなし' });
+  if (current && previous && previous.usd > 0) {
+    const ratio = (current.usd - previous.usd) / previous.usd;
+    delta = el('div', {
+      className: `tile-sub ${ratio >= 0 ? 'delta-up' : 'delta-down'}`,
+      textContent: `前月比 ${ratio >= 0 ? '+' : ''}${(ratio * 100).toFixed(1)}%`,
+    });
+  }
+  document.getElementById('tiles').replaceChildren(
+    tile(`今月（${current ? current.month : '-'}）`, current ? formatUsd(current.usd) : '-', delta),
+    tile(`前月（${previous ? previous.month : '-'}）`, previous ? formatUsd(previous.usd) : '-',
+      el('div', { className: 'tile-sub', textContent: previous ? formatTokens(previous.tokens) : '' })),
+    tile('完了カード合計', formatUsd(doneTotal), el('div', { className: 'tile-sub', textContent: `${doneCards.length}件` })),
+  );
+}
+
+function renderChart() {
+  if (!window.Chart) {
+    document.getElementById('chartNote').hidden = false;
+    document.querySelector('.chart-box').hidden = true;
+    return;
+  }
+  const ordered = [...months].reverse();
+  const models = [...modelColor.keys()];
+  const surface = cssVar('--surface-2');
+  new Chart(document.getElementById('monthlyChart'), {
+    type: 'bar',
+    data: {
+      labels: ordered.map((m) => m.month),
+      datasets: models.map((model) => ({
+        label: model,
+        data: ordered.map((m) => (m.byModel.find((r) => r.model === model) || { usd: 0 }).usd),
+        backgroundColor: modelColor.get(model),
+        borderColor: surface,
+        borderWidth: { top: 2 },
+        borderRadius: 4,
+        borderSkipped: 'bottom',
+        maxBarThickness: 40,
+      })),
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: cssVar('--text-secondary') } },
+        y: { stacked: true, grid: { color: cssVar('--line') }, ticks: { color: cssVar('--text-secondary'), callback: (v) => formatUsd(v) } },
+      },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: cssVar('--text-primary'), boxWidth: 10 } },
+        tooltip: {
+          filter: (item) => item.raw > 0,
+          callbacks: { label: (item) => `${item.dataset.label}: ${formatUsd(item.raw)}` },
+        },
+      },
+      onClick: (_, elements, chart) => {
+        if (!elements.length) return;
+        const select = document.getElementById('monthSelect');
+        select.value = chart.data.labels[elements[0].index];
+        renderModelBreakdown();
+      },
+    },
+  });
+}
+
+function renderModelBreakdown() {
+  const container = document.getElementById('modelBreakdown');
+  const month = months.find((m) => m.month === document.getElementById('monthSelect').value);
+  if (!month) {
+    container.textContent = '集計できる使用履歴がありません';
+    return;
+  }
+  const rows = month.byModel.map((r) => el('tr', {}, [
+    el('td', {}, [el('span', { className: 'swatch', style: `background:${modelColor.get(r.model)}` }), r.model]),
+    el('td', { className: 'num', textContent: formatUsd(r.usd) }),
+    el('td', { className: 'num', textContent: r.tokens.toLocaleString('ja-JP') }),
+  ]));
+  rows.push(el('tr', {}, [
+    el('th', { textContent: '合計' }),
+    el('th', { className: 'num', textContent: formatUsd(month.usd) }),
+    el('th', { className: 'num', textContent: month.tokens.toLocaleString('ja-JP') }),
+  ]));
+  const table = el('table', {}, [
+    el('thead', {}, [el('tr', {}, [el('th', { textContent: 'モデル' }), el('th', { className: 'num', textContent: 'USD' }), el('th', { className: 'num', textContent: 'tokens' })])]),
+    el('tbody', {}, rows),
+  ]);
+  container.replaceChildren(table);
+  if (month.unpricedTokens > 0) {
+    container.append(el('p', { className: 'hint', textContent: `単価不明のモデル分 ${formatTokens(month.unpricedTokens)} は金額に含まれていません` }));
+  }
+}
+
+const doneCardColumns = [
+  { key: 'date', label: '日付', value: (c) => c.file.replace(/^todo-|\.md$/g, '') },
+  { key: 'column', label: '列', value: (c) => c.column },
+  { key: 'title', label: 'カード', value: (c) => c.title },
+  { key: 'usd', label: 'USD', value: (c) => c.usd, num: true, format: formatUsd },
+  { key: 'tokens', label: 'tokens', value: (c) => c.tokens, num: true, format: (n) => n.toLocaleString('ja-JP') },
+];
+let doneSort = null;
+
+function renderDoneCards() {
+  const container = document.getElementById('doneCards');
+  if (!doneCards.length) {
+    container.textContent = 'コストを集計できる完了カードはありません';
+    return;
+  }
+  let rows = doneCards;
+  if (doneSort) {
+    const column = doneCardColumns.find((c) => c.key === doneSort.key);
+    const sign = doneSort.dir === 'ascending' ? 1 : -1;
+    rows = [...doneCards].sort((a, b) => {
+      const x = column.value(a);
+      const y = column.value(b);
+      return (column.num ? x - y : String(x).localeCompare(String(y), 'ja')) * sign;
+    });
+  }
+  const head = el('tr', {}, doneCardColumns.map((column) => {
+    const th = el('th', { className: column.num ? 'num' : '' }, [el('button', {
+      type: 'button',
+      textContent: column.label,
+      onclick: () => {
+        const dir = doneSort && doneSort.key === column.key && doneSort.dir === 'descending' ? 'ascending' : 'descending';
+        doneSort = { key: column.key, dir };
+        renderDoneCards();
+      },
+    })]);
+    if (doneSort && doneSort.key === column.key) th.setAttribute('aria-sort', doneSort.dir);
+    return th;
+  }));
+  const body = rows.map((card) => el('tr', {}, doneCardColumns.map((column) => el('td', {
+    className: column.num ? 'num' : '',
+    textContent: column.format ? column.format(column.value(card)) : column.value(card),
+  }))));
+  container.replaceChildren(el('table', {}, [el('thead', {}, [head]), el('tbody', {}, body)]));
+}
+
+async function load() {
+  try {
+    const [monthlyRes, doneRes] = await Promise.all([fetch('/api/costs/monthly'), fetch('/api/costs/done-cards')]);
+    for (const res of [monthlyRes, doneRes]) if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    months = (await monthlyRes.json()).months;
+    doneCards = (await doneRes.json()).cards;
+  } catch (err) {
+    document.querySelector('main').append(el('p', { className: 'hint', role: 'alert', textContent: `コストの読み込みに失敗しました（${err.message}）` }));
+    return;
+  }
+  assignModelColors();
+  document.getElementById('monthSelect').replaceChildren(...months.map((m) => el('option', { value: m.month, textContent: m.month })));
+  document.getElementById('monthSelect').addEventListener('change', renderModelBreakdown);
+  renderTiles();
+  renderChart();
+  renderModelBreakdown();
+  renderDoneCards();
+}
+
+window.addEventListener('load', load);
+</script>
+</body>
+</html>

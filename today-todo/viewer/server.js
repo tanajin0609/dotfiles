@@ -2244,7 +2244,8 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  let filePath = path.join(PUBLIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname);
+  const staticPages = { '/': 'index.html', '/costs': 'costs.html' };
+  let filePath = path.join(PUBLIC_DIR, staticPages[url.pathname] || url.pathname);
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403);
     return res.end('forbidden');

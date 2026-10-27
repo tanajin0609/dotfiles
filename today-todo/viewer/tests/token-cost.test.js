@@ -164,3 +164,17 @@ test('完了カードのコスト一覧は全todoファイルの完了カード�
     await server.stop();
   }
 });
+
+// AC-CO-1
+test('/costs はコストダッシュボードのHTMLを返す', async () => {
+  const fixture = setupFixture();
+  const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
+  try {
+    const res = await fetch(`${server.baseUrl}/costs`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /text\/html/);
+    assert.match(await res.text(), /<title>コストダッシュボード<\/title>/);
+  } finally {
+    await server.stop();
+  }
+});
