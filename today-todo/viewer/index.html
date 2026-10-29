@@ -855,8 +855,10 @@
   .modal-comments { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 20px 18px; }
   .modal-comments-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-mute); margin-bottom: 8px; }
   .modal-session-tools { display: inline-flex; align-items: center; gap: 6px; }
-  #modalSessionSelect { font-size: var(--fs-xs); max-width: 260px; }
-  #modalSessionSelect[hidden] { display: none; }
+  .session-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .session-tabs[hidden] { display: none; }
+  .session-tab { display: inline-flex; align-items: center; gap: 2px; }
+  .session-tab .chip[aria-selected="true"] { border-color: var(--accent); color: var(--ink); font-weight: 600; }
   .modal-comment-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; margin-bottom: 10px; }
   .modal-comments.is-expanded {
     position: fixed; top: 0; bottom: 0; right: min(var(--card-panel-w, 540px), 100vw); width: min(720px, calc(100vw - min(var(--card-panel-w, 540px), 100vw)));
@@ -1242,17 +1244,17 @@
       <div class="modal-comments-head">
         <span id="modalCommentHead">セッション</span>
         <span class="modal-session-tools">
-          <select id="modalSessionSelect" aria-label="表示するセッション" hidden></select>
           <button id="modalSessionArtifactsBtn" type="button" class="btn btn-icon btn--sm" aria-label="資料" data-tip="資料" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
           <button id="modalCommentExpandBtn" type="button" class="btn btn-icon btn--sm" aria-pressed="false" aria-label="セッションを横に広げて表示" data-tip="セッションを横に広げて表示"></button>
         </span>
       </div>
+      <div id="modalSessionTabs" class="session-tabs" role="tablist" aria-label="セッション" hidden></div>
       <div id="modalCommentList" class="modal-comment-list"></div>
       <div class="modal-comment-form">
         <div class="field">
           <label id="modalCommentLabel" class="field-label">Claudeへの依頼・返信</label>
           <div id="modalCommentInput" data-skill-suggest class="rich-input" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="modalCommentLabel" data-placeholder="依頼・返信を入力（タスクをここにドラッグすると引用が入ります）" aria-describedby="modalCommentHint"></div>
-          <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」（現在のセッションへ送信）／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
+          <span class="input-hint" id="modalCommentHint"><kbd>Enter</kbd> で「Claudeに依頼」（選択中のタブのセッションへ送信）／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
         </div>
         <div class="modal-comment-actions">
           <select id="modalLaunchModel" class="launch-select" aria-label="起動するmodel" data-tip="新規起動・New Sessionのときのmodel（返信には反映しない）">
@@ -2791,7 +2793,7 @@ function splitTaskSource(text) {
 
 function summarizeColumn(column) {
   const progress = countProgress([column]);
-  const sessionStates = column.groups.map((g) => g.session && g.session.state);
+  const sessionStates = column.groups.map((g) => { const s = representativeSessionOf(g); return s && s.state; });
   const firstOpenTask = column.groups
     .filter((g) => !g.done)
     .flatMap((g) => g.tasks)
@@ -2810,8 +2812,8 @@ function summarizeColumn(column) {
 const BOARD_FILTERS = {
   incomplete: (group) => !group.done,
   commented: (group) => !!(group.comments && group.comments.length > 0),
-  working: (group) => !!group.session && group.session.state === 'working',
-  blocked: (group) => !!group.session && group.session.state === 'blocked',
+  working: (group) => { const s = representativeSessionOf(group); return !!s && s.state === 'working'; },
+  blocked: (group) => { const s = representativeSessionOf(group); return !!s && s.state === 'blocked'; },
   unread: (group) => unreadMarksOf(group).length > 0,
   statusToday: (group) => !group.done && statusOf(group) === 'today',
   statusNone: (group) => !group.done && statusOf(group) === '',
@@ -3197,7 +3199,7 @@ function renderBoard() {
   document.getElementById('boardFilterEmpty').hidden = !(isFiltering && visibleColumnCount === 0);
   populateFocusColumnSelect();
   populateNewCardColumnOptions();
-  renderBlockedCountBadge(boardData.columns.flatMap((c) => c.groups).filter((g) => g.session && g.session.state === 'blocked').length);
+  renderBlockedCountBadge(boardData.columns.flatMap((c) => c.groups).filter((g) => { const s = representativeSessionOf(g); return !!s && s.state === 'blocked'; }).length);
   setCopyAvailability(
     document.getElementById('shareAllBtn'),
     document.getElementById('shareAllEmptyReason'),
@@ -3444,7 +3446,7 @@ function buildSessionStateMarker(state) {
 }
 
 function buildSessionStatus(group) {
-  const session = group.session;
+  const session = representativeSessionOf(group);
   if (!session) return null;
   const wrap = document.createElement('div');
   wrap.className = `card-session ${session.state || ''}`;
@@ -3896,6 +3898,12 @@ async function refreshSessions() {
 
 const SEEN_STORAGE_KEY = 'viewer-seen-v1';
 const SESSION_RESPONDED_STATES = ['done', 'blocked', 'failed'];
+
+// 単一セッションのときは従来どおりupdatedAtそのものになるので、既存の既読記録とも比較できる。
+function respondedSessionSignature(group) {
+  const parts = listCardSessions(group).filter((s) => SESSION_RESPONDED_STATES.includes(s.state)).map((s) => s.updatedAt).sort();
+  return parts.length ? parts.join('|') : null;
+}
 let seenRecords = loadSeenRecords();
 
 function loadSeenRecords() {
@@ -3918,7 +3926,7 @@ function allBoardGroups() {
 function markGroupsSeen(groups) {
   seenRecords = seenRecords || {};
   for (const group of groups) {
-    seenRecords[group.id] = { tasks: group.tasks.map((t) => t.id), session: group.session ? group.session.updatedAt : null };
+    seenRecords[group.id] = { tasks: group.tasks.map((t) => t.id), session: respondedSessionSignature(group) };
   }
   saveSeenRecords();
 }
@@ -3942,8 +3950,8 @@ function unreadMarksOf(group) {
   const seenTaskIds = new Set(seen.tasks);
   const newTaskCount = group.tasks.filter((t) => !t.done && !seenTaskIds.has(t.id)).length;
   if (newTaskCount > 0) marks.push({ kind: 'tasks', label: `+${newTaskCount} タスク` });
-  const session = group.session;
-  if (session && SESSION_RESPONDED_STATES.includes(session.state) && session.updatedAt !== seen.session) {
+  const signature = respondedSessionSignature(group);
+  if (signature && signature !== seen.session) {
     marks.push({ kind: 'session', label: '応答' });
   }
   return marks;
@@ -4784,24 +4792,72 @@ function onCardDialogClosed() {
 
 let modalSelectedJobId = null;
 
-function formatSessionOption(session, isCurrent) {
-  const at = session.launchedAt ? new Date(session.launchedAt).toLocaleString('ja-JP') : '起動日時不明';
-  return `${isCurrent ? '現在' : '過去'} · ${at} · ${sessionStatusLabel(session)}`;
+function listCardSessions(group) {
+  const current = group && group.session;
+  return current ? [current, ...(current.history || [])] : [];
 }
 
-// 選択中のジョブ（既定は現在のセッション）のログを出す。入力欄の送信先は選択に関わらず現在のセッション。
+const SESSION_STATE_PRIORITY = ['blocked', 'working', 'failed', 'done'];
+
+// ボード上は、カードの複数セッションのうち最も手当てが要る状態を代表として見せる（AC-MT-2）。
+function representativeSessionOf(group) {
+  const rank = (s) => { const i = SESSION_STATE_PRIORITY.indexOf(s.state); return i < 0 ? SESSION_STATE_PRIORITY.length : i; };
+  return listCardSessions(group).reduce((best, s) => (!best || rank(s) < rank(best) ? s : best), null);
+}
+
+function formatSessionTabLabel(session) {
+  const at = session.launchedAt ? new Date(session.launchedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '起動日時不明';
+  return `${at} · ${sessionStatusLabel(session)}`;
+}
+
+function renderModalSessionTabs(sessions, selected) {
+  const tabs = document.getElementById('modalSessionTabs');
+  tabs.hidden = sessions.length === 0;
+  tabs.replaceChildren(...sessions.map((s) => {
+    const wrap = document.createElement('span');
+    wrap.className = 'session-tab';
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'btn btn--sm chip';
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', String(s === selected));
+    tab.textContent = formatSessionTabLabel(s);
+    tab.addEventListener('click', () => {
+      modalSelectedJobId = s.jobId;
+      renderModalSessionLog();
+    });
+    const close = buildIconButton('close', 'セッションを閉じる', 'sm');
+    close.addEventListener('click', () => closeCardSession(modalGroup.id, s.jobId));
+    wrap.append(tab, close);
+    return wrap;
+  }));
+}
+
+async function closeCardSession(groupId, jobId) {
+  if (!confirm('このセッションを停止してタブを閉じますか？（ログはセッション一覧に残ります）')) return;
+  const response = await postJson('/api/session/close', { file: currentFile, groupId, jobId });
+  if (!response.ok && response.status !== 404) {
+    showFailureToast(`セッションを閉じられませんでした: ${formatFailureReason(response)}`, () => closeCardSession(groupId, jobId));
+    return;
+  }
+  if (modalSelectedJobId === jobId) modalSelectedJobId = null;
+  showToast('セッションを閉じました');
+  await refreshSessions();
+}
+
+function selectedModalSession() {
+  const sessions = listCardSessions(modalGroup);
+  return sessions.find((s) => s.jobId === modalSelectedJobId) || sessions[0] || null;
+}
+
+// 選択中のタブのセッションのログを出し、入力欄の送信先・分岐元にもする（AC-CSL-2）。
 function renderModalSessionLog() {
   if (!modalGroup) return;
   const current = modalGroup.session;
-  const history = (current && current.history) || [];
-  const sessions = current ? [current, ...[...history].reverse()] : [];
-  const selected = sessions.find((s) => s.jobId === modalSelectedJobId) || sessions[0] || null;
-  const isPast = !!selected && selected !== sessions[0];
-  document.getElementById('modalCommentHead').textContent = !selected ? 'セッション'
-    : isPast ? `セッション（過去のログ表示中・送信先は現在のセッション）` : `セッション · ${sessionStatusLabel(selected)}`;
-  const select = document.getElementById('modalSessionSelect');
-  select.hidden = sessions.length < 2;
-  select.replaceChildren(...sessions.map((s, i) => new Option(formatSessionOption(s, i === 0), s.jobId, false, s === selected)));
+  const sessions = current ? [...(current.history || []), current] : [];
+  const selected = selectedModalSession();
+  document.getElementById('modalCommentHead').textContent = selected ? `セッション · ${sessionStatusLabel(selected)}` : 'セッション';
+  renderModalSessionTabs(sessions, selected);
   document.getElementById('modalSessionArtifactsBtn').hidden = !selected;
   if (!selected) {
     modalLogView.jobId = null;
@@ -4984,7 +5040,8 @@ function submitModalComment(launchOptions = {}) {
   const text = document.getElementById('modalCommentInput').value.trim();
   if (!text || !modalGroup || busyCommentsByGroupId.has(modalGroup.id)) return;
   const target = { file: currentFile, columnName: modalColumnName, groupId: modalGroup.id, groupTitle: modalGroup.title };
-  sendCardComment(target, text, { ...launchOptions, ...readLaunchSelects('modal') }, takeDraft('modalCommentInput', () => modalGroup && modalGroup.id === target.groupId));
+  const selected = launchOptions.newSession ? null : selectedModalSession();
+  sendCardComment(target, text, { ...launchOptions, ...readLaunchSelects('modal'), ...(selected ? { jobId: selected.jobId } : {}) }, takeDraft('modalCommentInput', () => modalGroup && modalGroup.id === target.groupId));
 }
 
 function submitSessionLogReply() {
@@ -5130,8 +5187,10 @@ async function launchCardSession(target, text, launchOptions = {}, commentAt = n
   const { file, groupId, columnName, groupTitle } = target;
   const before = file === currentFile ? findGroupById(groupId) : null;
   const hadSession = !!(before && before.group.session) && launchOptions.newSession !== true;
-  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text, newSession: launchOptions.newSession === true, model: launchOptions.model, effort: launchOptions.effort });
-  if (response.status === 409) {
+  const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text, newSession: launchOptions.newSession === true, jobId: launchOptions.jobId, model: launchOptions.model, effort: launchOptions.effort });
+  if (response.status === 409 && response.data && response.data.error === 'session changed') {
+    showToast('送信先のセッションが閉じられたため送れませんでした（コメントは保存しました）');
+  } else if (response.status === 409) {
     showToast('このカードは起動処理中です（コメントは保存しました）');
   } else if (isUntrustedWorkspace(response)) {
     showUntrustedWorkspaceToast(response.data.cwd, () => retryCardSessionLaunch(target, text, launchOptions, commentAt));
@@ -5144,6 +5203,8 @@ async function launchCardSession(target, text, launchOptions = {}, commentAt = n
     showToast('このカードは既にセッションが稼働中です（コメントのみ保存しました）', undoable(null));
   } else {
     const options = undoable(response.data.jobId);
+    const isTargetSelected = launchOptions.newSession || (launchOptions.jobId && launchOptions.jobId === modalSelectedJobId);
+    if (modalGroup && modalGroup.id === groupId && isTargetSelected) modalSelectedJobId = response.data.jobId;
     if (hadSession && response.data.resumed === false) {
       showToast(`履歴を引き継げなかったため新規セッションで起動しました（id: ${response.data.jobId}）`, options);
     } else if (response.data.copied) {
@@ -6174,10 +6235,6 @@ async function init() {
   cardDialog.addEventListener('close', onCardDialogClosed);
   cardDialog.addEventListener('click', (e) => {
     if (e.target === cardDialog) closeModal();
-  });
-  document.getElementById('modalSessionSelect').addEventListener('change', (e) => {
-    modalSelectedJobId = e.target.value;
-    renderModalSessionLog();
   });
   document.getElementById('modalCommentLaunchBtn').addEventListener('click', saveModalCommentAndLaunch);
   document.getElementById('modalCommentNewSessionBtn').addEventListener('click', saveModalCommentAndLaunchNewSession);

@@ -757,11 +757,17 @@ function resolveTranscriptPath(jobId) {
 
 // CLIを待っている間に別カードの起動やポーリングが同じファイルへ書くため、待った後に読み直して該当カードだけを書き換える。
 // keepPreviousは別の会話への差し替え（新規セッション・分岐）のときだけ立てる。返信のコピーは同じ会話の継続なので履歴に積まない。
-function updateSessionEntry(file, groupId, entry, { keepPrevious = false } = {}) {
+function updateSessionEntry(file, groupId, entry, { keepPrevious = false, replaceJobId = null } = {}) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const sessionsMap = readSessionsMap(file);
   const previous = sessionsMap[groupId];
   const history = (previous && previous.history) || [];
+  const historyIndex = replaceJobId ? history.findIndex((h) => h.jobId === replaceJobId) : -1;
+  if (historyIndex >= 0) {
+    history[historyIndex] = { ...history[historyIndex], ...entry, launchedAt: history[historyIndex].launchedAt || entry.launchedAt };
+    fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
+    return;
+  }
   if (keepPrevious && previous && previous.jobId && previous.jobId !== entry.jobId) {
     const { history: _history, notifiedAt: _notifiedAt, ...archived } = previous;
     if (!archived.transcriptPath) archived.transcriptPath = resolveTranscriptPath(previous.jobId) || undefined;
@@ -790,6 +796,30 @@ function transcriptUsedWorktree(transcriptPath) {
       return false;
     }
   });
+}
+
+function listCardSessions(linked) {
+  return linked && linked.jobId ? [linked, ...(linked.history || [])] : [];
+}
+
+// 現在のセッションを外したときは、残りのうち最後に起動したもの（historyの末尾）を現在にする。
+function removeCardSession(file, groupId, jobId) {
+  const sessionsMap = readSessionsMap(file);
+  const linked = sessionsMap[groupId];
+  if (!listCardSessions(linked).some((s) => s.jobId === jobId)) return false;
+  const history = (linked.history || []).filter((h) => h.jobId !== jobId);
+  let next;
+  if (linked.jobId === jobId) {
+    const promoted = history.pop();
+    next = promoted ? { ...promoted, ...(history.length ? { history } : {}) } : null;
+  } else {
+    const { history: _history, ...current } = linked;
+    next = history.length ? { ...current, history } : current;
+  }
+  if (next) sessionsMap[groupId] = next;
+  else delete sessionsMap[groupId];
+  fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
+  return true;
 }
 
 function isSessionBusy(jobId) {
@@ -1179,6 +1209,7 @@ function sessionInfoFor(linked) {
   const info = jobState
     ? { jobId: linked.jobId, state: jobState.state, tempo: jobState.tempo, detail: jobState.detail, updatedAt: jobState.updatedAt, questions: pendingQuestionsOf(jobState) }
     : { jobId: linked.jobId, state: 'unknown', tempo: null, detail: null, updatedAt: null, questions: null };
+  if (linked.launchedAt) info.launchedAt = linked.launchedAt;
   if (linked.history && linked.history.length) {
     info.launchedAt = linked.launchedAt || null;
     info.history = linked.history.map((h) => ({ ...sessionInfoFor(h), launchedAt: h.launchedAt || null }));
@@ -1201,7 +1232,8 @@ function listCardLinkedSessions() {
 }
 
 function listAllSessions() {
-  const cardByJobId = new Map(listCardLinkedSessions().map(({ file, groupId, linked }) => [linked.jobId, { file, groupId, linked }]));
+  const cardByJobId = new Map(listCardLinkedSessions().flatMap(({ file, groupId, linked }) =>
+    listCardSessions(linked).map((s) => [s.jobId, { file, groupId, linked: s }])));
   const sessions = [];
   const jobIds = fs.existsSync(CLAUDE_JOBS_DIR) ? fs.readdirSync(CLAUDE_JOBS_DIR) : [];
   for (const jobId of jobIds) {
@@ -1653,9 +1685,8 @@ const server = http.createServer(async (req, res) => {
     }
     let stopped = false;
     if (jobId) {
-      const current = readSessionsMap(file)[groupId];
-      // 取り消しの間に返信や分岐で別ジョブへ替わっていたら、意図しないセッションを止めない。
-      if (!current || current.jobId !== jobId) return sendJson(res, 409, { error: 'session changed' });
+      // 取り消しの間に返信のコピーやタブを閉じたことで別ジョブへ替わっていたら、意図しないセッションを止めない。
+      if (!listCardSessions(readSessionsMap(file)[groupId]).some((s) => s.jobId === jobId)) return sendJson(res, 409, { error: 'session changed' });
       // rm しないのは、取り消した後もログと会話履歴を残して続きから返信できるようにするため。
       await runClaudeQuietly(['stop', jobId]);
       stopped = true;
@@ -2085,6 +2116,26 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { trusted: true });
   }
 
+  if (url.pathname === '/api/session/close' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const { file, groupId, jobId } = payload || {};
+    if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof jobId !== 'string' || !/^[0-9a-f-]+$/.test(jobId)) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    if (!listCardSessions(readSessionsMap(file)[groupId]).some((s) => s.jobId === jobId)) {
+      return sendJson(res, 404, { error: 'session not found' });
+    }
+    // rmしないのは、閉じた後もセッション一覧からログを見られるようにするため。
+    await runClaudeQuietly(['stop', jobId]);
+    removeCardSession(file, groupId, jobId);
+    return sendJson(res, 200, {});
+  }
+
   if (url.pathname === '/api/session/launch' && req.method === 'POST') {
     const body = await readBody(req);
     let payload;
@@ -2093,10 +2144,10 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJson(res, 400, { error: 'invalid json' });
     }
-    const { file, groupId, columnName, groupTitle, text, newSession } = payload;
+    const { file, groupId, columnName, groupTitle, text, newSession, jobId: targetJobId } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof columnName !== 'string' ||
-        typeof groupTitle !== 'string' || !trimmed) {
+        typeof groupTitle !== 'string' || !trimmed || (targetJobId !== undefined && typeof targetJobId !== 'string')) {
       return sendJson(res, 400, { error: 'invalid payload' });
     }
     const launchSettings = resolveLaunchSettings(payload);
@@ -2111,7 +2162,12 @@ const server = http.createServer(async (req, res) => {
     try {
       const sessionsMap = readSessionsMap(file);
       // 同じカードの別タスクの指示を前の会話に混ぜないため、newSessionでは既存セッションを見ずに新規起動する。
-      const existing = newSession === true ? null : sessionsMap[groupId];
+      const cardSessions = listCardSessions(sessionsMap[groupId]);
+      const existing = newSession === true ? null
+        : targetJobId ? cardSessions.find((s) => s.jobId === targetJobId) : sessionsMap[groupId];
+      if (newSession !== true && targetJobId && !existing) {
+        return sendJson(res, 409, { error: 'session changed' });
+      }
       if (existing && isSessionBusy(existing.jobId)) {
         return sendJson(res, 200, { launched: false, reason: 'already-running', jobId: existing.jobId });
       }
@@ -2166,7 +2222,7 @@ const server = http.createServer(async (req, res) => {
       if (!jobId) {
         return sendJson(res, 500, { error: 'could not parse session id from claude output' });
       }
-      updateSessionEntry(file, groupId, { jobId, name, launchedAt: new Date().toISOString() }, { keepPrevious: newSession === true });
+      updateSessionEntry(file, groupId, { jobId, name, launchedAt: new Date().toISOString() }, { keepPrevious: newSession === true, replaceJobId: existing && existing.jobId });
       const copied = mode === 'reply' && jobId !== existing.jobId;
       if (copied && !transcriptUsedWorktree(transcriptPath)) {
         await runClaudeQuietly(['rm', existing.jobId]);

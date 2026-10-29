@@ -24,18 +24,27 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
 - AC-H1-SRV-2: 処理の成功・失敗（400/500を含む）いずれの場合も、応答後にはロックが解放され、次の要求を受け付ける。
 - AC-H1-SRV-3: 別の `groupId`（または別の `file`）への要求はロックの影響を受けない。
 - AC-NS-SRV-1: `POST /api/session/launch` に `"newSession": true` を付けると、カードに紐付く既存セッションの状態に関わらず
-  （稼働中・入力待ちでも）`claude stop`・`--resume` をせず新規セッションとして起動し、`data/sessions-*.json` の該当カードを新しいジョブで上書きする。
-  差し替え前のジョブは停止しない。
-- AC-SH-SRV-1: New Session（AC-NS-SRV-1）と分岐（AC-BR-SRV-2）でカードのジョブを差し替えるとき、差し替え前のエントリ（`history`・`notifiedAt` を除く）を
+  （稼働中・入力待ちでも）`claude stop`・`--resume` をせず新規セッションとして起動し、`data/sessions-*.json` の該当カードの現在のジョブを新しいジョブにする。
+  それまでのジョブは停止せず、カードのセッションとして残す（AC-SH-SRV-1）。
+- AC-SH-SRV-1: カードは複数のセッションを並行して持つ。`data/sessions-*.json` のカードのエントリは最後に起動したもの（現在のセッション）と、
+  それ以外のセッションを起動の古い順に並べた `history` からなり、`history` のセッションも現在のセッションと同じく返信・停止・分岐の対象になる（AC-MT-SRV-1〜3）。
+  New Session（AC-NS-SRV-1）と分岐（AC-BR-SRV-2）でカードのジョブを差し替えるとき、差し替え前のエントリ（`history`・`notifiedAt` を除く）を
   そのカードの `history`（古い順）に積み、新しいエントリへ引き継ぐ。`transcriptPath` が未記録ならその時点の所在を控える。返信のコピー（AC-CC2-2）は
-  同じ会話の継続なので積まない。`/api/sessions`・`/api/board` のセッション情報は、`history` があるとき `launchedAt` と、各要素に `jobId`・`state` 等
+  同じ会話の継続なので積まない。`/api/sessions`・`/api/board` のセッション情報は、記録があれば `launchedAt` を、`history` があるとき（`launchedAt` 未記録なら `null`）と、各要素に `jobId`・`state` 等
   （現行と同じ形）と `launchedAt` を持つ `history` を含める。`GET /api/session/transcript` は `history` のジョブの控えた `transcriptPath` も探す。
+- AC-MT-SRV-1: `POST /api/session/launch` は任意で `jobId` を受け取り、`newSession` でないときはカードのセッション（現在＋`history`）のうちそのジョブへ返信する
+  （AC-CC2-2と同じ扱い。省略時は現在のセッション）。カードのセッションに無い `jobId` は `409 { "error": "session changed" }`。返信でCLIが別jobIdのコピーを起動したときは、
+  そのセッションの記録（現在なら現在、`history` の要素ならその要素）を同じ位置のまま新しいjobIdに置き換える（積まない）。
+- AC-MT-SRV-2: `POST /api/session/close` `{ "file", "groupId", "jobId" }` は、カードのセッションのうち `jobId` のものを `claude stop`（失敗は無視。`claude rm` はしない）したうえで
+  カードから外し、`200 {}` を返す。現在のセッションを外したときは `history` の最後の要素を現在のセッションにし、セッションが無くなればカードのエントリを消す。
+  カードのセッションに無い `jobId` は404、不正な入力は400。外したジョブはセッション一覧（AC-SL-SRV-1）にはカードに紐付かないジョブとして残る。
+- AC-MT-SRV-3: `POST /api/session/branch`（AC-BR-SRV-2）の分岐元・`POST /api/session/cancel`（AC-UN-SRV-1）の対象は、カードのセッション（現在＋`history`）のどれでもよい。
 
 ### 1.3 メモのみの保存（C3）
 
 - AC-C3-SRV-1: `POST /api/comments` はコメントを保存するだけで、セッションを起動しない（従来仕様の維持）。
-- AC-UN-SRV-1: `POST /api/session/cancel`（`{ file, groupId, at, jobId? }`）は送信の取り消し。`jobId` があり、それがそのカードの現在のセッション（sessions の `jobId`）でなければ
-  `409 { error: "session changed" }` を返し何もしない。現在のセッションなら `claude stop <jobId>` を実行する（`claude rm` はしない。ログを残すため）。
+- AC-UN-SRV-1: `POST /api/session/cancel`（`{ file, groupId, at, jobId? }`）は送信の取り消し。`jobId` があり、それがそのカードのセッション（現在＋`history`。AC-MT-SRV-3）に無ければ
+  `409 { error: "session changed" }` を返し何もしない。あれば `claude stop <jobId>` を実行する（`claude rm` はしない。ログを残すため）。
   続けて comments の同カードから `at` が一致する1件を削除し `200 { comments, stopped }` を返す（一致が無くても200、`stopped` は停止したか）。不正な入力は400。
 
 ### 1.4 更新検知と読み込み失敗（F4・F6）
@@ -90,7 +99,7 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
   を `launchedAt` の新しい順で返す（`defaultCwd` はプロジェクトルート＝todoディレクトリの親）。対象はClaude Codeのジョブディレクトリ（`~/.claude/jobs`、`VIEWER_CLAUDE_JOBS_DIR` で上書き可）にある全ジョブ
   （`claude rm` されていないbgジョブ。viewer外で起動したもの・完了済みを含む。state.jsonに `createdAt` の無いものはCLIのジョブでないため除く）と、`data/sessions-*.json` に記録されたがジョブが消えたもの（`state: "unknown"`）。
   `name`・`cwd`・`launchedAt`（`createdAt`）はstate.jsonの値、`state` 以降はAC-H5相当の `sessionInfoFor` と同じ値で、`state` はAC-JS-SRV-1で正規化した値。
-  `card` はそのジョブを現在のジョブとして紐付けたカード `{ "file", "groupId", "name" }`（`data/sessions-*.json`。無ければ `null`）。
+  `card` はそのジョブをセッション（現在＋`history`）として紐付けたカード `{ "file", "groupId", "name" }`（`data/sessions-*.json`。無ければ `null`）。
 - AC-SL-SRV-2: `POST /api/sessions/create` `{ "cwd", "name"?, "text", "model"?, "effort"? }` は、`cwd` がAC-WT-SRV-2で信頼設定できるディレクトリ
   （プロジェクトルート配下の実在ディレクトリ）でなければ400、`text` が空なら400。`claude --bg <AC-MS-SRV-3・4と同じmodel/effort指定> -n <name（空なら text の先頭60文字）> -- <text>`
   を `cwd` で実行し、`200 { "jobId" }` を返す。カードには紐付けない。起動失敗はAC-WT-SRV-1と同じ形で返す。
@@ -359,7 +368,7 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-UR-1: カード名の横に、最後にそのカードの詳細を開いた時点からの変化を種類ごとのマークで示す（マークは種類ごとに色と文言を変え、文言をアクセシブルネームにも含める）。
   - 「新規」: 既読の記録に無いカード（このとき下の2つは出さない）
   - 「+N タスク」: 記録したタスクID（`tasks[].id`）に無い未完了タスクがN件ある
-  - 「応答」: 紐付くセッションの状態が `done`・`blocked`・`failed` で、`updatedAt` が記録した値と異なる
+  - 「応答」: 紐付くセッション（現在＋`history`）のうち状態が `done`・`blocked`・`failed` のものの `updatedAt` の組が、記録した値と異なる（1件以上あるときだけ）
 - AC-UR-2: カード詳細を開くと、そのカードのタスクIDとセッションの `updatedAt` を記録してマークを消す。開いたまま再描画（タスク追加・5秒ごとのセッション更新）されたときも記録し直す。
   ボード上部の「すべて既読」ボタンは表示中の全カードを同様に記録する。
 - AC-UR-3: 既読の記録はブラウザの localStorage にカードID単位で持ち、todoファイルをまたいで引き継ぐ。記録が無い初回は表示中の全カードを記録し、マークを出さない。
@@ -383,9 +392,14 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   ログはカード詳細を開いている間5秒ごとに取り直し（AC-UX2-1）、`/api/sessions` の更新で現在のセッションが変わればそれに追従する。
 - AC-SLG-1: セッションログ（カード詳細・セッションログダイアログ）の `tool_use`・`tool_result` は既定で折り畳み、見出しに
   `tool_use: <ツール名>`・`tool_result: <ツール名>`（名前が `null` なら `tool_result`）を出す。見出しを押すと本文を開閉する。
-- AC-CSL-2: カードに `history`（AC-SH-SRV-1）があるとき、セッション見出しに表示するセッションの選択（現在＋過去を新しい順、起動日時と状態を表示）を出し、
-  選んだセッションのログを表示する。過去のセッションを表示中は見出しに「過去のログ表示中・送信先は現在のセッション」と出す。入力欄の送信先は常に現在のセッション。
-  過去のセッションのログの「ここから分岐」は、そのセッションを分岐元にする（`/api/session/branch` に `jobId` を付ける。AC-BR-SRV-2）。
+- AC-CSL-2: セッション欄の見出しの下に、カードのセッション（現在＋`history`。AC-SH-SRV-1）を起動の古い順に並べたタブ（`role="tablist"`）を出す。
+  各タブは起動日時と状態ラベル（AC-CC2-5）を表示し、選んだタブのセッションのログを表示する。既定は現在のセッション。選択中のタブのセッションが
+  入力欄の「Claudeに依頼」の送信先（`/api/session/launch` に `jobId` を付ける。AC-MT-SRV-1）、「ここから分岐」の分岐元、送信の取り消しの対象になる。
+  New Session・分岐で起動したセッション、返信で別jobIdに替わったセッションは、そのタブを選択した状態にする。
+- AC-MT-1: 各タブに閉じるボタン（×、`aria-label="セッションを閉じる"`）を置く。押すと `confirm` で確認してから `/api/session/close`（AC-MT-SRV-2）を呼び、
+  閉じたタブが選択中なら現在のセッションのタブを選ぶ。
+- AC-MT-2: ボード上のカードのセッション表示（AC-H5 等の状態ラベル）、列の稼働中・入力待ち件数、絞り込み（稼働中・入力待ち）、入力待ち件数のバッジは、
+  カードのセッション（現在＋`history`）のうち `blocked` > `working` > `failed` > `done` > その他 の優先順で最上位の1件の状態を使う。
 - AC-C3-1: カード詳細の入力欄には「Claudeに依頼」ボタンがある（ほかにAC-NS-1）。「Claudeに依頼」は依頼文を `/api/comments` に記録したうえで（表示はしない）
   `/api/session/launch` を呼ぶ。メモだけを保存するボタンは置かない。`Ctrl+Enter` も「Claudeに依頼」と同じ動作にする。
 - AC-NS-1: カード詳細の入力欄に「新規セッションで依頼」ボタンを置く。コメント保存に続けて `/api/session/launch` を `newSession: true` で呼び、
