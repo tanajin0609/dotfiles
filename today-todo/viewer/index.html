@@ -689,6 +689,10 @@
   .status-badge { align-self: flex-start; font-size: var(--fs-xs); font-weight: 600; padding: 0 6px; border-radius: 999px; border: 1px solid currentColor; }
   .status-badge.status-today { color: var(--accent); }
   .status-badge.status-hold { color: var(--ink-mute); }
+  .unread-badge { align-self: flex-start; font-size: var(--fs-xs); font-weight: 600; padding: 0 6px; border-radius: 999px; color: var(--accent-ink); }
+  .unread-badge.unread-new { background: var(--accent); }
+  .unread-badge.unread-tasks { background: var(--state-done); }
+  .unread-badge.unread-session { background: var(--state-blocked); }
   .hold-section > summary { cursor: pointer; }
   .group-card {
     scroll-margin-top: calc(var(--header-h) + 8px);
@@ -1167,11 +1171,12 @@
         <button type="button" class="btn btn--sm chip" data-filter-id="commented" aria-pressed="false">コメントあり</button>
         <button type="button" class="btn btn--sm chip" data-filter-id="working" aria-pressed="false">稼働中</button>
         <button type="button" class="btn btn--sm chip" data-filter-id="blocked" aria-pressed="false">入力待ち</button>
-        <button type="button" class="btn btn--sm chip" data-filter-id="addedToday" aria-pressed="false" hidden>今日追加</button>
+        <button type="button" class="btn btn--sm chip" data-filter-id="unread" aria-pressed="false">未読</button>
         <button type="button" class="btn btn--sm chip" data-filter-id="statusToday" aria-pressed="false">今日やる</button>
         <button type="button" class="btn btn--sm chip" data-filter-id="statusNone" aria-pressed="false">未着手</button>
         <button type="button" class="btn btn--sm chip" data-filter-id="statusHold" aria-pressed="false">保留</button>
       </div>
+      <button id="markAllSeenBtn" type="button" class="btn btn--sm btn-secondary">すべて既読</button>
     </div>
     <div id="boardFilterEmpty" class="empty-state board-empty" role="status" hidden>条件に一致するカードがありません</div>
     <div id="board"></div>
@@ -1578,7 +1583,6 @@ let groupStatuses = {};
 const openHoldColumns = new Set();
 let searchQuery = '';
 const activeFilterIds = new Set();
-let previousFileGroupIds = null;
 let openColumnsBeforeFilter = new Set();
 let pendingOpenColumnNames = null;
 let failedBoardFile = null;
@@ -2421,8 +2425,8 @@ async function loadBoard(file) {
   if (!isSameFile) {
     starredGroupIds = loadStarredGroupIds(file);
     groupStatuses = loadGroupStatuses(file);
-    fetchPreviousFileGroupIds(file);
   }
+  pruneSeenRecords();
   renderAll();
   status.textContent = `最終取得: ${new Date().toLocaleTimeString('ja-JP')}`;
   if (focusMode) {
@@ -2489,22 +2493,6 @@ async function detectExternalBoardUpdate() {
     key: 'board-updated',
     durationMs: null,
   });
-}
-
-async function fetchPreviousFileGroupIds(file) {
-  previousFileGroupIds = null;
-  renderFilterChips();
-  const index = todoFiles.indexOf(file);
-  const previousFile = index === -1 ? undefined : todoFiles[index + 1];
-  const response = previousFile ? await fetchJson(`/api/board?file=${encodeURIComponent(previousFile)}`) : null;
-  if (file !== currentFile) return;
-  previousFileGroupIds = response && response.ok
-    ? new Set(response.data.columns.flatMap((c) => c.groups.map((g) => g.id)))
-    : null;
-  renderFilterChips();
-  if (!activeFilterIds.has('addedToday')) return;
-  if (previousFileGroupIds) renderBoard();
-  else updateBoardFilter(() => activeFilterIds.delete('addedToday'));
 }
 
 // 列単位のピンポイント更新（`column`クエリでその列のみ取得し、APIレスポンスサイズを絞る）。
@@ -2874,7 +2862,7 @@ const BOARD_FILTERS = {
   commented: (group) => !!(group.comments && group.comments.length > 0),
   working: (group) => !!group.session && group.session.state === 'working',
   blocked: (group) => !!group.session && group.session.state === 'blocked',
-  addedToday: (group) => !!previousFileGroupIds && !previousFileGroupIds.has(group.id),
+  unread: (group) => unreadMarksOf(group).length > 0,
   statusToday: (group) => !group.done && statusOf(group) === 'today',
   statusNone: (group) => !group.done && statusOf(group) === '',
   statusHold: (group) => !group.done && statusOf(group) === 'hold',
@@ -2919,7 +2907,6 @@ function renderFilterChips() {
   for (const chip of document.querySelectorAll('#filterChips .chip')) {
     const filterId = chip.dataset.filterId;
     chip.setAttribute('aria-pressed', String(activeFilterIds.has(filterId)));
-    if (filterId === 'addedToday') chip.hidden = !previousFileGroupIds;
   }
 }
 
@@ -3198,6 +3185,8 @@ function onActionMenuKeydown(e) {
 
 function renderBoard() {
   const board = document.getElementById('board');
+  const openGroup = document.getElementById('cardDialog').open && findGroupById(lastModalGroupId);
+  if (openGroup) markGroupsSeen([openGroup]);
   const { focusKey: focusedKey } = captureFocusReturn();
   const openedMenuSnapshot = captureOpenedActionMenu();
   closeActionMenu(false);
@@ -3980,6 +3969,70 @@ async function refreshSessions() {
   syncModalSessionLog();
 }
 
+const SEEN_STORAGE_KEY = 'viewer-seen-v1';
+const SESSION_RESPONDED_STATES = ['done', 'blocked', 'failed'];
+let seenRecords = loadSeenRecords();
+
+function loadSeenRecords() {
+  try {
+    const records = JSON.parse(localStorage.getItem(SEEN_STORAGE_KEY));
+    return records && typeof records === 'object' ? records : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSeenRecords() {
+  localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(seenRecords));
+}
+
+function allBoardGroups() {
+  return boardData ? boardData.columns.flatMap((c) => c.groups) : [];
+}
+
+function findGroupById(groupId) {
+  return allBoardGroups().find((g) => g.id === groupId) || null;
+}
+
+function markGroupsSeen(groups) {
+  seenRecords = seenRecords || {};
+  for (const group of groups) {
+    seenRecords[group.id] = { tasks: group.tasks.map((t) => t.id), session: group.session ? group.session.updatedAt : null };
+  }
+  saveSeenRecords();
+}
+
+function pruneSeenRecords() {
+  const groups = allBoardGroups();
+  if (!seenRecords) {
+    markGroupsSeen(groups);
+    return;
+  }
+  const ids = new Set(groups.map((g) => g.id));
+  for (const id of Object.keys(seenRecords)) if (!ids.has(id)) delete seenRecords[id];
+  saveSeenRecords();
+}
+
+function unreadMarksOf(group) {
+  if (!seenRecords) return [];
+  const seen = seenRecords[group.id];
+  if (!seen) return [{ kind: 'new', label: '新規' }];
+  const marks = [];
+  const seenTaskIds = new Set(seen.tasks);
+  const newTaskCount = group.tasks.filter((t) => !t.done && !seenTaskIds.has(t.id)).length;
+  if (newTaskCount > 0) marks.push({ kind: 'tasks', label: `+${newTaskCount} タスク` });
+  const session = group.session;
+  if (session && SESSION_RESPONDED_STATES.includes(session.state) && session.updatedAt !== seen.session) {
+    marks.push({ kind: 'session', label: '応答' });
+  }
+  return marks;
+}
+
+function markAllSeen() {
+  markGroupsSeen(allBoardGroups());
+  renderBoard();
+}
+
 function splitGroupTitle(title) {
   const separator = ' ▸ ';
   const index = title.indexOf(separator);
@@ -4135,6 +4188,12 @@ function makeCard(column, group, { matchedTaskText = null, orderPosition = null 
     const badge = document.createElement('span');
     badge.className = `status-badge status-${status}`;
     badge.textContent = STATUS_LABELS[status];
+    head.insertBefore(badge, head.firstChild);
+  }
+  for (const mark of unreadMarksOf(group)) {
+    const badge = document.createElement('span');
+    badge.className = `unread-badge unread-${mark.kind}`;
+    badge.textContent = mark.label;
     head.insertBefore(badge, head.firstChild);
   }
   body.appendChild(head);
@@ -4404,6 +4463,7 @@ function openModal(column, group) {
   lastModalGroupId = group.id;
   modalColumnName = column.name;
   modalGroup = group;
+  markGroupsSeen([group]);
   document.getElementById('modalColLabel').textContent = column.name;
   applyColumnHue(document.getElementById('cardDialog'), column.name);
   document.getElementById('modalTitle').textContent = group.title;
@@ -6029,6 +6089,7 @@ async function init() {
   setInterval(refreshRateLimits, 60000);
   document.getElementById('skillsBtn').addEventListener('click', openSkillsDialog);
   document.getElementById('todoImportBtn').addEventListener('click', startTodoImport);
+  document.getElementById('markAllSeenBtn').addEventListener('click', markAllSeen);
   const skillsDialog = document.getElementById('skillsDialog');
   document.getElementById('skillsCloseBtn').addEventListener('click', () => skillsDialog.close());
   skillsDialog.addEventListener('click', (e) => {
