@@ -43,6 +43,7 @@ const SKILL_CWD = process.env.VIEWER_SKILL_CWD
   ? path.resolve(process.env.VIEWER_SKILL_CWD)
   : path.join(os.homedir(), '.claude');
 const SKILL_SESSIONS_PATH = path.join(DATA_DIR, 'skill-sessions.json');
+const TODO_IMPORT_SESSION_PATH = path.join(DATA_DIR, 'todo-import-session.json');
 
 const CLAUDE_PROJECTS_DIR = process.env.VIEWER_CLAUDE_PROJECTS_DIR
   ? path.resolve(process.env.VIEWER_CLAUDE_PROJECTS_DIR)
@@ -1270,6 +1271,14 @@ function writeSkillSessions(sessions) {
   fs.writeFileSync(SKILL_SESSIONS_PATH, JSON.stringify(sessions));
 }
 
+function readTodoImportSession() {
+  try {
+    return JSON.parse(fs.readFileSync(TODO_IMPORT_SESSION_PATH, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
 // 5h/7dの使用率はステータスラインのstdinにしか渡されないため、statuslineが書き出したスナップショットを読む。
 function readRateLimits() {
   try {
@@ -2003,6 +2012,29 @@ const server = http.createServer(async (req, res) => {
     const result = reply.body;
     // CLIが別jobIdのコピーで再開しても、画面からは同じ作成セッションとして追い続けたいので記録を差し替える。
     writeSkillSessions(readSkillSessions().map((s) => (s.jobId === record.jobId ? { ...s, jobId: result.jobId } : s)));
+    return sendJson(res, 200, { launched: true, jobId: result.jobId });
+  }
+
+  if (url.pathname === '/api/todo-import' && req.method === 'GET') {
+    const record = readTodoImportSession();
+    return sendJson(res, 200, { session: record ? { ...record, ...sessionInfoFor(record) } : null });
+  }
+
+  if (url.pathname === '/api/todo-import' && req.method === 'POST') {
+    const record = readTodoImportSession();
+    const running = record && readJobState(record.jobId);
+    if (running && (running.state === 'working' || running.state === 'blocked')) {
+      return sendJson(res, 200, { launched: false, reason: 'already-running', jobId: record.jobId });
+    }
+    let result;
+    try {
+      result = await launchBackground(['--bg', ...buildLaunchSettingArgs(readLaunchSettings()), '-n', 'todo-import', '--', '/todo-import'], PROJECTS_ROOT, 'todo-import');
+    } catch (err) {
+      return sendLaunchFailure(res, err, PROJECTS_ROOT);
+    }
+    if (!result.jobId) return sendJson(res, 500, { error: 'launch failed', detail: 'job id not found' });
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(TODO_IMPORT_SESSION_PATH, JSON.stringify({ jobId: result.jobId, launchedAt: new Date().toISOString() }));
     return sendJson(res, 200, { launched: true, jobId: result.jobId });
   }
 

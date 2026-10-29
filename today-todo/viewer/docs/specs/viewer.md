@@ -232,6 +232,13 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   `working` なら起動せず `200 { "launched": false, "reason": "already-running" }`、それ以外は `claude stop` して待った後に
   `claude --bg --resume <sessionId> -- <指示>`（指示はAC-CC2-2の回答形式）を実行する。返ったjobIdが元と違えば記録をそのjobIdに置き換え、`200 { "launched": true, "jobId" }` を返す。
 
+### 1.17 todo-import の起動（TI）
+
+- AC-TI-SRV-1: `POST /api/todo-import` は `claude --bg <model/effort指定（AC-MS-SRV-3のoverride）> -n todo-import -- /todo-import` を `PROJECTS_ROOT` で実行し、
+  `data/todo-import-session.json` に `{ "jobId", "launchedAt" }` を記録して `200 { "launched": true, "jobId" }` を返す。起動失敗はAC-WT-SRV-1と同じ形で返す。
+- AC-TI-SRV-2: 記録済みのジョブの状態（AC-JS-SRV-1）が `working`・`blocked` の間は起動せず、`200 { "launched": false, "reason": "already-running", "jobId" }` を返す。
+- AC-TI-SRV-3: `GET /api/todo-import` は記録済みのジョブを `200 { "session": { "jobId", "launchedAt", "state", ... } }`（状態の項目はAC-SL-SRV-1と同じ）で、記録が無ければ `200 { "session": null }` で返す。
+
 ## 2. 画面
 
 画面の状態は `localStorage`（キーは `viewer:` 接頭辞）とURLの `#` 以降にだけ保持し、`data/` には保存しない。
@@ -286,12 +293,17 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   この順に見出し付きで置く領域であり、「全体コメント」「新規カード追加」はこの領域に置かない（右側`board-area`のダイアログ側に置く。
   AC-CC1-2参照）。やり取り機能そのもの（対話UI等）の実装は別変更で行う。
 - AC-B3-1: ビューポート幅1280px以上では、ボードの列を2〜3列のグリッドで並べる。
-- AC-VR4-1: ヘッダーの「セッション一覧」「コスト」「モデル設定」「表示設定」「ショートカット」のツールボタンは、1つのツール群（`role="group"`・`aria-label="ツール"`）にまとめる。
+- AC-VR4-1: ヘッダーの「セッション一覧」「コスト」「スキル」「todo-import」「モデル設定」「表示設定」「ショートカット」のツールボタンは、1つのツール群（`role="group"`・`aria-label="ツール"`）にまとめる。
+- AC-TI-1: ヘッダーの「todo-import」ボタンでAC-TI-SRV-1を呼び、「todo-importを開始しました」（起動済みなら「todo-importは実行中です」）と通知する。
+  未信頼ディレクトリはAC-WT-1と同じく「信頼して再試行」を出し、失敗はAC-H2-2に従い通知する。ジョブが `working`・`blocked` の間はボタンに `aria-busy="true"` を付ける。
+- AC-TI-2: ページ読み込み時とAC-TI-1の起動後に、AC-TI-SRV-3を5秒ごとに取り、`working`・`blocked` だったジョブが `done` になったら
+  ファイル一覧を取り直して最新のtodoファイルを読み込み、「todo-importが完了しました」と通知する。`blocked` になったら「todo-importが回答を待っています（セッション一覧で回答）」、
+  `failed` になったら「todo-importが失敗しました」と1回ずつ通知する。ジョブが `working`・`blocked` でなくなったら取得を止める。
 - AC-UX3-1: ビューポート幅900px未満では、左側パネルをボードの上に縦積みにする（AC-B2-1の幅固定・stickyを解除し、全幅で表示する）。
   幅320pxでも `document.documentElement.scrollWidth` が `clientWidth` を超えず（横スクロールが出ない）、ボードの幅が0より大きく操作できる。
 - AC-B5-1: 左側パネルの「今日の進捗」は、カード単位（完了/全体）とタスク単位（完了/全体）の両方を表示する。`#status` に同じ進捗を重ねて出さない。
   ヘッダーのロゴの円環はカード単位の完了率を示す（装飾のため `aria-hidden`）。
-- AC-HD-1: ヘッダーはロゴ・再読込と、設定系のツールボタン（セッション一覧・コスト・モデル設定・表示設定・ショートカット）を1段に置く。
+- AC-HD-1: ヘッダーはロゴ・再読込と、設定系のツールボタン（セッション一覧・コスト・スキル・todo-import・モデル設定・表示設定・ショートカット）を1段に置く。
   ツールボタンはアイコンのみで、名称を `aria-label` と、ホバー・キーボードフォーカス時のツールチップで示す。
 - AC-MS-1: ヘッダーの「モデル設定」ボタンで `<dialog>` を開き、グローバル設定（model・effortLevel・モデル別effortLevel）を
   読み取り専用で表示する。同じダイアログでviewer起動分のmodel（候補: 未設定/opus/sonnet/haiku/fable、自由入力可）と

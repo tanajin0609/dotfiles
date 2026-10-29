@@ -1060,6 +1060,7 @@
     <div class="hdr-tools" role="group" aria-label="ツール">
       <button id="sessionListBtn" type="button" class="btn btn-icon" aria-label="全セッションの一覧（管理・新規作成）" data-tip="セッション一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
       <button id="costBtn" type="button" class="btn btn-icon" aria-label="コストダッシュボードを新しいタブで開く" data-tip="コスト"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.6 0-4.5 1.3-4.5 3.2 0 4.3 9 2.4 9 6.6 0 1.9-1.9 3.2-4.5 3.2-2.2 0-3.9-.9-4.7-2.2"/></svg></button>
+      <button id="todoImportBtn" type="button" class="btn btn-icon" aria-label="/todo-importを実行（backlog.mdから今日のtodoを作る）" data-tip="todo-import"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></button>
       <button id="skillsBtn" type="button" class="btn btn-icon" aria-label="スキル一覧・スキル作成" data-tip="スキル"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h6M8 11h4"/></svg></button>
       <button id="modelSettingsBtn" type="button" class="btn btn-icon" aria-label="Claude Codeのモデル設定（model・effort）" data-tip="モデル設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
       <span class="hdr-sep" aria-hidden="true"></span>
@@ -5607,6 +5608,73 @@ async function openSkillsDialog() {
   skillsDialogTimer = setInterval(refreshSkillSessions, 5000);
 }
 
+const TODO_IMPORT_POLL_MS = 5000;
+let todoImportPollTimer = null;
+let todoImportLastState = null;
+
+function isTodoImportActive(state) {
+  return state === 'working' || state === 'blocked';
+}
+
+async function pollTodoImport() {
+  const response = await fetchJson('/api/todo-import');
+  const session = response.ok && response.data ? response.data.session : null;
+  const state = session ? session.state : null;
+  const previous = todoImportLastState;
+  todoImportLastState = state;
+  document.getElementById('todoImportBtn').setAttribute('aria-busy', String(isTodoImportActive(state)));
+  if (isTodoImportActive(previous) && state !== previous) {
+    if (state === 'done') {
+      const files = await loadFileList();
+      if (files.length) await loadBoard(files[0]);
+      showToast('todo-importが完了しました');
+    } else if (state === 'blocked') {
+      showToast('todo-importが回答を待っています（セッション一覧で回答）');
+    } else if (state === 'failed') {
+      showToast('todo-importが失敗しました', { kind: 'error' });
+    }
+  }
+  if (!isTodoImportActive(state)) {
+    clearInterval(todoImportPollTimer);
+    todoImportPollTimer = null;
+  }
+}
+
+function watchTodoImport() {
+  // 起動直後はstate.jsonがまだ無いことがあるため、稼働中とみなして完了への遷移を取りこぼさない。
+  todoImportLastState = 'working';
+  if (!todoImportPollTimer) todoImportPollTimer = setInterval(pollTodoImport, TODO_IMPORT_POLL_MS);
+}
+
+// 起動後にページを開き直しても、完了時の最新ファイルへの切り替えを効かせる。
+async function resumeTodoImportWatch() {
+  const response = await fetchJson('/api/todo-import');
+  const state = response.ok && response.data && response.data.session ? response.data.session.state : null;
+  if (isTodoImportActive(state)) {
+    watchTodoImport();
+    todoImportLastState = state;
+    document.getElementById('todoImportBtn').setAttribute('aria-busy', 'true');
+  }
+}
+
+async function startTodoImport() {
+  const button = document.getElementById('todoImportBtn');
+  button.disabled = true;
+  const response = await postJson('/api/todo-import', {});
+  button.disabled = false;
+  if (isUntrustedWorkspace(response)) {
+    showUntrustedWorkspaceToast(response.data.cwd, startTodoImport);
+    return;
+  }
+  if (!response.ok) {
+    showFailureToast(`todo-importの起動に失敗しました: ${formatFailureReason(response)}`, startTodoImport);
+    return;
+  }
+  showToast(response.data.launched ? 'todo-importを開始しました' : 'todo-importは実行中です');
+  button.setAttribute('aria-busy', 'true');
+  watchTodoImport();
+}
+
 async function createSkill() {
   const input = document.getElementById('skillRequestInput');
   const text = input.value.trim();
@@ -5960,6 +6028,7 @@ async function init() {
   refreshRateLimits();
   setInterval(refreshRateLimits, 60000);
   document.getElementById('skillsBtn').addEventListener('click', openSkillsDialog);
+  document.getElementById('todoImportBtn').addEventListener('click', startTodoImport);
   const skillsDialog = document.getElementById('skillsDialog');
   document.getElementById('skillsCloseBtn').addEventListener('click', () => skillsDialog.close());
   skillsDialog.addEventListener('click', (e) => {
@@ -6045,6 +6114,7 @@ async function init() {
     closeActionMenu(false);
   });
 
+  resumeTodoImportWatch();
   const files = await loadFileList();
   if (files.length === 0) {
     document.getElementById('status').textContent = 'todo-*.md が見つかりません';
