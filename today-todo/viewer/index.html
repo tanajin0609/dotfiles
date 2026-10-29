@@ -3185,8 +3185,8 @@ function onActionMenuKeydown(e) {
 
 function renderBoard() {
   const board = document.getElementById('board');
-  const openGroup = document.getElementById('cardDialog').open && findGroupById(lastModalGroupId);
-  if (openGroup) markGroupsSeen([openGroup]);
+  const openFound = document.getElementById('cardDialog').open && findGroupById(lastModalGroupId);
+  if (openFound) markGroupsSeen([openFound.group]);
   const { focusKey: focusedKey } = captureFocusReturn();
   const openedMenuSnapshot = captureOpenedActionMenu();
   closeActionMenu(false);
@@ -3988,10 +3988,6 @@ function saveSeenRecords() {
 
 function allBoardGroups() {
   return boardData ? boardData.columns.flatMap((c) => c.groups) : [];
-}
-
-function findGroupById(groupId) {
-  return allBoardGroups().find((g) => g.id === groupId) || null;
 }
 
 function markGroupsSeen(groups) {
