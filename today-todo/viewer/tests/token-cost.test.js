@@ -173,7 +173,9 @@ test('/costs はコストダッシュボードのHTMLを返す', async () => {
     const res = await fetch(`${server.baseUrl}/costs`);
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
-    assert.match(await res.text(), /<title>コストダッシュボード<\/title>/);
+    const html = await res.text();
+    assert.match(html, /<title>コストダッシュボード<\/title>/);
+    assert.match(html, /<a href="\/"[^>]*>← ボードに戻る<\/a>/);
   } finally {
     await server.stop();
   }

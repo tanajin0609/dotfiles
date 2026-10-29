@@ -26,6 +26,7 @@
   main { max-width: 1200px; margin: 0 auto; padding: 24px; display: grid; gap: 24px; }
   h1 { font-size: 20px; margin: 0; }
   h2 { font-size: 15px; margin: 0 0 12px; }
+  .back-link { display: inline-block; margin-bottom: 8px; color: var(--text-secondary); font-size: 13px; }
   .hint { color: var(--text-secondary); font-size: 12px; margin: 4px 0 0; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
   .tile, .panel { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
@@ -53,6 +54,7 @@
 <body>
 <main>
   <header>
+    <a href="/" class="back-link">← ボードに戻る</a>
     <h1>コストダッシュボード</h1>
     <p class="hint">Anthropic API単価で換算した概算（USD）です。実請求額ではありません。対象は全Claude Codeセッション（サブエージェント含む）。</p>
   </header>
