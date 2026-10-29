@@ -452,7 +452,24 @@
     min-height: 56px; padding: 10px 20px;
     display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
   }
-  .brand { display: flex; align-items: center; gap: 10px; flex: 0 0 calc(var(--sidebar-w) - 32px); min-width: 0; }
+  .brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; min-width: calc(var(--sidebar-w) - 32px); }
+  .todo-import-btn { position: relative; overflow: hidden; }
+  .todo-import-status:empty { display: none; }
+  .todo-import-status { font-size: var(--fs-xs); font-weight: 600; }
+  .todo-import-gauge { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; display: none; }
+  .todo-import-btn[data-state] .todo-import-gauge { display: block; }
+  .todo-import-btn[data-state="working"] .todo-import-gauge {
+    background: linear-gradient(90deg, transparent 0 30%, var(--state-working) 30% 70%, transparent 70%) 0 0 / 200% 100%;
+    animation: todo-import-flow 1.2s linear infinite;
+  }
+  .todo-import-btn[data-state="blocked"] .todo-import-gauge, .todo-import-btn[data-state="failed"] .todo-import-gauge { background: var(--state-blocked); }
+  .todo-import-btn[data-state="done"] .todo-import-gauge { background: var(--state-done); }
+  .todo-import-btn[data-state="blocked"] .todo-import-status, .todo-import-btn[data-state="failed"] .todo-import-status { color: var(--state-blocked); }
+  .todo-import-btn[data-state="done"] .todo-import-status { color: var(--state-done); }
+  @keyframes todo-import-flow { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .todo-import-btn[data-state="working"] .todo-import-gauge { animation: none; background: var(--state-working); }
+  }
   /* 今日のカード完了率をロゴの円環に重ねる（--today-pct はrenderHeaderが入れる）。 */
   .brand-mark {
     width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto; display: grid; place-items: center; color: var(--accent);
@@ -1055,12 +1072,12 @@
       <h1 class="app-title">Today Todo</h1>
       <span class="date-badge" id="dateBadge"></span>
       <button id="reloadBtn" type="button" class="btn btn-icon" aria-label="再読込" data-tip="再読込"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+      <button id="todoImportBtn" type="button" class="btn btn-secondary btn--sm todo-import-btn" data-tip="/todo-importを実行（backlog.mdから今日のtodoを作る）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg><span>todo-import</span> <span class="todo-import-status" id="todoImportStatus"></span><span class="todo-import-gauge" aria-hidden="true"></span></button>
     </div>
     <div class="hdr-spacer"></div>
     <div class="hdr-tools" role="group" aria-label="ツール">
       <button id="sessionListBtn" type="button" class="btn btn-icon" aria-label="全セッションの一覧（管理・新規作成）" data-tip="セッション一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
       <button id="costBtn" type="button" class="btn btn-icon" aria-label="コストダッシュボードを開く" data-tip="コスト"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.6 0-4.5 1.3-4.5 3.2 0 4.3 9 2.4 9 6.6 0 1.9-1.9 3.2-4.5 3.2-2.2 0-3.9-.9-4.7-2.2"/></svg></button>
-      <button id="todoImportBtn" type="button" class="btn btn-icon" aria-label="/todo-importを実行（backlog.mdから今日のtodoを作る）" data-tip="todo-import"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></button>
       <button id="skillsBtn" type="button" class="btn btn-icon" aria-label="スキル一覧・スキル作成" data-tip="スキル"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h6M8 11h4"/></svg></button>
       <button id="modelSettingsBtn" type="button" class="btn btn-icon" aria-label="Claude Codeのモデル設定（model・effort）" data-tip="モデル設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
       <span class="hdr-sep" aria-hidden="true"></span>
@@ -5604,6 +5621,17 @@ const TODO_IMPORT_POLL_MS = 5000;
 let todoImportPollTimer = null;
 let todoImportLastState = null;
 
+const TODO_IMPORT_STATUS_LABELS = { working: '実行中', blocked: '回答待ち', done: '完了', failed: '失敗' };
+
+// stateがnull（未実行・前回分の結果）のときはゲージを出さない。
+function renderTodoImportGauge(state) {
+  const button = document.getElementById('todoImportBtn');
+  const label = TODO_IMPORT_STATUS_LABELS[state];
+  if (label) button.dataset.state = state; else delete button.dataset.state;
+  document.getElementById('todoImportStatus').textContent = label || '';
+  button.setAttribute('aria-busy', String(isTodoImportActive(state)));
+}
+
 function isTodoImportActive(state) {
   return state === 'working' || state === 'blocked';
 }
@@ -5614,7 +5642,7 @@ async function pollTodoImport() {
   const state = session ? session.state : null;
   const previous = todoImportLastState;
   todoImportLastState = state;
-  document.getElementById('todoImportBtn').setAttribute('aria-busy', String(isTodoImportActive(state)));
+  renderTodoImportGauge(isTodoImportActive(previous) || isTodoImportActive(state) ? state : null);
   if (isTodoImportActive(previous) && state !== previous) {
     if (state === 'done') {
       const files = await loadFileList();
@@ -5635,6 +5663,7 @@ async function pollTodoImport() {
 function watchTodoImport() {
   // 起動直後はstate.jsonがまだ無いことがあるため、稼働中とみなして完了への遷移を取りこぼさない。
   todoImportLastState = 'working';
+  renderTodoImportGauge('working');
   if (!todoImportPollTimer) todoImportPollTimer = setInterval(pollTodoImport, TODO_IMPORT_POLL_MS);
 }
 
@@ -5645,7 +5674,7 @@ async function resumeTodoImportWatch() {
   if (isTodoImportActive(state)) {
     watchTodoImport();
     todoImportLastState = state;
-    document.getElementById('todoImportBtn').setAttribute('aria-busy', 'true');
+    renderTodoImportGauge(state);
   }
 }
 
@@ -5663,7 +5692,6 @@ async function startTodoImport() {
     return;
   }
   showToast(response.data.launched ? 'todo-importを開始しました' : 'todo-importは実行中です');
-  button.setAttribute('aria-busy', 'true');
   watchTodoImport();
 }
 
