@@ -615,8 +615,9 @@
   }
   .column-header {
     display: flex; flex-direction: column; gap: 5px;
-    padding: 12px 84px 10px 6px;
+    padding: 12px 84px 10px 6px; cursor: grab;
   }
+  .column-wrap.column-dragging { opacity: .5; }
   @media (min-width: 900px) {
     .board-area { height: calc(100vh - var(--header-h)); padding-bottom: 18px; }
     #board { flex: 1 1 auto; min-height: 0; flex-direction: row; align-items: flex-start; overflow-x: auto; padding-bottom: 6px; }
@@ -3106,6 +3107,17 @@ function renderBoard() {
     columnEl.setAttribute('aria-label', `${column.name} ${column.groups.length}件`);
     const { header, describedBy } = buildColumnHeader(column, colIndex);
     columnEl.setAttribute('aria-describedby', describedBy);
+    header.draggable = true;
+    header.addEventListener('dragstart', (e) => {
+      draggingColumnName = column.name;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', column.name);
+      wrap.classList.add('column-dragging');
+    });
+    header.addEventListener('dragend', () => {
+      draggingColumnName = null;
+      wrap.classList.remove('column-dragging');
+    });
     columnEl.appendChild(header);
 
     const openMatches = visibleMatches.filter((m) => !m.group.done && statusOf(m.group) !== 'hold');
@@ -4182,11 +4194,46 @@ function onDragOver(e) {
 
 async function onDrop(e) {
   e.preventDefault();
+  if (!document.querySelector('.group-card.dragging')) return;
   const list = e.currentTarget;
   const columnName = list.parentElement.dataset.column;
   const shownIds = [...list.querySelectorAll('.group-card')].map((c) => c.dataset.id);
 
   await saveColumnOrder(currentFile, columnName, mergeShownOrder(columnName, shownIds), { isDomAlreadyReordered: true });
+}
+
+let draggingColumnName = null;
+
+function onColumnDragOver(e) {
+  if (!draggingColumnName) return;
+  e.preventDefault();
+  const board = e.currentTarget;
+  const draggingWrap = board.querySelector('.column-wrap.column-dragging');
+  if (!draggingWrap) return;
+  const isRow = getComputedStyle(board).flexDirection === 'row';
+  const pointer = isRow ? e.clientX : e.clientY;
+  const after = [...board.querySelectorAll(':scope > .column-wrap:not([hidden])')].find((wrap) => {
+    if (wrap === draggingWrap) return false;
+    const rect = wrap.getBoundingClientRect();
+    return pointer < (isRow ? rect.left + rect.width / 2 : rect.top + rect.height / 2);
+  });
+  if (after) board.insertBefore(draggingWrap, after);
+  else board.appendChild(draggingWrap);
+}
+
+// 絞り込みで隠れている列もDOMには残っているため、DOMの並びをそのまま保存すれば隠れた列の位置も保たれる。
+async function onColumnDrop(e) {
+  if (!draggingColumnName) return;
+  e.preventDefault();
+  const names = [...e.currentTarget.querySelectorAll(':scope > .column-wrap > .column')].map((c) => c.dataset.column);
+  const byName = new Map(boardData.columns.map((c) => [c.name, c]));
+  boardData.columns = names.map((name) => byName.get(name)).filter(Boolean);
+  renderBoard();
+  const response = await postJson('/api/column-order', { order: names });
+  if (!response.ok) {
+    showFailureToast(`列の並び順の保存に失敗しました: ${formatFailureReason(response)}`, () => loadBoard(currentFile));
+    await loadBoard(currentFile);
+  }
 }
 
 // 絞り込み中のリストには一部のカードしか無いため、非表示のカードは元の位置に残し、表示中のカードの位置だけを入れ替える。
@@ -5972,6 +6019,8 @@ async function init() {
   document.getElementById('skillsBtn').addEventListener('click', openSkillsDialog);
   document.getElementById('todoImportBtn').addEventListener('click', startTodoImport);
   document.getElementById('markAllSeenBtn').addEventListener('click', markAllSeen);
+  document.getElementById('board').addEventListener('dragover', onColumnDragOver);
+  document.getElementById('board').addEventListener('drop', onColumnDrop);
   const skillsDialog = document.getElementById('skillsDialog');
   document.getElementById('skillsCloseBtn').addEventListener('click', () => skillsDialog.close());
   skillsDialog.addEventListener('click', (e) => {

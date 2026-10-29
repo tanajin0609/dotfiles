@@ -44,6 +44,7 @@ const SKILL_CWD = process.env.VIEWER_SKILL_CWD
   : path.join(os.homedir(), '.claude');
 const SKILL_SESSIONS_PATH = path.join(DATA_DIR, 'skill-sessions.json');
 const TODO_IMPORT_SESSION_PATH = path.join(DATA_DIR, 'todo-import-session.json');
+const COLUMN_ORDER_PATH = path.join(DATA_DIR, 'column-order.json');
 
 const CLAUDE_PROJECTS_DIR = process.env.VIEWER_CLAUDE_PROJECTS_DIR
   ? path.resolve(process.env.VIEWER_CLAUDE_PROJECTS_DIR)
@@ -637,6 +638,21 @@ function attachProjectHints(board) {
       if (hint) group.projectHint = hint;
     }
   }
+  return board;
+}
+
+function applyColumnOrder(board) {
+  let order;
+  try {
+    order = JSON.parse(fs.readFileSync(COLUMN_ORDER_PATH, 'utf-8'));
+  } catch {
+    return board;
+  }
+  if (!Array.isArray(order)) return board;
+  const rank = new Map(order.map((name, i) => [name, i]));
+  const rankOf = (column) => (rank.has(column.name) ? rank.get(column.name) : order.length);
+  // Array.prototype.sortは安定なので、記録に無い列同士は元の順を保つ。
+  board.columns = [...board.columns].sort((a, b) => rankOf(a) - rankOf(b));
   return board;
 }
 
@@ -1509,6 +1525,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 500, { error: 'parse failed', detail: String(err.message || err) });
     }
     board = applySavedOrder(board, file);
+    board = applyColumnOrder(board);
     board = attachSessions(board, file);
     board = attachComments(board, file);
     board = attachProjectHints(board);
@@ -1543,6 +1560,22 @@ const server = http.createServer(async (req, res) => {
     const { md, items } = syncColumnSection(fs.readFileSync(filePath, 'utf-8'), column, columnDir);
     fs.writeFileSync(filePath, md);
     return sendJson(res, 200, { items });
+  }
+
+  if (url.pathname === '/api/column-order' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const order = payload && payload.order;
+    if (!Array.isArray(order) || !order.every((name) => typeof name === 'string')) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(COLUMN_ORDER_PATH, JSON.stringify(order));
+    return sendJson(res, 200, { order });
   }
 
   if (url.pathname === '/api/board/version' && req.method === 'GET') {
