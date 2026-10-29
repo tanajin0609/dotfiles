@@ -591,7 +591,6 @@
 
   /* ---------- ボードのツールバー ---------- */
   .board-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .board-toolbar .seg-group { display: inline-flex; padding: 2px; border-radius: var(--radius); background: var(--chip-bg); }
   .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: -4px; }
   .filter-bar-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-mute); }
   .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -609,28 +608,23 @@
 
   /* ---------- 列 ---------- */
   #board { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
-  @media (min-width: 1280px) {
-    #board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
-  }
-  @media (min-width: 1680px) {
-    #board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  }
   .column-wrap { position: relative; min-width: 0; }
   .column {
     min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-lg);
     background: var(--surface); padding: 0 8px 8px;
   }
-  .column:not([open]) { background: var(--raised); box-shadow: var(--shadow-sm); }
   .column-header {
     display: flex; flex-direction: column; gap: 5px;
-    padding: 12px 84px 10px 6px; cursor: pointer; list-style: none;
-    scroll-margin-top: calc(var(--header-h) + 8px);
+    padding: 12px 84px 10px 6px;
   }
-  .column-header::-webkit-details-marker { display: none; }
+  @media (min-width: 900px) {
+    .board-area { height: calc(100vh - var(--header-h)); padding-bottom: 18px; }
+    #board { flex: 1 1 auto; min-height: 0; flex-direction: row; align-items: flex-start; overflow-x: auto; padding-bottom: 6px; }
+    .column-wrap { flex: 0 0 300px; max-height: 100%; display: flex; flex-direction: column; }
+    .column { min-height: 0; overflow-y: auto; }
+    .column-header { position: sticky; top: 0; z-index: 1; background: inherit; }
+  }
   .column-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .column-header .chevron { width: 12px; flex: 0 0 auto; color: var(--ink-mute); font-size: var(--fs-xs); transition: transform .15s; }
-  .column-header .chevron::before { content: "▸"; }
-  .column[open] > .column-header .chevron::before { content: "▾"; }
   .column-header .dot { width: 8px; height: 8px; border-radius: 3px; flex: 0 0 auto; }
   .column-header .name {
     font-size: var(--fs-sm); font-weight: 700;
@@ -980,7 +974,7 @@
   .card-session .session-detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .modal-progress-row { display: contents; }
   .modal-progress { display: none; }
-  [data-skin="sticky"] .column, [data-skin="sticky"] .column:not([open]) {
+  [data-skin="sticky"] .column {
     border-color: transparent; box-shadow: none;
     background: hsl(var(--col-hue, 0) var(--col-tint-sat) var(--col-tint-light));
   }
@@ -1068,7 +1062,7 @@
       <button id="skillsBtn" type="button" class="btn btn-icon" aria-label="スキル一覧・スキル作成" data-tip="スキル"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h6M8 11h4"/></svg></button>
       <button id="modelSettingsBtn" type="button" class="btn btn-icon" aria-label="Claude Codeのモデル設定（model・effort）" data-tip="モデル設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
       <span class="hdr-sep" aria-hidden="true"></span>
-      <button id="settingsToggle" type="button" class="btn btn-icon" popovertarget="settingsPopover" aria-label="表示設定（テーマ・列の初期表示）" data-tip="表示設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+      <button id="settingsToggle" type="button" class="btn btn-icon" popovertarget="settingsPopover" aria-label="表示設定（テーマ）" data-tip="表示設定"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
       <button id="shortcutHelpBtn" type="button" class="btn btn-icon" aria-label="キーボードショートカット一覧（?）" data-tip="ショートカット"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 17h.01"/></svg></button>
     </div>
   </div>
@@ -1098,14 +1092,6 @@
       <option value="paper">Paper（生成り＋ティール）</option>
       <option value="console">Console（暗い枠＋明るいボード）</option>
       <option value="sticky">Sticky（列色の付箋）</option>
-    </select>
-  </div>
-  <div class="field">
-    <label for="initialOpenModeSelect" class="field-label">列の初期表示（全ファイル共通）</label>
-    <select id="initialOpenModeSelect">
-      <option value="closed">すべて閉じる</option>
-      <option value="active">未完了・稼働中のある列だけ開く</option>
-      <option value="restore">前回の開閉を復元</option>
     </select>
   </div>
 </div>
@@ -1145,10 +1131,6 @@
   <section class="board-area" aria-label="ボード">
     <div class="board-toolbar">
       <button id="globalCommentsOpenBtn" type="button" class="btn btn-secondary" aria-label="全体コメント" data-tip="全体コメント"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg><span>All</span></button>
-      <div class="seg-group">
-        <button id="openAllColumnsBtn" type="button" class="btn btn-icon btn--sm" aria-label="すべて開く" data-tip="すべて開く"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/></svg></button>
-        <button id="closeAllColumnsBtn" type="button" class="btn btn-icon btn--sm" aria-label="すべて閉じる" data-tip="すべて閉じる"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/></svg></button>
-      </div>
       <div class="search-field">
         <label for="searchInput" class="sr-only">カード名・タスク本文で検索</label>
         <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
@@ -1345,7 +1327,6 @@
         <dt><kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>選択中のカードを列内で上 / 下へ移動</dd>
         <dt><kbd>/</kbd></dt><dd>検索欄へ</dd>
         <dt><kbd>f</kbd></dt><dd>フォーカスモードの開始 / 終了</dd>
-        <dt><kbd>[</kbd> / <kbd>]</kbd></dt><dd>すべての列を閉じる / 開く</dd>
         <dt><kbd>?</kbd></dt><dd>この一覧を開く</dd>
       </dl>
       <h3 class="shortcut-section">フォーカスモード</h3>
@@ -1583,17 +1564,12 @@ let groupStatuses = {};
 const openHoldColumns = new Set();
 let searchQuery = '';
 const activeFilterIds = new Set();
-let openColumnsBeforeFilter = new Set();
-let pendingOpenColumnNames = null;
 let failedBoardFile = null;
 let loadedBoardMtimeMs = null;
 let notifiedBoardMtimeMs = null;
 let dismissBoardUpdatedToast = null;
 let ownBoardWriteCount = 0;
 
-const INITIAL_OPEN_MODE_KEY = 'viewer:initialOpenMode';
-const INITIAL_OPEN_MODES = ['closed', 'active', 'restore'];
-const OPEN_COLUMNS_KEY_PREFIX = 'viewer:openColumns:';
 const STARRED_KEY_PREFIX = 'viewer:starred:';
 const FOCUS_TARGET_ALL_OPEN = 'all-open';
 const FOCUS_TARGET_STARRED = 'starred';
@@ -2441,7 +2417,6 @@ function showBoardLoadError(file, response) {
   failedBoardFile = file;
   boardData = null;
   renderedBoardFile = null;
-  pendingOpenColumnNames = null;
   if (focusMode) exitFocusMode();
   document.getElementById('cardDialog').close();
   document.getElementById('board').innerHTML = '';
@@ -2813,50 +2788,6 @@ function summarizeColumn(column) {
   };
 }
 
-function loadInitialOpenMode() {
-  const saved = localStorage.getItem(INITIAL_OPEN_MODE_KEY);
-  return INITIAL_OPEN_MODES.includes(saved) ? saved : 'closed';
-}
-
-function loadSavedOpenColumnNames(file) {
-  try {
-    const names = JSON.parse(localStorage.getItem(OPEN_COLUMNS_KEY_PREFIX + file));
-    return new Set(Array.isArray(names) ? names : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function readOpenColumnNamesFromDom() {
-  return new Set([...document.querySelectorAll('#board details.column[open]')].map((d) => d.dataset.column));
-}
-
-// 検索・絞り込み中の開閉は一時的な表示なので、復元用の保存状態を上書きしない。
-function saveOpenColumnNames() {
-  if (!renderedBoardFile || isBoardFilterActive()) return;
-  localStorage.setItem(OPEN_COLUMNS_KEY_PREFIX + renderedBoardFile, JSON.stringify([...readOpenColumnNamesFromDom()]));
-}
-
-function onColumnToggled() {
-  saveOpenColumnNames();
-  syncUrlHash();
-}
-
-function hasActiveWork(column) {
-  return column.groups.some((g) => !g.done || (g.session && g.session.state === 'working'));
-}
-
-function resolveInitialOpenColumnNames() {
-  const mode = loadInitialOpenMode();
-  if (mode === 'active') return new Set(boardData.columns.filter(hasActiveWork).map((c) => c.name));
-  if (mode === 'restore') return loadSavedOpenColumnNames(currentFile);
-  return new Set();
-}
-
-function setAllColumnsOpen(isOpen) {
-  for (const details of document.querySelectorAll('#board details.column')) details.open = isOpen;
-}
-
 const BOARD_FILTERS = {
   incomplete: (group) => !group.done,
   commented: (group) => !!(group.comments && group.comments.length > 0),
@@ -2888,18 +2819,11 @@ function listVisibleGroupMatches(column) {
   });
 }
 
-function listColumnNamesWithVisibleGroups() {
-  return new Set(boardData.columns.filter((c) => listVisibleGroupMatches(c).length > 0).map((c) => c.name));
-}
-
 function updateBoardFilter(applyChange) {
   const wasFiltering = isBoardFilterActive();
-  if (!wasFiltering && boardData && renderedBoardFile === currentFile) openColumnsBeforeFilter = readOpenColumnNamesFromDom();
   applyChange();
   renderFilterChips();
-  const isFiltering = isBoardFilterActive();
-  if (!boardData || (!wasFiltering && !isFiltering)) return;
-  pendingOpenColumnNames = isFiltering ? listColumnNamesWithVisibleGroups() : new Set(openColumnsBeforeFilter);
+  if (!boardData || (!wasFiltering && !isBoardFilterActive())) return;
   renderBoard();
 }
 
@@ -2927,39 +2851,14 @@ function appendHighlightedText(parent, text) {
   parent.append(text.slice(from));
 }
 
-function resolveRenderOpenColumnNames(board) {
-  if (pendingOpenColumnNames) {
-    const names = pendingOpenColumnNames;
-    pendingOpenColumnNames = null;
-    return names;
-  }
-  if (renderedBoardFile === currentFile) {
-    const names = readOpenColumnNamesFromDom();
-    // 絞り込み中に一致が現れた列（前回は非表示）は、手で開かなくても中身が見えるようにする。
-    if (isBoardFilterActive()) {
-      for (const details of board.querySelectorAll('.column-wrap[hidden] details.column')) names.add(details.dataset.column);
-    }
-    return names;
-  }
-  const initialNames = resolveInitialOpenColumnNames();
-  if (!isBoardFilterActive()) return initialNames;
-  openColumnsBeforeFilter = initialNames;
-  return listColumnNamesWithVisibleGroups();
-}
-
 function buildColumnHeader(column, colIndex) {
-  const summary = document.createElement('summary');
-  summary.className = 'column-header';
-  summary.dataset.focusKey = `column:${column.name}`;
-  summary.setAttribute('aria-label', `${column.name} ${column.groups.length}件`);
+  const header = document.createElement('div');
+  header.className = 'column-header';
   const stats = summarizeColumn(column);
   const describedByIds = [];
 
   const titleRow = document.createElement('span');
   titleRow.className = 'column-title-row';
-  const chevron = document.createElement('span');
-  chevron.className = 'chevron';
-  chevron.setAttribute('aria-hidden', 'true');
   const dot = document.createElement('span');
   dot.className = 'dot';
   const name = document.createElement('span');
@@ -2968,7 +2867,6 @@ function buildColumnHeader(column, colIndex) {
   const count = document.createElement('span');
   count.className = 'column-count';
   count.textContent = String(column.groups.length);
-  titleRow.appendChild(chevron);
   titleRow.appendChild(dot);
   titleRow.appendChild(name);
   titleRow.appendChild(count);
@@ -2980,7 +2878,7 @@ function buildColumnHeader(column, colIndex) {
     titleRow.appendChild(doneBadge);
     describedByIds.push(doneBadge.id);
   }
-  summary.appendChild(titleRow);
+  header.appendChild(titleRow);
 
   const statsRow = document.createElement('span');
   statsRow.className = 'column-stats';
@@ -3017,18 +2915,17 @@ function buildColumnHeader(column, colIndex) {
     commentStat.textContent = `コメント ${stats.commentCount}`;
     statsRow.appendChild(commentStat);
   }
-  summary.appendChild(statsRow);
+  header.appendChild(statsRow);
 
   if (stats.firstOpenTask) {
     const next = document.createElement('span');
     next.className = 'column-next';
     next.id = `col-${colIndex}-next`;
     next.textContent = `次: ${plainTextFromMarkdown(splitTaskSource(stats.firstOpenTask.text).body)}`;
-    summary.appendChild(next);
+    header.appendChild(next);
     describedByIds.push(next.id);
   }
-  summary.setAttribute('aria-describedby', describedByIds.join(' '));
-  return summary;
+  return { header, describedBy: describedByIds.join(' ') };
 }
 
 function buildColumnMenuItems(column) {
@@ -3190,9 +3087,6 @@ function renderBoard() {
   const { focusKey: focusedKey } = captureFocusReturn();
   const openedMenuSnapshot = captureOpenedActionMenu();
   closeActionMenu(false);
-  // 同じファイルの再描画では<details>を作り直すため、開閉状態を列名で覚えておいて復元する
-  // （5秒間隔のrefreshSessionsやカード更新のたびに開いた列が閉じてしまわないようにするため）。
-  const openColumns = resolveRenderOpenColumnNames(board);
   const isFiltering = isBoardFilterActive();
   let visibleColumnCount = 0;
   board.innerHTML = '';
@@ -3204,14 +3098,15 @@ function renderBoard() {
     if (!wrap.hidden) visibleColumnCount += 1;
     applyColumnHue(wrap, column.name);
 
-    const columnEl = document.createElement('details');
+    const columnEl = document.createElement('section');
     columnEl.className = 'column';
     columnEl.dataset.column = column.name;
     columnEl.id = `col-${colIndex}`;
-    columnEl.open = openColumns.has(column.name);
-    columnEl.setAttribute('aria-label', column.name);
-    columnEl.addEventListener('toggle', onColumnToggled);
-    columnEl.appendChild(buildColumnHeader(column, colIndex));
+    columnEl.setAttribute('role', 'group');
+    columnEl.setAttribute('aria-label', `${column.name} ${column.groups.length}件`);
+    const { header, describedBy } = buildColumnHeader(column, colIndex);
+    columnEl.setAttribute('aria-describedby', describedBy);
+    columnEl.appendChild(header);
 
     const openMatches = visibleMatches.filter((m) => !m.group.done && statusOf(m.group) !== 'hold');
     const holdMatches = visibleMatches.filter((m) => !m.group.done && statusOf(m.group) === 'hold');
@@ -5224,13 +5119,10 @@ async function copyPrompt(scopeLabel, pairs) {
   }
 }
 
-// 検索・絞り込み中の開閉は一時的な表示なので、URLには絞り込み前の開閉を載せる。
 function syncUrlHash() {
   if (!boardData || renderedBoardFile !== currentFile) return;
   const params = new URLSearchParams();
   params.set('file', currentFile);
-  const openNames = isBoardFilterActive() ? openColumnsBeforeFilter : readOpenColumnNamesFromDom();
-  for (const name of openNames) params.append('open', name);
   if (focusMode && focusTarget) params.set('focus', focusTarget);
   if (modalGroup && document.getElementById('cardDialog').open) params.set('card', modalGroup.id);
   history.replaceState(null, '', `#${params}`);
@@ -5242,7 +5134,6 @@ function readUrlHashState() {
   if (!file) return null;
   return {
     file,
-    openColumnNames: params.getAll('open'),
     focusTarget: params.get('focus'),
     cardId: params.get('card'),
   };
@@ -5270,11 +5161,8 @@ function findFocusedCard() {
 }
 
 function moveCardFocus(step) {
-  const cards = [...document.querySelectorAll('#board .column-wrap:not([hidden]) details.column[open] .group-card')];
-  if (cards.length === 0) {
-    showToast('開いている列がありません（] ですべての列を開けます）', { key: 'no-open-column' });
-    return;
-  }
+  const cards = [...document.querySelectorAll('#board .column-wrap:not([hidden]) .group-card')];
+  if (cards.length === 0) return;
   const index = cards.indexOf(findFocusedCard());
   const nextIndex = index === -1
     ? (step > 0 ? 0 : cards.length - 1)
@@ -5996,8 +5884,6 @@ const BOARD_SHORTCUT_ACTIONS = {
   x: completeFirstOpenTaskOfFocusedBoardCard,
   '/': focusSearchInput,
   f: toggleFocusMode,
-  '[': () => setAllColumnsOpen(false),
-  ']': () => setAllColumnsOpen(true),
   '?': openShortcutDialog,
 };
 
@@ -6153,18 +6039,6 @@ async function init() {
   document.getElementById('focusRestartBtn').addEventListener('click', restartFocusRound);
   // 共有されたURLを同じタブに貼った場合も、読み込み時と同じ手順で状態を復元する。
   window.addEventListener('hashchange', () => location.reload());
-  document.getElementById('openAllColumnsBtn').addEventListener('click', () => setAllColumnsOpen(true));
-  document.getElementById('closeAllColumnsBtn').addEventListener('click', () => setAllColumnsOpen(false));
-  const initialOpenModeSelect = document.getElementById('initialOpenModeSelect');
-  initialOpenModeSelect.value = loadInitialOpenMode();
-  initialOpenModeSelect.addEventListener('change', () => {
-    localStorage.setItem(INITIAL_OPEN_MODE_KEY, initialOpenModeSelect.value);
-    if (!boardData) return;
-    // toggleイベントは非同期で届くため、直前の開閉が未保存のまま「前回を復元」で上書きされないよう先に保存する。
-    saveOpenColumnNames();
-    renderedBoardFile = null;
-    renderBoard();
-  });
   document.addEventListener('click', (e) => {
     if (!openedActionMenu) return;
     if (openedActionMenu.menu.contains(e.target) || openedActionMenu.button.contains(e.target)) return;
@@ -6179,7 +6053,6 @@ async function init() {
   }
   const hashState = readUrlHashState();
   const isHashFileLatest = !!hashState && hashState.file === files[0];
-  if (isHashFileLatest) pendingOpenColumnNames = new Set(hashState.openColumnNames);
   const isLoaded = await loadBoard(files[0]);
   if (isLoaded && isHashFileLatest) restoreUrlViewState(hashState);
 
