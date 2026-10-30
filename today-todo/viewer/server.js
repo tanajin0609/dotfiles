@@ -912,6 +912,20 @@ function isSessionBusy(jobId) {
   return !!jobState && jobState.state === 'working';
 }
 
+function isValidProjectName(name) {
+  return typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name);
+}
+
+// `<change-name>` の雛形は /init-change が変更ごとに複製する元なので、プロジェクト作成時には置かない。
+function copySddTemplate(projectDir) {
+  fs.cpSync(path.join(PROJECTS_ROOT, '_templates', 'dev'), projectDir, {
+    recursive: true,
+    force: false,
+    filter: (src) => !src.includes('<change-name>'),
+  });
+  fs.mkdirSync(path.join(projectDir, 'docs', 'changes'), { recursive: true });
+}
+
 // カードのコメント欄からセッションを起動する先のディレクトリを解決する。
 // 列名＝サブプロジェクト名の規約（todo-import skill）を前提に、カードタイトルの
 // `▸` 前半がサブプロジェクト配下の実在ディレクトリ名ならそちらを優先する。
@@ -2047,10 +2061,21 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJson(res, 400, { error: 'invalid json' });
     }
-    const { file, columnName, text, backlogPath } = payload;
+    const { file, columnName, text, createProject } = payload;
+    let { backlogPath } = payload;
     const trimmed = normalizeTaskText(text);
     if (!isValidTodoFile(file) || typeof columnName !== 'string' || !trimmed) {
       return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    if (createProject) {
+      const { subName } = createProject;
+      if (!isValidProjectName(columnName) || (subName != null && subName !== '' && !isValidProjectName(subName))) {
+        return sendJson(res, 400, { error: 'invalid project name' });
+      }
+      const projectDir = path.join(PROJECTS_ROOT, columnName, subName || '');
+      backlogPath = path.join(projectDir, 'docs', 'tasks', 'backlog.md');
+      if (fs.existsSync(backlogPath)) return sendJson(res, 409, { error: 'project already exists', backlogPath });
+      copySddTemplate(projectDir);
     }
     const targetDir = resolveLaunchCwd(columnName, '');
     if (!targetDir) {
@@ -2067,10 +2092,15 @@ const server = http.createServer(async (req, res) => {
 
     const srcMd = fs.readFileSync(sourcePath, 'utf-8');
     const maxNum = findMaxTaskNumber(srcMd);
-    const number = maxNum > 0 ? maxNum + 1 : null;
+    // テンプレートの採番ルールは「無ければ1」なので、作ったばかりのプロジェクトは無番号運用とみなさない。
+    const number = maxNum > 0 || createProject ? maxNum + 1 : null;
     const taskBody = number != null ? `#${number} ${trimmed}` : trimmed;
     const newSrcLine = `- [ ] ${taskBody}`;
-    const updatedSrc = (srcMd.endsWith('\n') ? srcMd : `${srcMd}\n`) + `${newSrcLine}\n`;
+    // テンプレートの backlog.md は末尾が「## 完了」節なので、作ったばかりのプロジェクトではその前に入れる。
+    const doneHeading = createProject ? srcMd.search(/^## 完了/m) : -1;
+    const updatedSrc = doneHeading >= 0
+      ? `${srcMd.slice(0, doneHeading)}${newSrcLine}\n\n${srcMd.slice(doneHeading)}`
+      : (srcMd.endsWith('\n') ? srcMd : `${srcMd}\n`) + `${newSrcLine}\n`;
     fs.writeFileSync(sourcePath, updatedSrc);
 
     let mirroredToAggregate = false;

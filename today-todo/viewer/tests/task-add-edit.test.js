@@ -113,3 +113,47 @@ test('タスクを削除すると、todoとbacklog.mdの両方から（継続行
   assert.equal(fs.readFileSync(backlog, 'utf-8'), '## 進行中\n\n- [ ] #6 別タスク\n');
   assert.doesNotMatch(fs.readFileSync(path.join(fixture.todoDir, fixture.todoFile), 'utf-8'), /旧本文/);
 });
+
+function writeSddTemplate(root) {
+  const dev = path.join(root, '_templates', 'dev');
+  writeBacklog(dev, '# Todo\n\n## 進行中\n\n## 完了\n');
+  fs.mkdirSync(path.join(dev, 'docs', 'specs'), { recursive: true });
+  fs.mkdirSync(path.join(dev, 'docs', 'changes', '<change-name>'), { recursive: true });
+  fs.writeFileSync(path.join(dev, 'docs', 'changes', '<change-name>', 'proposal.md'), '# Proposal\n');
+  fs.mkdirSync(path.join(dev, 'src'), { recursive: true });
+}
+
+// AC-CB-SRV-5
+test('createProject付きのカード追加は、テンプレートからSDD構成を作ってそのbacklog.mdとtodoファイルに書く', async () => {
+  const fixture = setupFixture();
+  writeSddTemplate(fixture.root);
+  await withServer(fixture, async (server) => {
+    const res = await post(server, '/api/cards', {
+      file: fixture.todoFile, columnName: 'new-col', text: '最初の要件定義', createProject: { subName: 'app' },
+    });
+    assert.equal(res.status, 200);
+    const dir = path.join(fixture.root, 'new-col', 'app');
+    assert.match(fs.readFileSync(path.join(dir, 'docs', 'tasks', 'backlog.md'), 'utf-8'), /^## 進行中\n\n- \[ \] #1 最初の要件定義\n\n## 完了\n$/m);
+    assert.ok(fs.existsSync(path.join(dir, 'docs', 'specs')));
+    assert.ok(fs.existsSync(path.join(dir, 'src')));
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'docs', 'changes')), []);
+    assert.match(fs.readFileSync(path.join(fixture.todoDir, fixture.todoFile), 'utf-8'), /^## new-col\n- \[ \] #1 最初の要件定義 → /m);
+  });
+});
+
+// AC-CB-SRV-5
+test('createProjectは不正な名前を400、既存のbacklog.mdがあれば409にして何も書かない', async () => {
+  const fixture = setupFixture();
+  writeSddTemplate(fixture.root);
+  const existing = writeBacklog(fixture.projectDir, '- [ ] #1 既存\n');
+  await withServer(fixture, async (server) => {
+    for (const [columnName, subName] of [['../x', undefined], ['ok', '_bad'], ['ok', 'a/b']]) {
+      const res = await post(server, '/api/cards', { file: fixture.todoFile, columnName, text: 'x', createProject: { subName } });
+      assert.equal(res.status, 400, `${columnName}/${subName}`);
+    }
+    const res = await post(server, '/api/cards', { file: fixture.todoFile, columnName: 'demo-project', text: 'x', createProject: {} });
+    assert.equal(res.status, 409);
+    assert.equal(fs.readFileSync(existing, 'utf-8'), '- [ ] #1 既存\n');
+  });
+  assert.ok(!fs.existsSync(path.join(fixture.root, 'ok')));
+});

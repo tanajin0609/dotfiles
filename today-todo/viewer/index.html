@@ -1514,6 +1514,12 @@
         <label for="newCardBacklogSelect" class="field-label">書き込み先</label>
         <select id="newCardBacklogSelect"></select>
       </div>
+      <div class="field" id="newCardProjectField" hidden>
+        <span class="field-label">新しいプロジェクト</span>
+        <span class="input-hint">この列には backlog.md がありません。追加すると <code>_templates/dev</code> から SDD 構成を作ります。</span>
+        <label for="newCardSubNameInput" class="field-label">サブプロジェクト名（任意）</label>
+        <input id="newCardSubNameInput" type="text" placeholder="空なら列のディレクトリ直下に作る" autocomplete="off">
+      </div>
       <div class="field">
         <label for="newCardTextInput" class="field-label">内容</label>
         <textarea id="newCardTextInput" rows="2" placeholder="新しいカードの内容を入力" aria-describedby="newCardTextHint"></textarea>
@@ -2748,7 +2754,10 @@ function submitNewCard() {
   }
   const backlogField = document.getElementById('newCardBacklogField');
   const backlogPath = backlogField.hidden ? undefined : document.getElementById('newCardBacklogSelect').value;
-  addCard(currentFile, columnName, text, backlogPath);
+  const createProject = document.getElementById('newCardProjectField').hidden
+    ? undefined
+    : { subName: document.getElementById('newCardSubNameInput').value.trim() };
+  addCard(currentFile, columnName, text, backlogPath, createProject);
 }
 
 // 列ディレクトリ配下に backlog.md が複数あるときだけ、書き込み先の選択欄を出す。
@@ -2766,13 +2775,18 @@ async function refreshNewCardBacklogTargets() {
     select.appendChild(option);
   }
   document.getElementById('newCardBacklogField').hidden = targets.length < 2;
+  document.getElementById('newCardProjectField').hidden = !(columnName && response && response.ok && targets.length === 0);
 }
 
-async function addCard(file, columnName, text, backlogPath) {
-  const response = await runOwnBoardWrite(file, () => postJson('/api/cards', { file, columnName, text, backlogPath }));
+async function addCard(file, columnName, text, backlogPath, createProject) {
+  const response = await runOwnBoardWrite(file, () => postJson('/api/cards', { file, columnName, text, backlogPath, createProject }));
   if (!response.ok) {
-    showFailureToast(`カード追加に失敗しました: ${formatFailureReason(response)}`, () => addCard(file, columnName, text, backlogPath));
+    showFailureToast(`カード追加に失敗しました: ${formatFailureReason(response)}`, () => addCard(file, columnName, text, backlogPath, createProject));
     return;
+  }
+  if (createProject) {
+    document.getElementById('newCardSubNameInput').value = '';
+    refreshNewCardBacklogTargets();
   }
   const textInput = document.getElementById('newCardTextInput');
   if (textInput.value.trim() === text) textInput.value = '';
