@@ -1211,7 +1211,7 @@
     <div class="focus-tasks" id="focusTasks"></div>
     <div class="focus-note hidden" id="focusNote"></div>
     <div class="focus-actions">
-      <button id="focusLaterBtn" type="button" class="btn btn-secondary" aria-label="後で" data-tip="後で"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
+      <button id="focusLaterBtn" type="button" class="btn btn-secondary btn--labeled" aria-label="後で" data-tip="後で"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>後で</span></button>
       <button id="focusNextBtn" type="button" class="btn btn-secondary" aria-label="次のカードへ" data-tip="次のカードへ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
     </div>
     <div class="focus-next-preview" id="focusNextPreview"></div>
@@ -2605,6 +2605,7 @@ function countProgress(columns) {
 function renderAll() {
   renderHeader();
   renderBoard();
+  renderTodayChipCount();
   renderGlobalComments();
 }
 
@@ -3304,6 +3305,16 @@ function populateFocusColumnSelect() {
   select.appendChild(columnGroup);
   select.appendChild(crossGroup);
   if (prev && [...select.options].some((o) => o.value === prev)) select.value = prev;
+  else select.value = countOpenTodayCards() > 0 ? FOCUS_TARGET_TODAY : FOCUS_TARGET_ALL_OPEN;
+}
+
+function countOpenTodayCards() {
+  return boardData.columns.flatMap((c) => c.groups).filter((g) => !g.done && statusOf(g) === 'today').length;
+}
+
+function renderTodayChipCount() {
+  const count = countOpenTodayCards();
+  document.querySelector('[data-filter-id="statusToday"]').textContent = count > 0 ? `今日やる（${count}）` : '今日やる';
 }
 
 function populateNewCardColumnOptions() {
@@ -4707,6 +4718,7 @@ function buildModalTaskRow(column, group, task) {
   const quoteBtn = document.createElement('button');
   quoteBtn.type = 'button';
   quoteBtn.className = 'btn btn-icon btn--sm';
+  quoteBtn.dataset.shortLabel = '引用';
   quoteBtn.appendChild(icon('quote'));
   quoteBtn.setAttribute('aria-label', 'コメント欄に引用を挿入');
   quoteBtn.dataset.tip = '引用';
@@ -4751,6 +4763,12 @@ function buildModalTaskRow(column, group, task) {
     deleteTaskWithUndo(currentFile, task, row);
   });
   actions.appendChild(deleteBtn);
+  for (const btn of actions.querySelectorAll('.btn-icon:not(.btn--labeled)')) {
+    btn.classList.add('btn--labeled');
+    const label = document.createElement('span');
+    label.textContent = btn.dataset.shortLabel || btn.getAttribute('aria-label');
+    btn.appendChild(label);
+  }
   return row;
 }
 
