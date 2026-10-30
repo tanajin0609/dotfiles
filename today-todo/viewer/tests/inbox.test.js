@@ -94,7 +94,10 @@ test('移すとmemo.mdと添付をbacklog.mdの隣のinbox/へ書き、backlog.m
   await withServer(fixture, async (server) => {
     const attachRes = await fetch(`${server.baseUrl}/api/inbox/attachments?id=m1&name=shot.png`, { method: 'POST', body: Buffer.from([9, 8]) });
     const { path: attached } = await attachRes.json();
-    await post(server, '/api/inbox', { id: 'm1', text: `\nログイン画面 直す\n詳細の説明\n[添付] ${attached}` });
+    const outside = path.join(fixture.root, 'secret.txt');
+    fs.writeFileSync(outside, 'secret');
+    const traversal = path.join(path.dirname(attached), '..', '..', '..', '..', 'secret.txt');
+    await post(server, '/api/inbox', { id: 'm1', text: `\nログイン画面 直す\n詳細の説明\n[添付] ${attached}\n[添付] ${traversal}` });
 
     assert.equal((await post(server, '/api/inbox/move', { id: 'm1', column: 'demo-project', title: '  ' })).status, 400);
     assert.equal((await post(server, '/api/inbox/move', { id: 'nope', column: 'demo-project', title: 'x' })).status, 404);
@@ -113,6 +116,7 @@ test('移すとmemo.mdと添付をbacklog.mdの隣のinbox/へ書き、backlog.m
 
     const copied = path.join(memoDir, path.basename(attached));
     assert.deepEqual(fs.readFileSync(copied), Buffer.from([9, 8]));
+    assert.ok(!fs.existsSync(path.join(memoDir, 'secret.txt')));
     const memoMd = fs.readFileSync(out.memoPath, 'utf-8');
     assert.match(memoMd, /^# ログイン画面 直す\n/);
     assert.ok(memoMd.includes('詳細の説明'));

@@ -690,12 +690,23 @@ function moveInboxMemo(memo, title, backlogPath) {
   for (let n = 2; fs.existsSync(dir); n++) dir = path.join(inboxRoot, `${base}-${n}`);
   fs.mkdirSync(dir, { recursive: true });
 
-  const ownAttachmentsDir = path.join(INBOX_ATTACHMENTS_DIR, memo.id) + path.sep;
+  let ownAttachmentsDir;
+  try {
+    ownAttachmentsDir = fs.realpathSync(path.join(INBOX_ATTACHMENTS_DIR, memo.id)) + path.sep;
+  } catch {
+    ownAttachmentsDir = null;
+  }
   const copied = [];
   const body = memo.text.replace(/\[添付\] (\S+)/g, (whole, src) => {
-    if (!src.startsWith(ownAttachmentsDir) || !fs.existsSync(src)) return whole;
-    const name = path.basename(src);
-    fs.copyFileSync(src, path.join(dir, name));
+    let real;
+    try {
+      real = fs.realpathSync(path.resolve(src));
+    } catch {
+      return whole;
+    }
+    if (!ownAttachmentsDir || !real.startsWith(ownAttachmentsDir)) return whole;
+    const name = path.basename(real);
+    fs.copyFileSync(real, path.join(dir, name));
     copied.push(name);
     return `[添付] [${name}](${encodeURI(name)})`;
   }).trim();
