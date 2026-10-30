@@ -1600,7 +1600,7 @@
       <div class="global-comments-form">
         <div class="field">
           <label for="globalCommentInput" class="field-label">全体コメントを追加</label>
-          <textarea id="globalCommentInput" rows="2" placeholder="全体を通してのメモ・コメントを入力（カードの「全体へ引用」で参照を挿入できます）" aria-describedby="globalCommentHint"></textarea>
+          <textarea id="globalCommentInput" rows="2" placeholder="全体を通してのメモ・コメントを入力" aria-describedby="globalCommentHint"></textarea>
           <span class="input-hint" id="globalCommentHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
         </div>
         <button id="globalCommentSubmit" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -2641,8 +2641,7 @@ function renderGlobalComments() {
     title.className = 'empty-state-title';
     title.textContent = '全体コメントはまだありません';
     const description = document.createElement('div');
-    description.textContent = 'カードをまたぐメモを残す場所です。'
-      + 'カード詳細のタスク行の「全体へ引用」で、列・カード名付きの参照を下の入力欄に挿入できます。';
+    description.textContent = 'カードをまたぐメモを残す場所です。';
     empty.appendChild(title);
     empty.appendChild(description);
     listEl.appendChild(empty);
@@ -4547,21 +4546,6 @@ function readSelectionWithin(element) {
   return selection.toString().trim();
 }
 
-// 全体コメントは複数カードの引用が混在しうるため、`#<連番>`単体ではなく列・カード名ラベルを付けて
-// 一意にする（`#<連番>`の採番スコープはプロジェクト単位でありカード横断では重複しうるため）。
-function insertGlobalQuote(columnName, groupTitle, task) {
-  openGlobalCommentsDialog();
-  const input = document.getElementById('globalCommentInput');
-  const label = `[${columnName} ▸ ${groupTitle}]`;
-  const quote = `${label} > ${formatTaskQuote(task)}\n`;
-  const start = input.selectionStart ?? input.value.length;
-  const end = input.selectionEnd ?? input.value.length;
-  input.value = input.value.slice(0, start) + quote + input.value.slice(end);
-  input.focus();
-  const pos = start + quote.length;
-  input.setSelectionRange(pos, pos);
-}
-
 function openModal(column, group) {
   const dialog = document.getElementById('cardDialog');
   if (!dialog.open) modalFocusReturn = captureFocusReturn();
@@ -4754,17 +4738,6 @@ function buildModalTaskRow(column, group, task) {
   });
   actions.appendChild(quoteBtn);
 
-  const globalQuoteBtn = document.createElement('button');
-  globalQuoteBtn.type = 'button';
-  globalQuoteBtn.className = 'btn btn-icon btn--sm btn--labeled';
-  globalQuoteBtn.appendChild(icon('quote'));
-  const globalQuoteLabel = document.createElement('span');
-  globalQuoteLabel.textContent = 'All';
-  globalQuoteBtn.appendChild(globalQuoteLabel);
-  globalQuoteBtn.setAttribute('aria-label', '全体コメント欄に列・カード名付きで引用を挿入');
-  globalQuoteBtn.dataset.tip = '全体へ引用';
-  globalQuoteBtn.addEventListener('click', () => insertGlobalQuote(column.name, group.title, task));
-  actions.appendChild(globalQuoteBtn);
 
   const editBtn = document.createElement('button');
   editBtn.type = 'button';
