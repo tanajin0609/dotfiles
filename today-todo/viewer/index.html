@@ -2547,7 +2547,12 @@ async function detectExternalBoardUpdate() {
   const file = currentFile;
   const mtimeMs = await fetchBoardMtimeMs(file);
   if (mtimeMs === null || file !== currentFile || !boardData || ownBoardWriteCount > 0) return;
-  if (mtimeMs === loadedBoardMtimeMs || mtimeMs === notifiedBoardMtimeMs) return;
+  if (mtimeMs === loadedBoardMtimeMs) return;
+  if (!isOverlayOpen() && !isTypingTarget(document.activeElement)) {
+    await loadBoard(file);
+    return;
+  }
+  if (mtimeMs === notifiedBoardMtimeMs) return;
   notifiedBoardMtimeMs = mtimeMs;
   dismissBoardUpdatedToast = showToast('新しい内容があります', {
     actionLabel: '再読込',
