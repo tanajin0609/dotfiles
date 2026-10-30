@@ -2077,6 +2077,7 @@ async function openRelatedDocs(absPath, fallbackRef, sourcePath) {
 let docLoadSeq = 0;
 // セッション資料を表示中ならそのジョブID。カードのドキュメント専用の引用・注釈を出さない判定に使う。
 let docArtifactJobId = null;
+let docArtifactInputId = null;
 
 // 同じiframeのsrcdocを続けて書き換えると、先の空ページの読み込みが後から勝って本文が消えることがあるため、毎回作り直す。
 function replaceDocFrame(srcdoc, { src } = {}) {
@@ -2109,6 +2110,7 @@ async function openDocDialog(absPath, { keepNav = false } = {}) {
   const dialog = document.getElementById('docDialog');
   if (!dialog.open) docFocusReturn = captureFocusReturn();
   docArtifactJobId = null;
+  docArtifactInputId = null;
   if (!keepNav) {
     renderDocNav([], '', absPath);
     fetchRelatedDocs(absPath).then((found) => {
@@ -2361,13 +2363,15 @@ function quoteDocSelection() {
   const quote = toQuoteLines(docPath, selected);
   // closeイベントは非同期に来るため、開く前の要素へ戻すフォーカス復帰を止めてコメント欄に留める。
   docFocusReturn = null;
+  const inputId = docArtifactInputId ?? 'modalCommentInput';
   document.getElementById('docDialog').close();
-  addQuoteChip('modalCommentInput', quote);
+  addQuoteChip(inputId, quote);
 }
 
 function onDocDialogClosed() {
   docLoadSeq++;
   docArtifactJobId = null;
+  docArtifactInputId = null;
   replaceDocFrame('');
   attachToastRegionToTopmostDialog();
   restoreFocusReturn(docFocusReturn);
@@ -3870,7 +3874,7 @@ async function openArtifactDoc(jobId, artifact) {
   docArtifactJobId = jobId;
   document.getElementById('docTitle').textContent = artifact.path.split('/').pop();
   document.getElementById('docPath').textContent = artifact.path;
-  document.getElementById('docQuoteBtn').hidden = true;
+  document.getElementById('docQuoteBtn').hidden = false;
   renderDocReviewControls();
   const status = document.getElementById('docStatus');
   const loadId = ++docLoadSeq;
@@ -3927,6 +3931,7 @@ async function openSessionArtifacts(view) {
     return;
   }
   renderArtifactNav(jobId, artifacts, first);
+  docArtifactInputId = view.inputId;
   openArtifactDoc(jobId, first);
 }
 
