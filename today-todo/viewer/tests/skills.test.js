@@ -28,7 +28,7 @@ async function startWithSkills(fixture, extraEnv = {}) {
   const server = await startViewerServer({
     VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir,
     VIEWER_CLAUDE_SETTINGS: path.join(fixture.root, 'missing.json'),
-    VIEWER_SKILLS_DIR: path.join(fixture.root, 'skills'), VIEWER_SKILL_CWD: skillCwd,
+    VIEWER_SKILLS_DIR: path.join(fixture.root, 'skills'), VIEWER_COMMANDS_DIR: path.join(fixture.root, 'commands'), VIEWER_SKILL_CWD: skillCwd,
     VIEWER_CLAUDE_JOBS_DIR: jobsDir, VIEWER_STOP_SETTLE_MS: '0',
     PATH: `${path.join(fixture.root, 'bin')}:${process.env.PATH}`, ...extraEnv,
   });
@@ -116,6 +116,31 @@ test('返信は記録済みのjobIdだけを受け付け、resumeして記録を
     fs.mkdirSync(path.join(jobsDir, 'b2c3d4'), { recursive: true });
     fs.writeFileSync(path.join(jobsDir, 'b2c3d4', 'state.json'), JSON.stringify({ state: 'working', sessionId }));
     assert.deepEqual((await postJson(server.baseUrl, '/api/skills/reply', { jobId: 'b2c3d4', text: 'x' })).body, { launched: false, reason: 'already-running' });
+  } finally {
+    await server.stop();
+  }
+});
+
+// AC-SK-SRV-1
+test('コマンドディレクトリ直下の*.mdも含め、スキルと同名ならスキルを優先する', async () => {
+  const fixture = setupFixture();
+  const skillsDir = path.join(fixture.root, 'skills');
+  const commandsDir = path.join(fixture.root, 'commands');
+  writeSkill(skillsDir, 'dup', '---\nname: dup\ndescription: スキル側\n---\n');
+  fs.mkdirSync(commandsDir, { recursive: true });
+  fs.writeFileSync(path.join(commandsDir, 'sync.md'), '---\nname: sync\nmodel: sonnet\ndescription: |\n  同期\n  する\n---\n');
+  fs.writeFileSync(path.join(commandsDir, 'plain.md'), '---\ndescription: 名前なし\n---\n');
+  fs.writeFileSync(path.join(commandsDir, 'dup.md'), '---\nname: dup\ndescription: コマンド側\n---\n');
+  fs.writeFileSync(path.join(commandsDir, '.hidden.md'), '---\nname: hidden\n---\n');
+  fs.writeFileSync(path.join(commandsDir, 'note.txt'), 'x');
+  const { server } = await startWithSkills(fixture, { VIEWER_COMMANDS_DIR: commandsDir });
+  try {
+    const body = await (await fetch(`${server.baseUrl}/api/skills`)).json();
+    assert.deepEqual(body.skills, [
+      { name: 'dup', description: 'スキル側' },
+      { name: 'plain', description: '名前なし' },
+      { name: 'sync', description: '同期 する' },
+    ]);
   } finally {
     await server.stop();
   }

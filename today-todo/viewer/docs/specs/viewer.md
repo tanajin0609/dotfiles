@@ -238,6 +238,8 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-SK-SRV-1: `GET /api/skills` は `200 { "skills": [{ "name", "description" }] }` を名前順で返す。対象はスキルディレクトリ
   （既定 `~/.claude/skills`、環境変数 `VIEWER_SKILLS_DIR` で上書き可）直下の `<dir>/SKILL.md` で、frontmatterの `name`（無ければディレクトリ名）と
   `description`（`|`・`>` のブロック形式は行を空白でつなぐ。無ければ空文字）を返す。`SKILL.md` の無いディレクトリと `.` で始まるディレクトリは除く。ディレクトリが無ければ空配列。
+  あわせてコマンドディレクトリ（既定 `~/.claude/commands`、環境変数 `VIEWER_COMMANDS_DIR` で上書き可）直下の `*.md`（`.` で始まるものは除く）も、
+  同じ規則（`name` が無ければ拡張子を除いたファイル名）で含める。スキルと同名のコマンドはスキルを優先して1件にする。
 - AC-SK-SRV-2: `POST /api/skills/create` `{ "text" }` は、`claude --bg <model/effort指定（AC-MS-SRV-3のoverride）> -n "skill作成 ▸ <text先頭>" -- "/skill-creator <text>"` を
   起動ディレクトリ（既定 `~/.claude`、環境変数 `VIEWER_SKILL_CWD` で上書き可）で実行し、`data/skill-sessions.json` の先頭に
   `{ "jobId", "text", "launchedAt" }` を記録して `200 { "jobId" }` を返す。`text` が空なら400、起動失敗はAC-WT-SRV-1と同じ形で返す。

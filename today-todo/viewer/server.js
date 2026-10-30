@@ -39,6 +39,9 @@ const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const SKILLS_DIR = process.env.VIEWER_SKILLS_DIR
   ? path.resolve(process.env.VIEWER_SKILLS_DIR)
   : path.join(os.homedir(), '.claude', 'skills');
+const COMMANDS_DIR = process.env.VIEWER_COMMANDS_DIR
+  ? path.resolve(process.env.VIEWER_COMMANDS_DIR)
+  : path.join(os.homedir(), '.claude', 'commands');
 const SKILL_CWD = process.env.VIEWER_SKILL_CWD
   ? path.resolve(process.env.VIEWER_SKILL_CWD)
   : path.join(os.homedir(), '.claude');
@@ -1393,14 +1396,23 @@ function readSkillFrontmatter(text) {
 }
 
 function listSkills() {
-  if (!fs.existsSync(SKILLS_DIR)) return [];
   const skills = [];
-  for (const dir of fs.readdirSync(SKILLS_DIR)) {
+  for (const dir of fs.existsSync(SKILLS_DIR) ? fs.readdirSync(SKILLS_DIR) : []) {
     if (dir.startsWith('.')) continue;
     const skillPath = path.join(SKILLS_DIR, dir, 'SKILL.md');
     if (!fs.existsSync(skillPath)) continue;
     const { name, description } = readSkillFrontmatter(fs.readFileSync(skillPath, 'utf-8'));
     skills.push({ name: name || dir, description: description || '' });
+  }
+  if (fs.existsSync(COMMANDS_DIR)) {
+    const skillNames = new Set(skills.map((s) => s.name));
+    for (const file of fs.readdirSync(COMMANDS_DIR)) {
+      if (file.startsWith('.') || !file.endsWith('.md')) continue;
+      const { name, description } = readSkillFrontmatter(fs.readFileSync(path.join(COMMANDS_DIR, file), 'utf-8'));
+      const commandName = name || file.slice(0, -3);
+      if (skillNames.has(commandName)) continue;
+      skills.push({ name: commandName, description: description || '' });
+    }
   }
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 }
