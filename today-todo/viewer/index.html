@@ -649,6 +649,7 @@
     font-size: var(--fs-sm); font-weight: 700;
     min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  .column-header .column-favorite-btn { margin-left: auto; }
   .column-header .column-count {
     font-size: var(--fs-xs); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-sub);
     background: var(--chip-bg); border-radius: 999px; padding: 0 8px;
@@ -2899,6 +2900,15 @@ function buildColumnHeader(column, colIndex) {
     titleRow.appendChild(doneBadge);
     describedByIds.push(doneBadge.id);
   }
+  const favoriteBtn = document.createElement('button');
+  favoriteBtn.type = 'button';
+  favoriteBtn.className = 'btn btn-icon btn--sm column-favorite-btn';
+  favoriteBtn.dataset.focusKey = `column-favorite:${column.name}`;
+  favoriteBtn.textContent = column.favorite ? '★' : '☆';
+  favoriteBtn.setAttribute('aria-pressed', String(Boolean(column.favorite)));
+  favoriteBtn.setAttribute('aria-label', column.favorite ? `${column.name} をお気に入りから外す` : `${column.name} をお気に入りに追加`);
+  favoriteBtn.addEventListener('click', () => toggleColumnFavorite(column));
+  titleRow.appendChild(favoriteBtn);
   header.appendChild(titleRow);
 
   const statsRow = document.createElement('span');
@@ -4260,6 +4270,14 @@ async function onColumnDrop(e) {
     showFailureToast(`列の並び順の保存に失敗しました: ${formatFailureReason(response)}`, () => loadBoard(currentFile));
     await loadBoard(currentFile);
   }
+}
+
+async function toggleColumnFavorite(column) {
+  const response = await postJson('/api/column-favorites', { name: column.name, favorite: !column.favorite });
+  if (!response.ok) {
+    showFailureToast(`お気に入りの保存に失敗しました: ${formatFailureReason(response)}`, () => loadBoard(currentFile));
+  }
+  await loadBoard(currentFile);
 }
 
 // 絞り込み中のリストには一部のカードしか無いため、非表示のカードは元の位置に残し、表示中のカードの位置だけを入れ替える。

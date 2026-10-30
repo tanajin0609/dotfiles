@@ -45,6 +45,7 @@ const SKILL_CWD = process.env.VIEWER_SKILL_CWD
 const SKILL_SESSIONS_PATH = path.join(DATA_DIR, 'skill-sessions.json');
 const TODO_IMPORT_SESSION_PATH = path.join(DATA_DIR, 'todo-import-session.json');
 const COLUMN_ORDER_PATH = path.join(DATA_DIR, 'column-order.json');
+const COLUMN_FAVORITES_PATH = path.join(DATA_DIR, 'column-favorites.json');
 
 const CLAUDE_PROJECTS_DIR = process.env.VIEWER_CLAUDE_PROJECTS_DIR
   ? path.resolve(process.env.VIEWER_CLAUDE_PROJECTS_DIR)
@@ -653,6 +654,22 @@ function applyColumnOrder(board) {
   const rankOf = (column) => (rank.has(column.name) ? rank.get(column.name) : order.length);
   // Array.prototype.sortは安定なので、記録に無い列同士は元の順を保つ。
   board.columns = [...board.columns].sort((a, b) => rankOf(a) - rankOf(b));
+  return board;
+}
+
+function readColumnFavorites() {
+  try {
+    const favorites = JSON.parse(fs.readFileSync(COLUMN_FAVORITES_PATH, 'utf-8'));
+    return Array.isArray(favorites) ? favorites : [];
+  } catch {
+    return [];
+  }
+}
+
+function applyColumnFavorites(board) {
+  const favorites = new Set(readColumnFavorites());
+  const columns = board.columns.map((column) => ({ ...column, favorite: favorites.has(column.name) }));
+  board.columns = [...columns.filter((c) => c.favorite), ...columns.filter((c) => !c.favorite)];
   return board;
 }
 
@@ -1558,6 +1575,7 @@ const server = http.createServer(async (req, res) => {
     }
     board = applySavedOrder(board, file);
     board = applyColumnOrder(board);
+    board = applyColumnFavorites(board);
     board = attachSessions(board, file);
     board = attachComments(board, file);
     board = attachProjectHints(board);
@@ -1608,6 +1626,23 @@ const server = http.createServer(async (req, res) => {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(COLUMN_ORDER_PATH, JSON.stringify(order));
     return sendJson(res, 200, { order });
+  }
+
+  if (url.pathname === '/api/column-favorites' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    if (!payload || typeof payload.name !== 'string' || typeof payload.favorite !== 'boolean') {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const favorites = readColumnFavorites().filter((name) => name !== payload.name);
+    if (payload.favorite) favorites.push(payload.name);
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(COLUMN_FAVORITES_PATH, JSON.stringify(favorites));
+    return sendJson(res, 200, { favorites });
   }
 
   if (url.pathname === '/api/board/version' && req.method === 'GET') {
