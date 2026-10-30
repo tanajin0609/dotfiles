@@ -755,6 +755,11 @@
     box-shadow: 0 24px 64px var(--shadow);
     overflow: hidden;
   }
+  .trust-box { width: min(480px, 92vw); padding: 20px 22px; gap: 12px; }
+  .trust-box h2 { margin: 0; font-size: var(--fs-lg); }
+  .trust-box p { margin: 0; color: var(--ink-sub); font-size: var(--fs-sm); line-height: 1.6; }
+  .trust-path { display: block; padding: 10px 12px; background: var(--surface); border-radius: var(--radius); font-family: var(--font-mono); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+  .trust-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .card-panel { inset: 0 0 0 auto; margin: 0; width: min(var(--card-panel-w, 540px), 100vw); height: 100vh; }
   .panel-resize-handle { position: absolute; top: 0; bottom: 0; left: 0; width: 6px; cursor: ew-resize; z-index: 2; touch-action: none; }
   .panel-resize-handle:hover, .panel-resize-handle:focus-visible, .panel-resize-handle.is-dragging { background: color-mix(in srgb, var(--accent) 35%, transparent); }
@@ -1284,6 +1289,18 @@
   </div>
 </dialog>
 
+<dialog id="trustDialog" class="app-dialog" aria-labelledby="trustDialogTitle">
+  <div class="modal-box trust-box">
+    <h2 id="trustDialogTitle">このワークスペースを信頼しますか？</h2>
+    <p>Claude Codeはこのフォルダ内のファイルを読み取り、書き込み、または実行する場合があります。このワークスペースを信頼する場合のみ、続行してください。</p>
+    <code class="trust-path" id="trustDialogPath"></code>
+    <div class="trust-actions">
+      <button id="trustDialogCancel" type="button" class="btn btn-secondary" autofocus>キャンセル</button>
+      <button id="trustDialogAccept" type="button" class="btn btn-primary">ワークスペースを信頼</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="docDialog" class="app-dialog doc-dialog" aria-labelledby="docTitle">
   <div class="modal-box doc-box">
     <div class="modal-header">
@@ -1789,22 +1806,23 @@ function isUntrustedWorkspace(response) {
   return response.status === 403 && response.data && response.data.error === 'workspace not trusted';
 }
 
-function showUntrustedWorkspaceToast(cwd, onRetry) {
-  return showToast(
-    `${cwd} はClaude Codeで未信頼です。\`cd ${cwd} && claude\` で一度承認するか、『信頼して再試行』を押してください`,
-    {
-      kind: 'error',
-      actionLabel: '信頼して再試行',
-      onAction: async () => {
-        const response = await postJson('/api/workspace/trust', { cwd });
-        if (!response.ok) {
-          showFailureToast(`ワークスペースの信頼設定に失敗しました: ${formatFailureReason(response)}`, () => showUntrustedWorkspaceToast(cwd, onRetry));
-          return;
-        }
-        onRetry();
-      },
-    },
-  );
+function showUntrustedWorkspaceDialog(cwd, onRetry) {
+  const dialog = document.getElementById('trustDialog');
+  const acceptBtn = document.getElementById('trustDialogAccept');
+  document.getElementById('trustDialogPath').textContent = cwd;
+  document.getElementById('trustDialogCancel').onclick = () => dialog.close();
+  acceptBtn.disabled = false;
+  acceptBtn.onclick = async () => {
+    acceptBtn.disabled = true;
+    const response = await postJson('/api/workspace/trust', { cwd });
+    dialog.close();
+    if (!response.ok) {
+      showFailureToast(`ワークスペースの信頼設定に失敗しました: ${formatFailureReason(response)}`, () => showUntrustedWorkspaceDialog(cwd, onRetry));
+      return;
+    }
+    onRetry();
+  };
+  if (!dialog.open) dialog.showModal();
 }
 
 // 通信失敗も含めて例外を投げず、呼び出し側が `ok` だけで分岐できる形にそろえる。
@@ -5276,7 +5294,7 @@ function branchSessionFromEntry(view, uuid, busyMode = 'launch') {
       return;
     }
     if (isUntrustedWorkspace(response)) {
-      showUntrustedWorkspaceToast(response.data.cwd, () => branchSessionFromEntry(view, uuid, busyMode));
+      showUntrustedWorkspaceDialog(response.data.cwd, () => branchSessionFromEntry(view, uuid, busyMode));
       return;
     }
     if (!response.ok) {
@@ -5327,7 +5345,7 @@ async function launchCardSession(target, text, launchOptions = {}, commentAt = n
   } else if (response.status === 409) {
     showToast('このカードは起動処理中です（コメントは保存しました）');
   } else if (isUntrustedWorkspace(response)) {
-    showUntrustedWorkspaceToast(response.data.cwd, () => retryCardSessionLaunch(target, text, launchOptions, commentAt));
+    showUntrustedWorkspaceDialog(response.data.cwd, () => retryCardSessionLaunch(target, text, launchOptions, commentAt));
   } else if (!response.ok) {
     showFailureToast(
       `セッション起動に失敗しました（コメントは保存済み）: ${formatFailureReason(response)}`,
@@ -5591,7 +5609,7 @@ async function createManagedSession() {
   });
   button.disabled = false;
   if (isUntrustedWorkspace(response)) {
-    showUntrustedWorkspaceToast(response.data.cwd, createManagedSession);
+    showUntrustedWorkspaceDialog(response.data.cwd, createManagedSession);
     return;
   }
   if (!response.ok) {
@@ -5617,7 +5635,7 @@ async function replyManagedSession() {
   const response = await postJson('/api/sessions/reply', { jobId: session.jobId, text });
   button.disabled = false;
   if (isUntrustedWorkspace(response)) {
-    showUntrustedWorkspaceToast(response.data.cwd, replyManagedSession);
+    showUntrustedWorkspaceDialog(response.data.cwd, replyManagedSession);
     return;
   }
   if (!response.ok) {
@@ -5893,7 +5911,7 @@ async function startTodoImport() {
   const response = await postJson('/api/todo-import', {});
   button.disabled = false;
   if (isUntrustedWorkspace(response)) {
-    showUntrustedWorkspaceToast(response.data.cwd, startTodoImport);
+    showUntrustedWorkspaceDialog(response.data.cwd, startTodoImport);
     return;
   }
   if (!response.ok) {
@@ -5913,7 +5931,7 @@ async function createSkill() {
   const response = await postJson('/api/skills/create', { text });
   button.disabled = false;
   if (isUntrustedWorkspace(response)) {
-    showUntrustedWorkspaceToast(response.data.cwd, createSkill);
+    showUntrustedWorkspaceDialog(response.data.cwd, createSkill);
     return;
   }
   if (!response.ok) {
