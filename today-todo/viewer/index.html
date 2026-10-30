@@ -2566,8 +2566,8 @@ async function detectExternalBoardUpdate() {
   const mtimeMs = await fetchBoardMtimeMs(file);
   if (mtimeMs === null || file !== currentFile || !boardData || ownBoardWriteCount > 0) return;
   if (mtimeMs === loadedBoardMtimeMs) return;
-  if (!isOverlayOpen() && !isTypingTarget(document.activeElement)) {
-    await loadBoard(file);
+  if (!isEditingFormOpen() && !hasUnsavedText(document.activeElement)) {
+    if (await loadBoard(file)) refreshOpenCardPanel();
     return;
   }
   if (mtimeMs === notifiedBoardMtimeMs) return;
@@ -5001,6 +5001,13 @@ function renderModalSessionLog() {
   fetchAndRenderSessionLog(modalLogView, selected);
 }
 
+function refreshOpenCardPanel() {
+  if (!modalGroup || !document.getElementById('cardDialog').open) return;
+  const found = findGroupById(modalGroup.id);
+  if (found) openModal(found.column, found.group);
+  else closeModal();
+}
+
 function syncModalSessionLog() {
   if (!modalGroup || !document.getElementById('cardDialog').open) return;
   const found = findGroupById(modalGroup.id);
@@ -5406,6 +5413,20 @@ function isTypingTarget(element) {
 // フォーカスモード自体もdialogだが、その上でのショートカット（→・Space等）は効かせる。
 function isOverlayOpen() {
   return !!document.querySelector('dialog[open]:not(#focusDialog), :popover-open') || !!openedActionMenu;
+}
+
+// 外部更新の自動反映を止める条件。閲覧中心のダイアログは止めず、ボードの列・カードを選ばせるフォームだけ止める
+// （選択肢が読み直しで変わると入力途中の選択がずれるため）。
+function isEditingFormOpen() {
+  return !!document.querySelector('#newCardDialog[open], #inboxMoveDialog[open], #modelSettingsDialog[open], :popover-open') || !!openedActionMenu;
+}
+
+// フォーカスが残っているだけのチェックボックス・select・空欄では止めない。
+function hasUnsavedText(element) {
+  if (!(element instanceof HTMLElement)) return false;
+  if (element.isContentEditable) return true;
+  const isTextField = element.matches('textarea') || (element.matches('input') && !['checkbox', 'radio', 'button', 'submit', 'range', 'color', 'file'].includes(element.type));
+  return isTextField && element.value.trim() !== '';
 }
 
 function findFocusedCard() {
