@@ -728,6 +728,8 @@
     margin-top: 4px; font-size: var(--fs-xs); color: var(--ink-sub);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  .subproject-heading { margin-top: 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--ink-sub); overflow-wrap: anywhere; }
+  .subproject-heading:first-child { margin-top: 0; }
   .card-parent { font-size: var(--fs-xs); color: var(--ink-mute); overflow-wrap: anywhere; }
   .card-title { font-size: var(--fs-sm); line-height: 1.55; font-weight: 600; text-wrap: pretty; overflow-wrap: anywhere; }
   .card-meta { margin-top: 8px; display: flex; gap: 10px; align-items: center; min-width: 0; }
@@ -3224,10 +3226,7 @@ function renderBoard() {
     list.className = 'task-list';
     list.addEventListener('dragover', onDragOver);
     list.addEventListener('drop', onDrop);
-    openMatches.forEach(({ group, matchedTaskText }, index) => {
-      const orderPosition = openMatches.length >= 2 ? { index, count: openMatches.length } : null;
-      list.appendChild(makeCard(column, group, { matchedTaskText, orderPosition }));
-    });
+    appendCardSections(list, column, openMatches, true);
     columnEl.appendChild(list);
 
     if (holdMatches.length > 0) {
@@ -3243,9 +3242,7 @@ function renderBoard() {
       holdSection.appendChild(holdHeader);
       const holdList = document.createElement('div');
       holdList.className = 'closed-list';
-      for (const { group, matchedTaskText } of holdMatches) {
-        holdList.appendChild(makeCard(column, group, { matchedTaskText, orderPosition: null }));
-      }
+      appendCardSections(holdList, column, holdMatches, false);
       holdSection.appendChild(holdList);
       columnEl.appendChild(holdSection);
     }
@@ -3259,9 +3256,7 @@ function renderBoard() {
       closedSection.appendChild(closedHeader);
       const closedList = document.createElement('div');
       closedList.className = 'closed-list';
-      for (const { group, matchedTaskText } of closedMatches) {
-        closedList.appendChild(makeCard(column, group, { matchedTaskText, orderPosition: null }));
-      }
+      appendCardSections(closedList, column, closedMatches, false);
       closedSection.appendChild(closedList);
       columnEl.appendChild(closedSection);
     }
@@ -4045,6 +4040,32 @@ function splitGroupTitle(title) {
   return { parent: title.slice(0, index), main: title.slice(index + separator.length) };
 }
 
+function clusterMatchesByParent(matches) {
+  const sections = new Map();
+  for (const m of matches) {
+    const { parent } = splitGroupTitle(m.group.title);
+    if (!sections.has(parent)) sections.set(parent, { parent, matches: [] });
+    sections.get(parent).matches.push(m);
+  }
+  return [...sections.values()];
+}
+
+// 並べ替えは小見出しの中に限るため、上へ・下への可否も小見出し内の位置で決める。
+function appendCardSections(list, column, matches, isReorderable) {
+  for (const { parent, matches: sectionMatches } of clusterMatchesByParent(matches)) {
+    if (parent) {
+      const heading = document.createElement('div');
+      heading.className = 'subproject-heading';
+      heading.textContent = parent;
+      list.appendChild(heading);
+    }
+    sectionMatches.forEach(({ group, matchedTaskText }, index) => {
+      const orderPosition = isReorderable && sectionMatches.length >= 2 ? { index, count: sectionMatches.length } : null;
+      list.appendChild(makeCard(column, group, { matchedTaskText, orderPosition, isUnderHeading: !!parent }));
+    });
+  }
+}
+
 function loadStarredGroupIds(file) {
   try {
     const ids = JSON.parse(localStorage.getItem(STARRED_KEY_PREFIX + file));
@@ -4157,7 +4178,7 @@ function buildCardActions(column, group, orderPosition) {
 }
 
 // orderPosition: 列内で並べ替えられるときだけ { index, count }（表示中の未完了カードでの位置）。
-function makeCard(column, group, { matchedTaskText = null, orderPosition = null } = {}) {
+function makeCard(column, group, { matchedTaskText = null, orderPosition = null, isUnderHeading = false } = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'card-wrap';
   const card = document.createElement('div');
@@ -4178,7 +4199,7 @@ function makeCard(column, group, { matchedTaskText = null, orderPosition = null 
   const head = document.createElement('div');
   head.className = 'card-head';
   const { parent, main } = splitGroupTitle(group.title);
-  if (parent) {
+  if (parent && !isUnderHeading) {
     const parentLabel = document.createElement('span');
     parentLabel.className = 'card-parent';
     appendHighlightedText(parentLabel, parent);
@@ -4364,10 +4385,12 @@ function moveCardWithinColumn(columnName, groupId, step) {
   if (!column) return;
   const openIds = column.groups.filter((g) => !g.done).map((g) => g.id);
   const shownIds = new Set(listVisibleGroupMatches(column).map((m) => m.group.id));
+  const parentById = new Map(column.groups.map((g) => [g.id, splitGroupTitle(g.title).parent]));
+  const isSameSection = (id) => shownIds.has(id) && parentById.get(id) === parentById.get(groupId);
   const from = openIds.indexOf(groupId);
   if (from === -1) return;
   let to = from + step;
-  while (to >= 0 && to < openIds.length && !shownIds.has(openIds[to])) to += step;
+  while (to >= 0 && to < openIds.length && !isSameSection(openIds[to])) to += step;
   if (to < 0 || to >= openIds.length) return;
   const ids = [...openIds];
   ids.splice(from, 1);
