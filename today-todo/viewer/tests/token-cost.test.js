@@ -77,6 +77,28 @@ test('月間コストは単価・キャッシュ倍率・fast・重複排除・�
   }
 });
 
+// AC-CO-SRV-1
+test('claude-haiku-5-5 は単価表で換算され、単価不明に数えない', async () => {
+  const fixture = setupFixture();
+  const projectsDir = path.join(fixture.root, 'claude-projects');
+  writeJsonl(path.join(projectsDir, 'p1', 's1.jsonl'), [
+    usageLine({
+      id: 'h1', model: 'claude-haiku-5-5', timestamp: '2026-10-20T03:00:00.000Z',
+      usage: { input_tokens: M, output_tokens: M, cache_read_input_tokens: M },
+    }),
+  ]);
+  const server = await startViewerServer({
+    VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir, VIEWER_CLAUDE_PROJECTS_DIR: projectsDir,
+  });
+  try {
+    const { months: [oct] } = await (await fetch(`${server.baseUrl}/api/costs/monthly`)).json();
+    assertUsd(oct.usd, 0.1 + 0.5 + 0.01);
+    assert.equal(oct.unpricedTokens, 0);
+  } finally {
+    await server.stop();
+  }
+});
+
 // AC-CO-SRV-4・AC-CO-SRV-5
 test('カード別コストは紐付くジョブのtranscriptとsubagentsを合算し、不正ファイル名は400', async () => {
   const fixture = setupFixture();
