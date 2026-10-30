@@ -81,3 +81,12 @@ test('AC-WT-SRV-2: PROJECTS_ROOT外・実在しないパスは400で設定を変
     await server.stop();
   }
 });
+
+test('AC-WT-1: 未信頼時はトーストではなく信頼確認モーダルを出す', () => {
+  const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf-8');
+  assert.match(html, /<dialog id="trustDialog"[^>]*aria-labelledby="trustDialogTitle"/);
+  assert.match(html, /id="trustDialogTitle"[^>]*>このワークスペースを信頼しますか？</);
+  assert.match(html, /id="trustDialogCancel"[^>]*>キャンセル</);
+  assert.match(html, /id="trustDialogAccept"[^>]*>ワークスペースを信頼</);
+  assert.doesNotMatch(html, /信頼して再試行/);
+});
