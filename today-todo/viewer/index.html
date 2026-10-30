@@ -511,7 +511,7 @@
 
   /* ---------- 通知 ---------- */
   .toast-region {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
     z-index: 200; width: min(480px, calc(100vw - 32px));
     display: flex; flex-direction: column; gap: 8px; pointer-events: none;
   }
@@ -1677,7 +1677,7 @@ function applyAndSaveSkin(skin) {
   localStorage.setItem(SKIN_STORAGE_KEY, skin);
 }
 
-const TOAST_DEFAULT_DURATION_MS = 5000;
+const TOAST_DEFAULT_DURATION_MS = 3000;
 const TOAST_MAX_PER_KIND = 3;
 const toastDismissers = new WeakMap();
 
@@ -1743,23 +1743,33 @@ function showToast(message, { kind = 'info', actionLabel, onAction, onClose, key
 
   const effectiveDurationMs = durationMs !== undefined ? durationMs : (kind === 'error' ? null : TOAST_DEFAULT_DURATION_MS);
   if (effectiveDurationMs) {
-    // キーボードで「元に戻す」等へ移動している間は残り時間を止める。
-    // ホバーでは止めない: 止まっていたポインターの真下に出たトーストが消えず、下の操作を塞ぎ続けるため。
+    // フォーカス中・ポインターを乗せている間は残り時間を止める。
+    // ホバーはmouseenterでなくpointermoveで判定する: 止まっていたポインターの真下に出たトーストまで止まると、消えずに下の操作を塞ぎ続けるため。
     let remainingMs = effectiveDurationMs;
     let startedAt = 0;
+    let focused = false;
+    let hovered = false;
     const resume = () => {
       startedAt = Date.now();
       timer = setTimeout(dismiss, remainingMs);
     };
-    toast.addEventListener('focusin', () => {
+    const pause = () => {
       if (timer === null) return;
       clearTimeout(timer);
       timer = null;
       remainingMs -= Date.now() - startedAt;
-    });
+    };
+    const resumeIfIdle = () => {
+      if (!focused && !hovered && timer === null) resume();
+    };
+    toast.addEventListener('focusin', () => { focused = true; pause(); });
     toast.addEventListener('focusout', (e) => {
-      if (!toast.contains(e.relatedTarget) && timer === null) resume();
+      if (toast.contains(e.relatedTarget)) return;
+      focused = false;
+      resumeIfIdle();
     });
+    toast.addEventListener('pointermove', () => { hovered = true; pause(); });
+    toast.addEventListener('pointerleave', () => { hovered = false; resumeIfIdle(); });
     resume();
   }
   return dismiss;
