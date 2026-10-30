@@ -46,6 +46,8 @@ const SKILL_SESSIONS_PATH = path.join(DATA_DIR, 'skill-sessions.json');
 const TODO_IMPORT_SESSION_PATH = path.join(DATA_DIR, 'todo-import-session.json');
 const COLUMN_ORDER_PATH = path.join(DATA_DIR, 'column-order.json');
 const COLUMN_FAVORITES_PATH = path.join(DATA_DIR, 'column-favorites.json');
+const INBOX_PATH = path.join(DATA_DIR, 'inbox.json');
+const INBOX_ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments', 'inbox');
 
 const CLAUDE_PROJECTS_DIR = process.env.VIEWER_CLAUDE_PROJECTS_DIR
   ? path.resolve(process.env.VIEWER_CLAUDE_PROJECTS_DIR)
@@ -655,6 +657,60 @@ function applyColumnOrder(board) {
   // Array.prototype.sortは安定なので、記録に無い列同士は元の順を保つ。
   board.columns = [...board.columns].sort((a, b) => rankOf(a) - rankOf(b));
   return board;
+}
+
+function readInbox() {
+  try {
+    const memos = JSON.parse(fs.readFileSync(INBOX_PATH, 'utf-8'));
+    return Array.isArray(memos) ? memos : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeInbox(memos) {
+  fs.writeFileSync(INBOX_PATH, JSON.stringify(memos, null, 2));
+}
+
+function formatInboxStamp(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function slugifyInboxTitle(title) {
+  const slug = title.replace(/[^\p{L}\p{N}-]+/gu, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30).replace(/-$/, '');
+  return slug || 'memo';
+}
+
+// 本文中の `[添付] <絶対パス>` のうちメモ自身の添付だけを memo.md の隣へコピーし、相対リンクに置き換える。
+function moveInboxMemo(memo, title, backlogPath) {
+  const inboxRoot = path.join(path.dirname(backlogPath), 'inbox');
+  const base = `${formatInboxStamp(new Date())}-${slugifyInboxTitle(title)}`;
+  let dir = path.join(inboxRoot, base);
+  for (let n = 2; fs.existsSync(dir); n++) dir = path.join(inboxRoot, `${base}-${n}`);
+  fs.mkdirSync(dir, { recursive: true });
+
+  const ownAttachmentsDir = path.join(INBOX_ATTACHMENTS_DIR, memo.id) + path.sep;
+  const copied = [];
+  const body = memo.text.replace(/\[添付\] (\S+)/g, (whole, src) => {
+    if (!src.startsWith(ownAttachmentsDir) || !fs.existsSync(src)) return whole;
+    const name = path.basename(src);
+    fs.copyFileSync(src, path.join(dir, name));
+    copied.push(name);
+    return `[添付] [${name}](${encodeURI(name)})`;
+  }).trim();
+  const sections = [`# ${title}`, '', body, ''];
+  if (copied.length) sections.push('## 添付', '', ...copied.map((n) => `- [${n}](${encodeURI(n)})`), '');
+  const memoPath = path.join(dir, 'memo.md');
+  fs.writeFileSync(memoPath, sections.join('\n'));
+
+  const srcMd = fs.readFileSync(backlogPath, 'utf-8');
+  const maxNum = findMaxTaskNumber(srcMd);
+  const number = maxNum > 0 ? maxNum + 1 : null;
+  const rel = path.relative(path.dirname(backlogPath), memoPath).split(path.sep).join('/');
+  const line = `- [ ] ${number != null ? `#${number} ` : ''}${title} → [memo.md](${rel})`;
+  fs.writeFileSync(backlogPath, (srcMd === '' || srcMd.endsWith('\n') ? srcMd : `${srcMd}\n`) + `${line}\n`);
+  return { memoPath, number };
 }
 
 function readColumnFavorites() {
@@ -1536,6 +1592,97 @@ function sanitizeAttachmentName(name) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (url.pathname === '/api/inbox' && req.method === 'GET') {
+    const memos = readInbox().slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    return sendJson(res, 200, { memos });
+  }
+
+  if (url.pathname === '/api/inbox' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const { id, text } = payload;
+    if (typeof text !== 'string' || !text.trim() || (id != null && !(typeof id === 'string' && /^[\w-]+$/.test(id)))) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const memos = readInbox();
+    const now = new Date().toISOString();
+    let memo = id && memos.find((m) => m.id === id);
+    if (memo) {
+      memo.text = text;
+      memo.updatedAt = now;
+    } else {
+      memo = { id: id || `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`, text, createdAt: now, updatedAt: now };
+      memos.push(memo);
+    }
+    writeInbox(memos);
+    return sendJson(res, 200, { memo });
+  }
+
+  if (url.pathname === '/api/inbox/delete' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const memos = readInbox();
+    const index = memos.findIndex((m) => m.id === payload.id);
+    if (index === -1) return sendJson(res, 404, { error: 'not found' });
+    memos.splice(index, 1);
+    writeInbox(memos);
+    fs.rmSync(path.join(INBOX_ATTACHMENTS_DIR, payload.id), { recursive: true, force: true });
+    return sendJson(res, 200, {});
+  }
+
+  if (url.pathname === '/api/inbox/attachments' && req.method === 'POST') {
+    const id = url.searchParams.get('id') || '';
+    if (!/^[\w-]+$/.test(id)) {
+      req.resume();
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const body = await readBinaryBody(req, MAX_ATTACHMENT_BYTES);
+    if (body === null) return sendJson(res, 413, { error: 'too large' });
+    if (body.length === 0) return sendJson(res, 400, { error: 'empty body' });
+    const dir = path.join(INBOX_ATTACHMENTS_DIR, id);
+    fs.mkdirSync(dir, { recursive: true });
+    const saved = path.join(dir, `${Date.now()}-${sanitizeAttachmentName(url.searchParams.get('name'))}`);
+    fs.writeFileSync(saved, body);
+    return sendJson(res, 200, { path: saved });
+  }
+
+  if (url.pathname === '/api/inbox/move' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const { id, column, backlogPath } = payload;
+    const title = normalizeTaskText(payload.title);
+    if (typeof column !== 'string' || !column || /[\\/]|^\.\.?$/.test(column) || !title) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const memos = readInbox();
+    const index = memos.findIndex((m) => m.id === id);
+    if (index === -1) return sendJson(res, 404, { error: 'not found' });
+    const targetDir = resolveLaunchCwd(column, '');
+    if (!targetDir) return sendJson(res, 400, { error: 'no matching project directory', column });
+    const targets = listBacklogTargets(targetDir);
+    if (!targets.length) return sendJson(res, 400, { error: 'source backlog.md not found', targets });
+    const sourcePath = targets.length === 1 && !backlogPath ? targets[0] : backlogPath;
+    if (!targets.includes(sourcePath)) return sendJson(res, 400, { error: 'backlogPath required', targets });
+
+    const { memoPath, number } = moveInboxMemo(memos[index], title, sourcePath);
+    memos.splice(index, 1);
+    writeInbox(memos);
+    fs.rmSync(path.join(INBOX_ATTACHMENTS_DIR, id), { recursive: true, force: true });
+    return sendJson(res, 200, { backlogPath: sourcePath, memoPath, number });
+  }
 
   if (url.pathname === '/api/attachments' && req.method === 'POST') {
     const file = url.searchParams.get('file') || '';

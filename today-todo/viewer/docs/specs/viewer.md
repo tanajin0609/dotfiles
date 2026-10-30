@@ -260,6 +260,23 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-CF-SRV-2: `POST /api/column-favorites` `{ "name": <列名>, "favorite": <真偽値> }` は型が違えば400を返す。`favorite` が真なら列名を記録に加え、偽なら除き、
   `data/column-favorites.json` に保存して `200 { "favorites": [<列名>] }` を返す。記録は全todoファイル共通で、その日のボードに無い列の記録も消さない。
 
+### 1.20 Inbox（IB）
+
+- AC-IB-SRV-1: `GET /api/inbox` は `data/inbox.json` のメモを `200 { "memos": [{ "id", "text", "createdAt", "updatedAt" }] }`（`createdAt` の新しい順）で返す。ファイルが無い・壊れている場合は空配列。
+  メモは todo ファイル（日付）に紐づけず、全日共通で保持する。
+- AC-IB-SRV-2: `POST /api/inbox` `{ "id"?, "text" }` は、`id` が記録に無ければ作成、あれば本文を差し替えて `200 { "memo" }` を返す。
+  `text` が空白だけ、または `id` が英数字と`-_`以外なら400。`id` 省略時はサーバーが採番する。
+- AC-IB-SRV-3: `POST /api/inbox/delete` `{ "id" }` はメモと `data/attachments/inbox/<id>/` を消して `200 {}` を返す。記録に無い `id` は404。
+- AC-IB-SRV-4: `POST /api/inbox/attachments?id=<メモID>&name=<元のファイル名>` は AC-AT-SRV-1 と同じ検証・ファイル名の置換で
+  `data/attachments/inbox/<id>/<タイムスタンプ>-<ファイル名>` に保存し `200 { "path" }` を返す（メモの保存前でも受け付ける）。
+- AC-IB-SRV-5: `POST /api/inbox/move` `{ "id", "column", "backlogPath"?, "title" }` はメモをプロジェクトの backlog.md へ移す。書き込み先は AC-CB-SRV-2 と同じく決め、
+  候補が複数なら `backlogPath`（候補のいずれか）が必須。`title` は AC-CB-SRV-3 と同じく1行にまとめ、空なら400。次の順で書き、`200 { "backlogPath", "memoPath", "number" }` を返す。
+  1. backlog.md と同じディレクトリに `inbox/<YYYYMMDD-HHmm>-<slug>/`（同名があれば `-2` から連番）を作り、メモの添付（本文中の `[添付] <data/attachments/inbox/<id>/ 配下の絶対パス>`）を
+     そこへコピーし、`memo.md`（`# <title>`・本文・添付があれば `## 添付` と相対リンク）を書く。本文中の `[添付] <絶対パス>` はコピー先への相対リンクに置き換える。
+  2. backlog.md の末尾に `- [ ] #<N> <title> → [memo.md](inbox/<dir>/memo.md)` を追記する（`N` の採番は `/api/tasks` と同じ。無番号運用なら付けない）。
+  3. メモと `data/attachments/inbox/<id>/` を消す。todo ファイルは書き換えない（列の再取得 AC-CS-1 で取り込む）。
+  記録に無い `id` は404、列のディレクトリが無い・backlog.md の候補が0件は400。
+
 ## 2. 画面
 
 画面の状態は `localStorage`（キーは `viewer:` 接頭辞）とURLの `#` 以降にだけ保持し、`data/` には保存しない。
@@ -582,6 +599,15 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-M3-1 / AC-E2-1: 終了画面は、対象の未完了が0件なら「すべて完了しました」、未完了が残ったまま一巡したら「一巡しました（未完了n件）」
   と出し分け、後者には「もう一周」を置く。
 - AC-E4-1: フォーカスモード中（入力欄外）は `→` 次へ、`Space` 先頭の未完了タスクをチェック、`Esc` カンバンへ戻る。
+
+### 2.8b Inbox（IB）
+
+- AC-IB-1: ボードのツールバーの「Focus」ボタンの右に「Inbox」ボタン（アイコン＋「Inbox」、メモが1件以上なら件数バッジ）を置き、押すと Inbox 画面を `<dialog>` の `showModal()` で開く（AC-M7-1 と同じ扱い）。
+- AC-IB-2: Inbox 画面の上部に新規メモの入力欄（複数行）と「追加」ボタンを置く。`Ctrl+Enter` も「追加」と同じ。下にメモを新しい順に並べ、各メモに「編集」「削除」「プロジェクトへ移す」を置く。
+  編集は行内の入力欄（`Ctrl+Enter` で保存・`Esc` で取消）。削除は AC-CB-UI-1 と同じく「元に戻す」付きの通知を10秒出してから送信する。
+- AC-IB-3: 新規メモ・編集中の入力欄へのファイルのドロップ・貼り付けは AC-AT-1 と同じく扱い、保存先を AC-IB-SRV-4 にする。
+- AC-IB-4: 「プロジェクトへ移す」は Inbox 画面の上へ小さなダイアログを重ねて開き、列（当日ボードの列）・書き込み先（`/api/backlog-targets` の候補が複数の列でだけ）・
+  タスク本文（メモの先頭の空でない行を初期値に編集可）を選んで「移す」で AC-IB-SRV-5 を呼ぶ。成功したら一覧からメモを消し、「<列名> に移しました（列を再取得で反映）」と通知する。失敗は AC-H2-2 に従い通知する。
 
 ### 2.8a カードのステータス（ST）
 

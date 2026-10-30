@@ -823,6 +823,15 @@
   .status-segment[hidden] { display: none; }
   .new-card-form { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; }
   .new-card-form > button { align-self: flex-end; }
+  .inbox-dialog { width: min(720px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
+  .inbox-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
+  .inbox-list { list-style: none; margin: 0; padding: 0 20px 20px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  .inbox-memo { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .inbox-memo-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+  .inbox-memo-meta { font-size: var(--fs-xs); color: var(--ink-2, inherit); opacity: .75; }
+  .inbox-memo-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .inbox-memo textarea { width: 100%; }
+  #inboxBtn .unread-badge { margin-left: 4px; align-self: center; }
 
   .modal-tasks { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; padding: 10px 12px; }
   .modal-task {
@@ -1163,6 +1172,7 @@
         <label for="focusColumnSelect" class="sr-only">フォーカス対象</label>
         <select id="focusColumnSelect"></select>
         <button id="focusModeBtn" type="button" aria-pressed="false" class="btn btn-icon btn--labeled" aria-label="フォーカス" data-tip="フォーカス"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3"/></svg><span>Focus</span></button>
+        <button id="inboxBtn" type="button" class="btn btn-icon btn--labeled" aria-label="Inbox" data-tip="Inbox"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13l2.5-7.5A1 1 0 0 1 7.4 5h9.2a1 1 0 0 1 .9.5L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13h4.5l1 2h5l1-2H20"/></svg><span>Inbox</span><span id="inboxCount" class="unread-badge unread-new" hidden></span></button>
       </div>
       <div class="hdr-spacer"></div>
       <span id="shareAllEmptyReason" class="copy-empty-reason" hidden>コメントがありません</span>
@@ -1508,6 +1518,57 @@
         <span class="input-hint" id="newCardTextHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
       </div>
       <button id="newCardSubmit" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="inboxDialog" class="app-dialog inbox-dialog" aria-labelledby="inboxDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="inboxDialogTitle">Inbox</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="inboxDialogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+    <div class="new-card-form">
+      <div class="field">
+        <label for="inboxNewInput" class="field-label">メモ</label>
+        <textarea id="inboxNewInput" rows="3" placeholder="思いついたことを書く（ファイルはドロップ・貼り付けで添付）" aria-describedby="inboxNewHint"></textarea>
+        <span class="input-hint" id="inboxNewHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
+      </div>
+      <button id="inboxAddBtn" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+    <p id="inboxEmpty" class="empty-state" hidden>メモはありません</p>
+    <ul id="inboxList" class="inbox-list" aria-label="メモ一覧"></ul>
+  </div>
+</dialog>
+
+<dialog id="inboxMoveDialog" class="app-dialog" aria-labelledby="inboxMoveDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="inboxMoveDialogTitle">プロジェクトへ移す</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="inboxMoveCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+    <div class="new-card-form">
+      <div class="field">
+        <label for="inboxMoveColumnSelect" class="field-label">列（プロジェクト）</label>
+        <select id="inboxMoveColumnSelect"></select>
+      </div>
+      <div class="field" id="inboxMoveBacklogField" hidden>
+        <label for="inboxMoveBacklogSelect" class="field-label">書き込み先</label>
+        <select id="inboxMoveBacklogSelect"></select>
+      </div>
+      <div class="field">
+        <label for="inboxMoveTitleInput" class="field-label">タスク本文（backlog.md の1行）</label>
+        <input id="inboxMoveTitleInput" type="text">
+      </div>
+      <button id="inboxMoveSubmit" type="button" class="btn btn--labeled" aria-label="移す" data-tip="移す"><span>移す</span></button>
     </div>
   </div>
 </dialog>
@@ -1895,7 +1956,7 @@ function toLineQuote(text) {
 }
 
 // Claudeにはファイル本体を渡せないため、サーバーに保存した絶対パスを本文に書き、セッション側に読ませる。
-async function attachDroppedFiles(input, groupId, fileList) {
+async function attachDroppedFiles(input, groupId, fileList, uploadUrl) {
   const files = [...fileList];
   const dismiss = showToast(`添付中…（${files.length}件）`, { key: 'attachments', durationMs: null });
   const lines = [];
@@ -1903,7 +1964,7 @@ async function attachDroppedFiles(input, groupId, fileList) {
     const query = new URLSearchParams({ file: currentFile, groupId, name: file.name });
     let response;
     try {
-      response = await fetch(`/api/attachments?${query}`, { method: 'POST', body: file });
+      response = await fetch(uploadUrl ? uploadUrl(file) : `/api/attachments?${query}`, { method: 'POST', body: file });
     } catch {
       response = null;
     }
@@ -6078,6 +6139,252 @@ function bindLaunchOnEnter(textarea, launch) {
   });
 }
 
+
+let inboxMemos = [];
+let inboxDialogFocusReturn = null;
+let inboxMovingMemo = null;
+// 新規メモの保存前に添付できるよう、IDをクライアントで先に決めておく。
+let inboxDraftId = newInboxId();
+const pendingInboxDeletes = new Set();
+
+function newInboxId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function inboxUploadUrl(id) {
+  return (file) => `/api/inbox/attachments?${new URLSearchParams({ id, name: file.name })}`;
+}
+
+function bindInboxAttachments(textarea, getId) {
+  textarea.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    textarea.classList.add('drag-over');
+  });
+  textarea.addEventListener('dragleave', () => textarea.classList.remove('drag-over'));
+  textarea.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files.length === 0) return;
+    e.preventDefault();
+    textarea.classList.remove('drag-over');
+    attachDroppedFiles(textarea, null, e.dataTransfer.files, inboxUploadUrl(getId()));
+  });
+  textarea.addEventListener('paste', (e) => {
+    if (e.clipboardData.files.length === 0) return;
+    e.preventDefault();
+    attachDroppedFiles(textarea, null, e.clipboardData.files, inboxUploadUrl(getId()));
+  });
+}
+
+async function loadInbox() {
+  const response = await fetchJson('/api/inbox');
+  if (!response.ok) return;
+  inboxMemos = response.data.memos;
+  renderInbox();
+}
+
+function renderInbox() {
+  const visible = inboxMemos.filter((m) => !pendingInboxDeletes.has(m.id));
+  const count = document.getElementById('inboxCount');
+  count.hidden = visible.length === 0;
+  count.textContent = String(visible.length);
+  document.getElementById('inboxBtn').setAttribute('aria-label', visible.length ? `Inbox（${visible.length}件）` : 'Inbox');
+  const list = document.getElementById('inboxList');
+  if (list.querySelector('textarea')) return;
+  document.getElementById('inboxEmpty').hidden = visible.length > 0;
+  list.replaceChildren(...visible.map(buildInboxMemoItem));
+}
+
+function buildInboxMemoItem(memo) {
+  const item = document.createElement('li');
+  item.className = 'inbox-memo';
+  item.dataset.memoId = memo.id;
+  const text = document.createElement('p');
+  text.className = 'inbox-memo-text';
+  text.textContent = memo.text;
+  const meta = document.createElement('span');
+  meta.className = 'inbox-memo-meta';
+  meta.textContent = new Date(memo.createdAt).toLocaleString();
+  const actions = document.createElement('div');
+  actions.className = 'inbox-memo-actions';
+  const makeButton = (label) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn--sm';
+    btn.textContent = label;
+    btn.setAttribute('aria-label', `${label}: ${memo.text.trim().split('\n')[0]}`);
+    actions.append(btn);
+    return btn;
+  };
+  makeButton('編集').addEventListener('click', () => startInboxEdit(item, memo));
+  makeButton('削除').addEventListener('click', () => deleteInboxMemoWithUndo(memo));
+  makeButton('プロジェクトへ移す').addEventListener('click', () => openInboxMoveDialog(memo));
+  item.append(text, meta, actions);
+  return item;
+}
+
+function startInboxEdit(item, memo) {
+  const input = document.createElement('textarea');
+  input.rows = Math.min(10, memo.text.split('\n').length + 1);
+  input.value = memo.text;
+  input.setAttribute('aria-label', 'メモを編集');
+  bindInboxAttachments(input, () => memo.id);
+  const finish = () => { input.remove(); renderInbox(); };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      finish();
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) {
+      e.preventDefault();
+      saveInboxMemo(memo.id, input.value).then((ok) => { if (ok) finish(); });
+    }
+  });
+  item.querySelector('.inbox-memo-text').replaceWith(input);
+  input.focus();
+}
+
+async function saveInboxMemo(id, text) {
+  if (!text.trim()) {
+    showToast('メモが空です', { kind: 'error' });
+    return false;
+  }
+  const response = await postJson('/api/inbox', { id, text });
+  if (!response.ok) {
+    showFailureToast(`メモを保存できませんでした: ${formatFailureReason(response)}`, () => saveInboxMemo(id, text));
+    return false;
+  }
+  const index = inboxMemos.findIndex((m) => m.id === id);
+  if (index === -1) inboxMemos.unshift(response.data.memo);
+  else inboxMemos[index] = response.data.memo;
+  return true;
+}
+
+async function addInboxMemo() {
+  const input = document.getElementById('inboxNewInput');
+  if (!await saveInboxMemo(inboxDraftId, input.value)) return;
+  input.value = '';
+  inboxDraftId = newInboxId();
+  renderInbox();
+}
+
+function deleteInboxMemoWithUndo(memo) {
+  pendingInboxDeletes.add(memo.id);
+  renderInbox();
+  showToast(`メモを削除しました: ${memo.text.trim().split('\n')[0].slice(0, TOAST_TASK_TEXT_MAX)}`, {
+    actionLabel: '元に戻す',
+    onAction: () => {},
+    onClose: async (reason) => {
+      pendingInboxDeletes.delete(memo.id);
+      if (reason !== 'action') {
+        const response = await postJson('/api/inbox/delete', { id: memo.id });
+        if (response.ok || response.status === 404) inboxMemos = inboxMemos.filter((m) => m.id !== memo.id);
+        else showToast(`メモを削除できませんでした: ${formatFailureReason(response)}`, { kind: 'error' });
+      }
+      renderInbox();
+    },
+    key: `inbox-delete:${memo.id}`,
+    durationMs: TASK_TOGGLE_UNDO_DURATION_MS,
+  });
+}
+
+function openInboxDialog() {
+  const dialog = document.getElementById('inboxDialog');
+  if (dialog.open) return;
+  inboxDialogFocusReturn = captureFocusReturn();
+  dialog.showModal();
+  attachToastRegionToTopmostDialog();
+  loadInbox();
+  document.getElementById('inboxNewInput').focus();
+}
+
+function openInboxMoveDialog(memo) {
+  inboxMovingMemo = memo;
+  const select = document.getElementById('inboxMoveColumnSelect');
+  select.replaceChildren(...(boardData ? boardData.columns : []).map((column) => {
+    const option = document.createElement('option');
+    option.value = column.name;
+    option.textContent = column.name;
+    return option;
+  }));
+  document.getElementById('inboxMoveTitleInput').value = memo.text.split('\n').map((l) => l.trim()).find(Boolean) || '';
+  document.getElementById('inboxMoveDialog').showModal();
+  attachToastRegionToTopmostDialog();
+  refreshInboxMoveBacklogTargets();
+  select.focus();
+}
+
+async function refreshInboxMoveBacklogTargets() {
+  const columnName = document.getElementById('inboxMoveColumnSelect').value;
+  const response = columnName ? await fetchJson(`/api/backlog-targets?column=${encodeURIComponent(columnName)}`) : null;
+  if (columnName !== document.getElementById('inboxMoveColumnSelect').value) return;
+  const targets = response && response.ok ? response.data.targets : [];
+  document.getElementById('inboxMoveBacklogSelect').replaceChildren(...targets.map((target) => {
+    const option = document.createElement('option');
+    option.value = target;
+    option.textContent = target;
+    return option;
+  }));
+  document.getElementById('inboxMoveBacklogField').hidden = targets.length < 2;
+}
+
+async function submitInboxMove() {
+  const memo = inboxMovingMemo;
+  if (!memo) return;
+  const column = document.getElementById('inboxMoveColumnSelect').value;
+  const title = document.getElementById('inboxMoveTitleInput').value;
+  if (!column || !title.trim()) {
+    showToast('列とタスク本文を入れてください', { kind: 'error' });
+    return;
+  }
+  const backlogField = document.getElementById('inboxMoveBacklogField');
+  const backlogPath = backlogField.hidden ? undefined : document.getElementById('inboxMoveBacklogSelect').value;
+  const button = document.getElementById('inboxMoveSubmit');
+  button.disabled = true;
+  const response = await postJson('/api/inbox/move', { id: memo.id, column, backlogPath, title });
+  button.disabled = false;
+  if (!response.ok) {
+    showFailureToast(`移せませんでした: ${formatFailureReason(response)}`, submitInboxMove);
+    return;
+  }
+  inboxMemos = inboxMemos.filter((m) => m.id !== memo.id);
+  document.getElementById('inboxMoveDialog').close();
+  renderInbox();
+  showToast(`${column} に移しました（列を再取得で反映）`);
+}
+
+function setupInbox() {
+  document.getElementById('inboxBtn').addEventListener('click', openInboxDialog);
+  const dialog = document.getElementById('inboxDialog');
+  document.getElementById('inboxDialogCloseBtn').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+  dialog.addEventListener('close', () => {
+    attachToastRegionToTopmostDialog();
+    restoreFocusReturn(inboxDialogFocusReturn);
+    inboxDialogFocusReturn = null;
+  });
+  const newInput = document.getElementById('inboxNewInput');
+  bindSubmitShortcut(newInput, addInboxMemo);
+  bindInboxAttachments(newInput, () => inboxDraftId);
+  document.getElementById('inboxAddBtn').addEventListener('click', addInboxMemo);
+
+  const moveDialog = document.getElementById('inboxMoveDialog');
+  document.getElementById('inboxMoveCloseBtn').addEventListener('click', () => moveDialog.close());
+  moveDialog.addEventListener('click', (e) => { if (e.target === moveDialog) moveDialog.close(); });
+  moveDialog.addEventListener('close', () => {
+    inboxMovingMemo = null;
+    attachToastRegionToTopmostDialog();
+  });
+  document.getElementById('inboxMoveColumnSelect').addEventListener('change', refreshInboxMoveBacklogTargets);
+  document.getElementById('inboxMoveTitleInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      submitInboxMove();
+    }
+  });
+  document.getElementById('inboxMoveSubmit').addEventListener('click', submitInboxMove);
+  loadInbox();
+}
+
 async function init() {
   observeHeaderHeight();
   setupCardPanelResize();
@@ -6098,6 +6405,7 @@ async function init() {
     for (const kbd of document.querySelectorAll('kbd[data-mod-key]')) kbd.textContent = '⌘';
   }
   bindSubmitShortcut(document.getElementById('globalCommentInput'), submitGlobalComment);
+  setupInbox();
   bindSubmitShortcut(document.getElementById('newCardTextInput'), submitNewCard);
   bindSubmitShortcut(document.getElementById('modalTaskInput'), submitModalTask);
   for (const id of RICH_INPUT_IDS) enhanceRichInput(document.getElementById(id));
