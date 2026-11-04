@@ -251,3 +251,22 @@ test('プロジェクト配下の .claude/worktrees にある backlog.md のコ�
   assert.equal(fs.readFileSync(todoPath, 'utf-8'),
     `# 2026-01-01\n\n## grp\n\n### inbox\n- [ ] #12 既存タスク → ${backlog}\n`);
 });
+
+// AC-CS-SRV-8
+test('未完了項目が0件のプロジェクトも見出しだけのカードとして残し、ボードに空のカードとして出す', async () => {
+  const fixture = setupFixture();
+  const todoPath = path.join(fixture.todoDir, fixture.todoFile);
+  fs.writeFileSync(todoPath, '# 2026-01-01\n\n## grp\n');
+  const backlog = writeBacklog(fixture.root, 'grp/active', '# Todo\n\n- [ ] 残タスク\n');
+  writeBacklog(fixture.root, 'grp/idle', '# Todo\n\n- [x] 済み\n');
+  await withServer(fixture, async (baseUrl) => {
+    const res = await sync(baseUrl, { file: fixture.todoFile, column: 'grp' });
+    assert.deepEqual(await res.json(), { items: 1 });
+    assert.equal(fs.readFileSync(todoPath, 'utf-8'), [
+      '# 2026-01-01', '', '## grp', '', '### active', `- [ ] #1 残タスク → ${backlog}`, '', '### idle', '',
+    ].join('\n'));
+    const board = await (await fetch(`${baseUrl}/api/board?file=${fixture.todoFile}`)).json();
+    const idle = board.columns[0].groups.find((g) => g.title === 'idle');
+    assert.deepEqual(idle.tasks, []);
+  });
+});
