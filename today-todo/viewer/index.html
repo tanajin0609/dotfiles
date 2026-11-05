@@ -2172,13 +2172,13 @@ async function openDocDialog(absPath, { keepNav = false } = {}) {
   }
   if (loadId !== docLoadSeq) return;
   if (!response.ok) {
-    status.textContent = response.status === 404 ? 'ファイルが見つかりません' : `このファイルは表示できません（${response.status}）`;
+    status.textContent = response.status === 404 ? 'ファイルが見つかりません' : response.status === 415 ? 'バイナリファイルは表示できません' : `このファイルは表示できません（${response.status}）`;
     return;
   }
   const markdown = await response.text();
   if (loadId !== docLoadSeq) return;
   status.textContent = '';
-  replaceDocFrame(docFrameHtml(renderMarkdownHtml(markdown)));
+  replaceDocFrame(docFrameHtml(/\.md$/i.test(absPath) ? renderMarkdownHtml(markdown) : `<pre>${escapeHtml(markdown)}</pre>`));
 }
 
 // 資料を切り替えたり閉じたりしても書きかけを失わないよう、カード単位で持つ。位置は本文の文書座標。

@@ -7,7 +7,7 @@ const path = require('path');
 const { setupFixture, startViewerServer } = require('./helpers');
 
 // AC-DV-SRV-1
-test('GET /api/docはPROJECTS_ROOT配下の.mdだけを返し、それ以外は403・存在しなければ404', async () => {
+test('GET /api/docはPROJECTS_ROOT配下のテキストファイルを返し、秘匿名・バイナリ・配下外は拒否・存在しなければ404', async () => {
   const fixture = setupFixture();
   const projectsRoot = path.resolve(fixture.todoDir, '..');
   const docDir = path.join(projectsRoot, 'demo-project', 'docs');
@@ -15,6 +15,9 @@ test('GET /api/docはPROJECTS_ROOT配下の.mdだけを返し、それ以外は4
   const mdPath = path.join(docDir, 'proposal.md');
   fs.writeFileSync(mdPath, '# 提案\n本文');
   fs.writeFileSync(path.join(docDir, 'secret.txt'), 'x');
+  fs.writeFileSync(path.join(docDir, '.env'), 'X=1');
+  fs.writeFileSync(path.join(docDir, 'query.sql'), 'SELECT 1;');
+  fs.writeFileSync(path.join(docDir, 'logo.png'), Buffer.from([0x89, 0x50, 0x00, 0x47]));
   const outside = path.join(path.dirname(projectsRoot), `outside-${process.pid}.md`);
   fs.writeFileSync(outside, '# outside');
   const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
@@ -24,7 +27,13 @@ test('GET /api/docはPROJECTS_ROOT配下の.mdだけを返し、それ以外は4
     assert.equal(ok.status, 200);
     assert.match(ok.headers.get('content-type'), /^text\/markdown/);
     assert.equal(await ok.text(), '# 提案\n本文');
+    const sql = await get(path.join(docDir, 'query.sql'));
+    assert.equal(sql.status, 200);
+    assert.match(sql.headers.get('content-type'), /^text\/plain/);
+    assert.equal(await sql.text(), 'SELECT 1;');
     assert.equal((await get(path.join(docDir, 'secret.txt'))).status, 403);
+    assert.equal((await get(path.join(docDir, '.env'))).status, 403);
+    assert.equal((await get(path.join(docDir, 'logo.png'))).status, 415);
     assert.equal((await get(outside)).status, 403);
     assert.equal((await get(path.join(docDir, '..', '..', '..', path.basename(outside)))).status, 403);
     assert.equal((await get(path.join(docDir, 'missing.md'))).status, 404);
@@ -35,7 +44,7 @@ test('GET /api/docはPROJECTS_ROOT配下の.mdだけを返し、それ以外は4
 });
 
 // AC-DV-SRV-2
-test('GET /api/doc/resolveは出典のディレクトリから上へさかのぼってrefを解決し、配下の.mdを返す', async () => {
+test('GET /api/doc/resolveは出典のディレクトリから上へさかのぼってrefを解決し、配下のファイルを返す', async () => {
   const fixture = setupFixture();
   const projectsRoot = path.resolve(fixture.todoDir, '..');
   const orderDir = path.join(projectsRoot, 'ops', 'inbox', 'order-1');
@@ -43,6 +52,8 @@ test('GET /api/doc/resolveは出典のディレクトリから上へさかのぼ
   fs.writeFileSync(path.join(orderDir, 'instruction.md'), '# i');
   fs.writeFileSync(path.join(orderDir, 'plan.md'), '# p');
   fs.writeFileSync(path.join(orderDir, '.snapshot.md'), '# s');
+  fs.writeFileSync(path.join(orderDir, 'src', 'point_usage.sql'), 'SELECT 1;');
+  fs.writeFileSync(path.join(orderDir, 'src', 'credentials.json'), '{}');
   fs.writeFileSync(path.join(orderDir, 'src', 'node_modules', 'x.md'), '# x');
   const backlog = path.join(projectsRoot, 'ops', 'inbox', 'docs', 'tasks', 'backlog.md');
   fs.mkdirSync(path.dirname(backlog), { recursive: true });
@@ -56,10 +67,12 @@ test('GET /api/doc/resolveは出典のディレクトリから上へさかのぼ
       const body = await res.json();
       assert.equal(body.kind, 'dir');
       assert.equal(body.path, orderDir);
-      assert.deepEqual(body.docs, [path.join(orderDir, 'instruction.md'), path.join(orderDir, 'plan.md')]);
+      assert.deepEqual(body.docs, [path.join(orderDir, 'instruction.md'), path.join(orderDir, 'plan.md'), path.join(orderDir, 'src', 'point_usage.sql')]);
     }
     const file = await (await resolve('ops/inbox/order-1/plan.md')).json();
     assert.deepEqual([file.kind, file.docs], ['file', [path.join(orderDir, 'plan.md')]]);
+    const sqlFile = await (await resolve('ops/inbox/order-1/src/point_usage.sql')).json();
+    assert.deepEqual(sqlFile.docs, [path.join(orderDir, 'src', 'point_usage.sql')]);
     assert.equal((await resolve('nope/missing')).status, 404);
     assert.equal((await resolve('../../../../../../etc')).status, 404);
   } finally {

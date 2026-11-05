@@ -1176,13 +1176,15 @@ function isUnderProjectsRoot(p) {
   return fs.realpathSync(p).startsWith(fs.realpathSync(PROJECTS_ROOT) + path.sep);
 }
 
-function listMarkdownFiles(dir, depth, out) {
+const isMarkdownPath = (p) => p.toLowerCase().endsWith('.md');
+
+function listMarkdownFiles(dir, depth, out, accept = isMarkdownPath) {
   if (depth < 0 || out.length >= 100) return out;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) listMarkdownFiles(full, depth - 1, out);
-    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md') && out.length < 100) out.push(full);
+    if (entry.isDirectory()) listMarkdownFiles(full, depth - 1, out, accept);
+    else if (entry.isFile() && accept(full) && out.length < 100) out.push(full);
   }
   return out;
 }
@@ -1196,9 +1198,9 @@ function resolveDocRef(ref, base) {
     const candidate = path.resolve(dir, ref);
     if (fs.existsSync(candidate) && isUnderProjectsRoot(candidate)) {
       if (fs.statSync(candidate).isDirectory()) {
-        return { path: candidate, kind: 'dir', docs: listMarkdownFiles(candidate, 2, []) };
+        return { path: candidate, kind: 'dir', docs: listMarkdownFiles(candidate, 2, [], (p) => !isLockedArtifact(p)) };
       }
-      return { path: candidate, kind: 'file', docs: candidate.toLowerCase().endsWith('.md') ? [candidate] : [] };
+      return { path: candidate, kind: 'file', docs: isLockedArtifact(candidate) ? [] : [candidate] };
     }
     if (dir === PROJECTS_ROOT) break;
     dir = path.dirname(dir);
@@ -2492,7 +2494,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/api/doc' && req.method === 'GET') {
     const requested = path.resolve(url.searchParams.get('path') || '/');
-    if (path.extname(requested).toLowerCase() !== '.md') {
+    if (isLockedArtifact(requested)) {
       return sendJson(res, 403, { error: 'forbidden' });
     }
     if (!fs.existsSync(requested)) {
@@ -2503,8 +2505,10 @@ const server = http.createServer(async (req, res) => {
     if (!fs.realpathSync(requested).startsWith(realRoot + path.sep)) {
       return sendJson(res, 403, { error: 'forbidden' });
     }
-    res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' });
-    return res.end(fs.readFileSync(requested));
+    const content = fs.readFileSync(requested);
+    if (content.includes(0)) return sendJson(res, 415, { error: 'binary file' });
+    res.writeHead(200, { 'Content-Type': `${isMarkdownPath(requested) ? 'text/markdown' : 'text/plain'}; charset=utf-8` });
+    return res.end(content);
   }
 
   if ((url.pathname === '/api/session/artifacts' || url.pathname === '/api/session/artifact') && req.method === 'GET') {
