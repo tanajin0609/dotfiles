@@ -2795,10 +2795,11 @@ async function refreshNewCardBacklogTargets() {
   const targets = response && response.ok ? response.data.targets : [];
   const select = document.getElementById('newCardBacklogSelect');
   select.innerHTML = '';
-  for (const target of targets) {
+  const labels = response && response.ok ? response.data.labels : [];
+  for (const [i, target] of targets.entries()) {
     const option = document.createElement('option');
     option.value = target;
-    option.textContent = target;
+    option.textContent = labels[i];
     select.appendChild(option);
   }
   document.getElementById('newCardBacklogField').hidden = targets.length < 2;
@@ -6405,10 +6406,11 @@ async function refreshInboxMoveBacklogTargets() {
   const response = columnName ? await fetchJson(`/api/backlog-targets?column=${encodeURIComponent(columnName)}`) : null;
   if (columnName !== document.getElementById('inboxMoveColumnSelect').value) return;
   const targets = response && response.ok ? response.data.targets : [];
-  document.getElementById('inboxMoveBacklogSelect').replaceChildren(...targets.map((target) => {
+  const labels = response && response.ok ? response.data.labels : [];
+  document.getElementById('inboxMoveBacklogSelect').replaceChildren(...targets.map((target, i) => {
     const option = document.createElement('option');
     option.value = target;
-    option.textContent = target;
+    option.textContent = labels[i];
     return option;
   }));
   document.getElementById('inboxMoveBacklogField').hidden = targets.length < 2;
