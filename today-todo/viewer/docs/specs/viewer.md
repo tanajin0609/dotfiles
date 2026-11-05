@@ -221,6 +221,8 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-CB-SRV-2: 「+」での追加の書き込み先は対象ディレクトリ直下の `docs/tasks/backlog.md`、無ければ配下を AC-CS-SRV と同じ範囲で探した `backlog.md`。
   候補が1件ならそこへ書く。カード追加で候補が複数なら `backlogPath`（候補のいずれか）を必須とし、新規カード追加ダイアログは
   候補が複数の列でだけ「書き込み先」の選択欄を出す（`GET /api/backlog-targets?column=` が候補を返す）。候補0件は400。
+  `GET /api/backlog-targets` は候補 `targets`（絶対パス）と同じ順の表示名 `labels`（列ディレクトリから見た `docs/tasks/backlog.md` の親ディレクトリの相対パス＝サブプロジェクト名。直下なら列名）を返し、
+  選択欄（Inbox の「プロジェクトへ移す」も同じ）は `labels` を表示し、値には `targets` を使う。
 - AC-CB-SRV-5: `POST /api/cards` に `createProject: { "subName"?: <名前> }` があれば、`PROJECTS_ROOT/<列名>[/<subName>]` に
   `PROJECTS_ROOT/_templates/dev` をコピーして SDD 構成（`docs/specs`・`docs/tasks/backlog.md`・`docs/changes`・`docs/refs`・`src`・`tests`）を作り
   （`docs/changes/<change-name>/` の雛形はコピーせず空の `docs/changes/` を置く）、その `backlog.md` の「## 完了」見出しの前（無ければ末尾）へ `#1` を振ってカードを追加する。

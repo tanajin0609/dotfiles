@@ -46,7 +46,7 @@ test('配下にbacklog.mdが複数あれば、backlogPathで選んだ先へ書�
   const b = writeBacklog(path.join(fixture.projectDir, 'b'), '');
   await withServer(fixture, async (server) => {
     const targets = await (await fetch(`${server.baseUrl}/api/backlog-targets?column=demo-project`)).json();
-    assert.deepEqual(targets, { targets: [a, b] });
+    assert.deepEqual(targets, { targets: [a, b], labels: ['a', 'b'] });
     const missing = await post(server, '/api/cards', { file: fixture.todoFile, columnName: 'demo-project', text: 'x' });
     assert.equal(missing.status, 400);
     assert.deepEqual((await missing.json()).targets, [a, b]);

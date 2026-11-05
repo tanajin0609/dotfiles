@@ -2027,7 +2027,9 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/backlog-targets' && req.method === 'GET') {
     const targetDir = resolveLaunchCwd(url.searchParams.get('column') || '', '');
-    return sendJson(res, 200, { targets: targetDir ? listBacklogTargets(targetDir) : [] });
+    const targets = targetDir ? listBacklogTargets(targetDir) : [];
+    const labels = targets.map((t) => path.relative(targetDir, path.resolve(t, '..', '..', '..')) || path.basename(targetDir));
+    return sendJson(res, 200, { targets, labels });
   }
 
   if (url.pathname === '/api/tasks/edit' && req.method === 'POST') {
