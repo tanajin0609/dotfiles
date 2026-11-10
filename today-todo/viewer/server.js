@@ -432,6 +432,12 @@ function parseBoard(md) {
       columns.push(currentColumn);
     } else if (h3) {
       currentTag = h3[1];
+      // タスクが0件のプロジェクトも消えないよう、見出しだけのカードも作る。
+      if (currentColumn && !groupsByTag.has(currentTag)) {
+        const group = { id: hashId(`${currentColumn.name}::group::${currentTag}`), title: currentTag, tasks: [] };
+        groupsByTag.set(currentTag, group);
+        currentColumn.groups.push(group);
+      }
     } else if (task && currentColumn) {
       const done = task[1] === 'x';
       const rawText = task[2];
@@ -1161,9 +1167,16 @@ function syncColumnSection(md, columnName, columnDir) {
     push(e.card, e.state === 'done' ? e.line.replace(/^- \[ \]/, '- [x]') : e.line);
   }
 
+  const emptyProjects = new Set();
+  for (const src of sources) {
+    const project = nameCount.get(src.project) > 1 ? `${src.project}（${src.parent}）` : src.project;
+    const hasCard = [...out].some(([t, ls]) => ls.length > 0 && (t === project || t.startsWith(`${project} ▸ `)));
+    if (!hasCard) { emptyProjects.add(project); if (!out.has(project)) out.set(project, []); }
+  }
+
   const section = [`## ${columnName}`, ''];
   for (const [cardTitle, cardLines] of out) {
-    if (cardLines.length === 0) continue;
+    if (cardLines.length === 0 && !emptyProjects.has(cardTitle)) continue;
     if (cardTitle) section.push(`### ${cardTitle}`);
     section.push(...cardLines, '');
   }
