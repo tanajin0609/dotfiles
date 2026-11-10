@@ -1036,7 +1036,7 @@ function parseBacklogItems(md, backlogPath) {
   for (const line of md.split('\n')) {
     const h = line.match(/^#{2,3} (.+)/);
     const task = line.match(/^\s*- \[([ x])\] (.+)/);
-    if (h || task || line.trim() === '' || /^# /.test(line)) current = null;
+    if (h || task || line.trim() === '' || /^# /.test(line) || line.trim().startsWith('<!--')) current = null;
     if (h) {
       // 状態名（進行中・未着手等）だけのカード名では中身が分からないため、状態見出しは見出し文脈にしない。
       const text = h[1].trim();
