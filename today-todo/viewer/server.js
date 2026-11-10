@@ -46,6 +46,7 @@ const SKILL_CWD = process.env.VIEWER_SKILL_CWD
   ? path.resolve(process.env.VIEWER_SKILL_CWD)
   : path.join(os.homedir(), '.claude');
 const SKILL_SESSIONS_PATH = path.join(DATA_DIR, 'skill-sessions.json');
+const CHAT_SESSIONS_PATH = path.join(DATA_DIR, 'chat-sessions.json');
 const TODO_IMPORT_SESSION_PATH = path.join(DATA_DIR, 'todo-import-session.json');
 const COLUMN_ORDER_PATH = path.join(DATA_DIR, 'column-order.json');
 const COLUMN_FAVORITES_PATH = path.join(DATA_DIR, 'column-favorites.json');
@@ -1445,6 +1446,20 @@ function writeSkillSessions(sessions) {
   fs.writeFileSync(SKILL_SESSIONS_PATH, JSON.stringify(sessions));
 }
 
+function readChatSessions() {
+  try {
+    const sessions = JSON.parse(fs.readFileSync(CHAT_SESSIONS_PATH, 'utf-8'));
+    return Array.isArray(sessions) ? sessions : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeChatSessions(sessions) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(CHAT_SESSIONS_PATH, JSON.stringify(sessions));
+}
+
 function readTodoImportSession() {
   try {
     return JSON.parse(fs.readFileSync(TODO_IMPORT_SESSION_PATH, 'utf-8'));
@@ -2182,7 +2197,31 @@ const server = http.createServer(async (req, res) => {
       return sendLaunchFailure(res, err, payload.cwd);
     }
     if (!result.jobId) return sendJson(res, 500, { error: 'launch failed', detail: 'job id not found' });
+    if (payload.chat === true) {
+      writeChatSessions([...readChatSessions(), { jobId: result.jobId, cwd: payload.cwd, launchedAt: new Date().toISOString() }]);
+    }
     return sendJson(res, 200, { jobId: result.jobId });
+  }
+
+  if (url.pathname === '/api/chat' && req.method === 'GET') {
+    const sessions = readChatSessions().map((s) => ({ cwd: s.cwd || null, ...sessionInfoFor({ jobId: s.jobId }), launchedAt: s.launchedAt || null }));
+    return sendJson(res, 200, { sessions, defaultCwd: PROJECTS_ROOT });
+  }
+
+  if (url.pathname === '/api/chat/close' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    if (typeof payload.jobId !== 'string' || !/^[0-9a-f-]+$/.test(payload.jobId)) return sendJson(res, 400, { error: 'invalid payload' });
+    const sessions = readChatSessions();
+    if (!sessions.some((s) => s.jobId === payload.jobId)) return sendJson(res, 404, { error: 'session not found' });
+    // rmしないのは、閉じた後もセッション一覧からログを見られるようにするため。
+    await runClaudeQuietly(['stop', payload.jobId]);
+    writeChatSessions(sessions.filter((s) => s.jobId !== payload.jobId));
+    return sendJson(res, 200, {});
   }
 
   if (url.pathname === '/api/sessions/reply' && req.method === 'POST') {
@@ -2210,6 +2249,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (reply.status === 200) {
       writeSkillSessions(readSkillSessions().map((s) => (s.jobId === payload.jobId ? { ...s, jobId: reply.body.jobId } : s)));
+      const chatSessions = readChatSessions();
+      if (chatSessions.some((s) => s.jobId === payload.jobId)) {
+        writeChatSessions(chatSessions.map((s) => (s.jobId === payload.jobId ? { ...s, jobId: reply.body.jobId } : s)));
+      }
     }
     return sendJson(res, reply.status, reply.body);
   }

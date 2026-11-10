@@ -291,6 +291,16 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   3. メモと `data/attachments/inbox/<id>/` を消す。todo ファイルは書き換えない（列の再取得 AC-CS-1 で取り込む）。
   記録に無い `id` は404、列のディレクトリが無い・backlog.md の候補が0件は400。
 
+### 1.21 クイックチャット（CH）
+
+- AC-CH-SRV-1: `GET /api/chat` は `data/chat-sessions.json` に記録したセッションを起動の古い順に
+  `200 { "sessions": [{ "jobId", "cwd", "launchedAt", "state", "tempo", "detail", "updatedAt", "questions" }], "defaultCwd" }` で返す
+  （`state` 以降はAC-SL-SRV-1と同じく `sessionInfoFor` の値。ジョブが消えたものは `state: "unknown"`。`defaultCwd` はAC-SL-SRV-1と同じ）。ファイルが無い・壊れている場合は空配列。
+- AC-CH-SRV-2: `POST /api/sessions/create`（AC-SL-SRV-2）に `"chat": true` を付けると、起動に成功したとき `{ "jobId", "cwd", "launchedAt" }` を `data/chat-sessions.json` の末尾に追記する。
+- AC-CH-SRV-3: `POST /api/sessions/reply`（AC-SL-SRV-3）で返信が別jobIdを返した場合、`data/chat-sessions.json` の該当記録の `jobId` も置き換える。
+- AC-CH-SRV-4: `POST /api/chat/close` `{ "jobId" }` は、jobIdが `[0-9a-f-]+` でなければ400、記録に無ければ404。`claude stop`（失敗は無視。`claude rm` はしない）したうえで
+  記録から外し `200 {}` を返す。
+
 ## 2. 画面
 
 画面の状態は `localStorage`（キーは `viewer:` 接頭辞）とURLの `#` 以降にだけ保持し、`data/` には保存しない。
@@ -642,6 +652,21 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 - AC-IB-5: 各メモは左端のドラッグ取っ手でドラッグでき（本文はマウスで範囲選択してコピーできる。編集中は取っ手を出さない）、ボードの列へドロップすると、その列へ移す。ドラッグ中はドロップ先の列を強調する。メモが1件以上あるときは、メモ一覧の上に「メモをボードの列へドラッグすると、その列の backlog.md へ移せます」と出す。
   ドロップした列の書き込み先候補（`/api/backlog-targets`）が1件ならタスク本文をメモの先頭の空でない行として AC-IB-SRV-5 を直接呼び、成功時の通知・一覧更新は AC-IB-4 と同じ。
   候補が2件以上なら、AC-IB-4 のダイアログを列を選んだ状態で開く。候補0件・失敗は AC-H2-2 に従い通知する。
+
+### 2.8c クイックチャット（CH）
+
+- AC-CH-1: 画面左下に円型のアイコンボタン（`aria-label`・`data-tip` は「Claudeチャット」）を常に表示する。押すとチャットパネル（`<dialog>` の `show()`、背景を暗くせずボードを操作可能なまま）を
+  ボタンの上に開き、もう一度押す・`Esc`・閉じるボタンで閉じる。開いている間はボタンに `aria-expanded="true"` を付け、AC-CH-SRV-1を5秒ごとに取り直して表示を更新する。
+  閉じても入力途中の本文と選択中のタブは残す。
+- AC-CH-2: パネルは上から、見出し「Claude」、タブ（AC-CH-SRV-1のセッション。並び・表示・閉じるボタンはAC-CSL-2・AC-MT-1と同じで、閉じるはAC-CH-SRV-4を呼ぶ）、
+  選択中のタブのセッションのログ（セッションログと同じ描画。「ここから分岐」は出さない）、起動ディレクトリ欄（初期値は `defaultCwd`）、入力欄、
+  model/effortの選択（初期値はAC-MS-2と同じ）、「Claude」「New Session」ボタンを置く。既定のタブは最後のセッション。
+  セッションが0件ならログの代わりに「下の欄から依頼すると新しいセッションを起動します」と出す。
+- AC-CH-3: 「Claude」は選択中のタブのセッションへAC-SL-SRV-3で送り（model/effortは渡さない）、タブが無ければ「New Session」と同じ動作にする。
+  「New Session」は起動ディレクトリ・入力欄の本文・model/effortでAC-SL-SRV-2（`"chat": true`、名前は省略）を呼び、起動したセッションのタブを選ぶ。
+  返信で別jobIdに替わったときはそのタブを選ぶ。成功したら入力欄を空にする。稼働中で送れなかったときは「このセッションは稼働中です。完了または入力待ちになってから送ってください」と通知し、入力欄を残す。
+  入力欄の `Enter`（IME変換中を除く）は「Claude」、`Shift+Enter` は改行。未信頼ディレクトリはAC-WT-1の信頼確認モーダルを出し、失敗はAC-H2-2に従い通知する。
+  送信処理中は両ボタンを `disabled` にする。
 
 ### 2.8a カードのステータス（ST）
 

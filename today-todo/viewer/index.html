@@ -840,6 +840,29 @@
     body:has(#inboxDialog[open]) .board-area { padding-right: calc(min(380px, 100vw - 32px) + 32px); }
   }
   .inbox-dialog .modal-box { width: 100%; height: 100%; max-height: none; }
+  .chat-fab {
+    position: fixed; left: 16px; bottom: 16px; z-index: 51;
+    width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  }
+  .chat-fab .ico { width: 24px; height: 24px; }
+  .chat-fab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .chat-dialog {
+    position: fixed; inset: auto auto 80px 16px; margin: 0; z-index: 50;
+    width: min(520px, calc(100vw - 32px)); height: min(640px, calc(100vh - 160px));
+  }
+  .chat-dialog .modal-box { width: 100%; height: 100%; max-height: none; display: flex; flex-direction: column; }
+  .chat-body { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-height: 0; padding: 0 16px 16px; }
+  .chat-body .session-tabs { margin-bottom: 0; }
+  .chat-log { flex: 1 1 auto; min-height: 6em; border: 1px solid var(--line); border-radius: var(--radius); }
+  #chatCwdInput, #chatInput {
+    border: 1px solid var(--input-line); border-radius: var(--radius);
+    padding: 7px 11px; background: var(--raised); color: var(--ink);
+  }
+  #chatInput { resize: none; flex: 0 0 auto; }
+  #chatCwdInput, .chat-body > .input-hint { flex: 0 0 auto; }
+  .chat-body .modal-comment-actions { flex: 0 0 auto; flex-wrap: wrap; }
   .inbox-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .inbox-hint { margin: 0 20px 8px; font-size: var(--fs-xs); color: var(--ink-mute); }
   .inbox-hint[hidden] { display: none; }
@@ -1588,6 +1611,37 @@
     <p id="inboxHint" class="inbox-hint" hidden>メモをボードの列へドラッグすると、その列の backlog.md へ移せます</p>
     <p id="inboxEmpty" class="empty-state" hidden>上の欄に書いて <kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で追加</p>
     <ul id="inboxList" class="inbox-list" aria-label="メモ一覧"></ul>
+  </div>
+</dialog>
+
+<button id="chatFab" type="button" class="chat-fab" aria-label="Claudeチャット" data-tip="Claudeチャット" aria-expanded="false" aria-controls="chatDialog"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/></svg></button>
+<dialog id="chatDialog" class="app-dialog chat-dialog" aria-labelledby="chatDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="chatDialogTitle">Claude</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="chatDialogCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+    <div class="chat-body">
+      <div id="chatSessionTabs" class="session-tabs" role="tablist" aria-label="セッション" hidden></div>
+      <div id="chatLog" class="session-log-list chat-log"></div>
+      <input id="chatCwdInput" type="text" aria-label="起動ディレクトリ（New Session）" data-tip="New Sessionで起動するディレクトリ" placeholder="起動ディレクトリ（絶対パス）">
+      <textarea id="chatInput" rows="3" data-skill-suggest aria-label="Claudeへの依頼・返信" aria-describedby="chatInputHint" placeholder="依頼・返信を入力"></textarea>
+      <span class="input-hint" id="chatInputHint"><kbd>Enter</kbd> で「Claude」（選択中のタブのセッションへ送信）／<kbd>Shift</kbd>+<kbd>Enter</kbd> で改行</span>
+      <div class="modal-comment-actions">
+        <select id="chatLaunchModel" class="launch-select" aria-label="起動するmodel" data-tip="New Sessionのときのmodel（返信には反映しない）">
+          <option value="">model: 既定</option><option value="opus">opus</option><option value="sonnet">sonnet</option><option value="haiku">haiku</option><option value="fable">fable</option>
+        </select>
+        <select id="chatLaunchEffort" class="launch-select" aria-label="起動するeffort" data-tip="New Sessionのときのeffort（返信には反映しない）">
+          <option value="">effort: 既定</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option>
+        </select>
+        <button id="chatSendBtn" type="button" class="btn btn-primary" aria-label="Claudeに依頼" data-tip="選択中のタブのセッションへ送信"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>Claude</span></button>
+        <button id="chatNewSessionBtn" type="button" class="btn btn-secondary" aria-label="新規セッションで依頼" data-tip="新しいセッションを起動して依頼"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-6.5 18-4.5-7-7-4.5z"/></svg><span>New Session</span></button>
+      </div>
+    </div>
   </div>
 </dialog>
 
@@ -6139,6 +6193,7 @@ async function loadLaunchSettingsOverride() {
   }
   resetLaunchSelects('modal');
   resetLaunchSelects('sessionLog');
+  resetLaunchSelects('chat');
 }
 
 function resetLaunchSelects(prefix) {
@@ -6566,6 +6621,168 @@ async function submitInboxMove() {
   showToast(`${column} に移しました（列を再取得で反映）`);
 }
 
+let chatSessions = [];
+let chatTimer = null;
+let chatFocusReturn = null;
+const chatLogView = { ...createSessionLogView('chat', 'chatLog', 'chatInput'), noBranch: true };
+
+function selectedChatSession() {
+  return chatSessions.find((s) => s.jobId === chatLogView.jobId) || chatSessions[chatSessions.length - 1] || null;
+}
+
+function renderChat() {
+  const tabs = document.getElementById('chatSessionTabs');
+  const selected = selectedChatSession();
+  tabs.hidden = chatSessions.length === 0;
+  tabs.replaceChildren(...chatSessions.map((s) => {
+    const wrap = document.createElement('span');
+    wrap.className = 'session-tab';
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'btn btn--sm chip';
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', String(s === selected));
+    tab.textContent = formatSessionTabLabel(s);
+    tab.addEventListener('click', () => {
+      chatLogView.jobId = s.jobId;
+      renderChat();
+    });
+    const close = buildIconButton('close', 'セッションを閉じる', 'sm');
+    close.addEventListener('click', () => closeChatSession(s.jobId));
+    wrap.append(tab, close);
+    return wrap;
+  }));
+  if (!selected) {
+    chatLogView.jobId = null;
+    chatLogView.session = null;
+    chatLogView.renderedKeys = null;
+    renderSessionLogMessage(chatLogView, '下の欄から依頼すると新しいセッションを起動します', null);
+    return;
+  }
+  if (chatLogView.session && chatLogView.session.jobId !== selected.jobId) {
+    chatLogView.renderedKeys = null;
+    document.getElementById('chatLog').replaceChildren();
+  }
+  chatLogView.jobId = selected.jobId;
+  chatLogView.session = selected;
+  fetchAndRenderSessionLog(chatLogView, selected);
+}
+
+async function refreshChat() {
+  try {
+    const res = await fetch('/api/chat');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    chatSessions = data.sessions;
+    const cwdInput = document.getElementById('chatCwdInput');
+    if (!cwdInput.value) cwdInput.value = data.defaultCwd;
+  } catch (err) {
+    showToast(`チャットの読み込みに失敗しました（${err.message}）`, { kind: 'error', actionLabel: '再試行', onAction: refreshChat });
+    return;
+  }
+  renderChat();
+}
+
+function openChatDialog() {
+  const dialog = document.getElementById('chatDialog');
+  if (dialog.open) return;
+  chatFocusReturn = captureFocusReturn();
+  dialog.show();
+  document.getElementById('chatFab').setAttribute('aria-expanded', 'true');
+  attachToastRegionToTopmostDialog();
+  refreshChat();
+  chatTimer = setInterval(refreshChat, 5000);
+  document.getElementById('chatInput').focus();
+}
+
+function setChatBusy(busy) {
+  document.getElementById('chatSendBtn').disabled = busy;
+  document.getElementById('chatNewSessionBtn').disabled = busy;
+}
+
+async function launchChatSession() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const cwd = document.getElementById('chatCwdInput').value.trim();
+  setChatBusy(true);
+  const response = await postJson('/api/sessions/create', { cwd, text, chat: true, ...readLaunchSelects('chat') });
+  setChatBusy(false);
+  if (isUntrustedWorkspace(response)) {
+    showUntrustedWorkspaceDialog(response.data.cwd, launchChatSession);
+    return;
+  }
+  if (!response.ok) {
+    showFailureToast(`セッションの起動に失敗しました: ${formatFailureReason(response)}`, launchChatSession);
+    return;
+  }
+  input.value = '';
+  chatLogView.jobId = response.data.jobId;
+  await refreshChat();
+}
+
+async function sendChatMessage() {
+  const session = selectedChatSession();
+  if (!session) {
+    await launchChatSession();
+    return;
+  }
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  setChatBusy(true);
+  const response = await postJson('/api/sessions/reply', { jobId: session.jobId, text });
+  setChatBusy(false);
+  if (isUntrustedWorkspace(response)) {
+    showUntrustedWorkspaceDialog(response.data.cwd, sendChatMessage);
+    return;
+  }
+  if (!response.ok) {
+    showFailureToast(`送信に失敗しました: ${formatFailureReason(response)}`, sendChatMessage);
+    return;
+  }
+  if (!response.data.launched) {
+    showToast('このセッションは稼働中です。完了または入力待ちになってから送ってください');
+    return;
+  }
+  input.value = '';
+  chatLogView.jobId = response.data.jobId;
+  await refreshChat();
+}
+
+async function closeChatSession(jobId) {
+  if (!confirm('このセッションを停止してタブを閉じますか？（ログはセッション一覧に残ります）')) return;
+  const response = await postJson('/api/chat/close', { jobId });
+  if (!response.ok && response.status !== 404) {
+    showFailureToast(`セッションを閉じられませんでした: ${formatFailureReason(response)}`, () => closeChatSession(jobId));
+    return;
+  }
+  if (chatLogView.jobId === jobId) chatLogView.jobId = null;
+  showToast('セッションを閉じました');
+  await refreshChat();
+}
+
+function setupChat() {
+  const dialog = document.getElementById('chatDialog');
+  document.getElementById('chatFab').addEventListener('click', () => (dialog.open ? dialog.close() : openChatDialog()));
+  document.getElementById('chatDialogCloseBtn').addEventListener('click', () => dialog.close());
+  // show() で開く非モーダルの dialog は Esc で閉じないため自前で閉じる。
+  dialog.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !e.defaultPrevented) dialog.close();
+  });
+  dialog.addEventListener('close', () => {
+    clearInterval(chatTimer);
+    chatTimer = null;
+    document.getElementById('chatFab').setAttribute('aria-expanded', 'false');
+    attachToastRegionToTopmostDialog();
+    restoreFocusReturn(chatFocusReturn);
+    chatFocusReturn = null;
+  });
+  bindLaunchOnEnter(document.getElementById('chatInput'), sendChatMessage);
+  document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+  document.getElementById('chatNewSessionBtn').addEventListener('click', launchChatSession);
+}
+
 function setupInbox() {
   const dialog = document.getElementById('inboxDialog');
   document.getElementById('inboxBtn').addEventListener('click', () => (dialog.open ? dialog.close() : openInboxDialog()));
@@ -6627,6 +6844,7 @@ async function init() {
   }
   bindSubmitShortcut(document.getElementById('globalCommentInput'), submitGlobalComment);
   setupInbox();
+  setupChat();
   bindSubmitShortcut(document.getElementById('newCardTextInput'), submitNewCard);
   bindSubmitShortcut(document.getElementById('modalTaskInput'), submitModalTask);
   for (const id of RICH_INPUT_IDS) enhanceRichInput(document.getElementById(id));
