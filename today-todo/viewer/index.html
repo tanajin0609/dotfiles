@@ -830,8 +830,15 @@
   .status-segment[hidden] { display: none; }
   .new-card-form { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; }
   .new-card-form > button { align-self: flex-end; }
-  .inbox-dialog { width: min(720px, calc(100vw - 56px)); max-height: calc(100vh - 56px); }
-  .inbox-dialog .modal-box { width: 100%; max-height: calc(100vh - 56px); }
+  .inbox-dialog {
+    position: fixed; inset: 64px 16px 16px auto; margin: 0; z-index: 50;
+    width: min(380px, calc(100vw - 32px));
+  }
+  .inbox-dialog .modal-box { width: 100%; height: 100%; max-height: none; }
+  .inbox-hint { margin: 0 20px 8px; font-size: var(--fs-xs); color: var(--ink-sub); }
+  .inbox-memo[draggable="true"] { cursor: grab; }
+  .inbox-memo.dragging { opacity: .4; }
+  .column.inbox-drop-target { outline: 2px dashed var(--accent, currentColor); outline-offset: -2px; }
   .inbox-list { list-style: none; margin: 0; padding: 0 20px 20px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
   .inbox-memo { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
   .inbox-memo-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
@@ -1565,6 +1572,7 @@
       </div>
       <button id="inboxAddBtn" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
+    <p class="inbox-hint">メモをボードの列へドラッグすると、その列の backlog.md へ移せます</p>
     <p id="inboxEmpty" class="empty-state" hidden>メモはありません</p>
     <ul id="inboxList" class="inbox-list" aria-label="メモ一覧"></ul>
   </div>
@@ -6286,6 +6294,17 @@ function buildInboxMemoItem(memo) {
   const item = document.createElement('li');
   item.className = 'inbox-memo';
   item.dataset.memoId = memo.id;
+  item.draggable = true;
+  item.addEventListener('dragstart', (e) => {
+    if (e.target !== item) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(INBOX_MEMO_MIME, memo.id);
+    item.classList.add('dragging');
+  });
+  item.addEventListener('dragend', () => {
+    item.classList.remove('dragging');
+    clearInboxDropTarget();
+  });
   const text = document.createElement('p');
   text.className = 'inbox-memo-text';
   text.textContent = memo.text;
@@ -6306,6 +6325,7 @@ function buildInboxMemoItem(memo) {
   makeButton('編集').addEventListener('click', () => startInboxEdit(item, memo));
   makeButton('削除').addEventListener('click', () => deleteInboxMemoWithUndo(memo));
   makeButton('プロジェクトへ移す').addEventListener('click', () => openInboxMoveDialog(memo));
+  item.title = 'ボードの列へドラッグして移す';
   item.append(text, meta, actions);
   return item;
 }
@@ -6328,6 +6348,7 @@ function startInboxEdit(item, memo) {
     }
   });
   item.querySelector('.inbox-memo-text').replaceWith(input);
+  item.draggable = false;
   input.focus();
 }
 
@@ -6379,13 +6400,66 @@ function openInboxDialog() {
   const dialog = document.getElementById('inboxDialog');
   if (dialog.open) return;
   inboxDialogFocusReturn = captureFocusReturn();
-  dialog.showModal();
+  dialog.show();
   attachToastRegionToTopmostDialog();
   loadInbox();
   document.getElementById('inboxNewInput').focus();
 }
 
-function openInboxMoveDialog(memo) {
+const INBOX_MEMO_MIME = 'application/x-inbox-memo';
+
+function firstLineOf(text) {
+  return text.split('\n').map((l) => l.trim()).find(Boolean) || '';
+}
+
+function clearInboxDropTarget() {
+  document.querySelectorAll('.column.inbox-drop-target').forEach((c) => c.classList.remove('inbox-drop-target'));
+}
+
+function onInboxMemoDragOver(e) {
+  if (!e.dataTransfer.types.includes(INBOX_MEMO_MIME)) return;
+  const column = e.target.closest('.column');
+  if (!column) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (!column.classList.contains('inbox-drop-target')) {
+    clearInboxDropTarget();
+    column.classList.add('inbox-drop-target');
+  }
+}
+
+async function onInboxMemoDrop(e) {
+  if (!e.dataTransfer.types.includes(INBOX_MEMO_MIME)) return;
+  const column = e.target.closest('.column');
+  clearInboxDropTarget();
+  if (!column) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const memo = inboxMemos.find((m) => m.id === e.dataTransfer.getData(INBOX_MEMO_MIME));
+  if (memo) await moveInboxMemoToColumn(memo, column.dataset.column);
+}
+
+async function moveInboxMemoToColumn(memo, columnName) {
+  const response = await fetchJson(`/api/backlog-targets?column=${encodeURIComponent(columnName)}`);
+  if (!response.ok) {
+    showFailureToast(`移せませんでした: ${formatFailureReason(response)}`, () => moveInboxMemoToColumn(memo, columnName));
+    return;
+  }
+  if (response.data.targets.length >= 2) {
+    openInboxMoveDialog(memo, columnName);
+    return;
+  }
+  const moved = await postJson('/api/inbox/move', { id: memo.id, column: columnName, title: firstLineOf(memo.text) });
+  if (!moved.ok) {
+    showFailureToast(`移せませんでした: ${formatFailureReason(moved)}`, () => moveInboxMemoToColumn(memo, columnName));
+    return;
+  }
+  inboxMemos = inboxMemos.filter((m) => m.id !== memo.id);
+  renderInbox();
+  showToast(`${columnName} に移しました（列を再取得で反映）`);
+}
+
+function openInboxMoveDialog(memo, columnName) {
   inboxMovingMemo = memo;
   const select = document.getElementById('inboxMoveColumnSelect');
   select.replaceChildren(...(boardData ? boardData.columns : []).map((column) => {
@@ -6394,7 +6468,8 @@ function openInboxMoveDialog(memo) {
     option.textContent = column.name;
     return option;
   }));
-  document.getElementById('inboxMoveTitleInput').value = memo.text.split('\n').map((l) => l.trim()).find(Boolean) || '';
+  if (columnName) select.value = columnName;
+  document.getElementById('inboxMoveTitleInput').value = firstLineOf(memo.text);
   document.getElementById('inboxMoveDialog').showModal();
   attachToastRegionToTopmostDialog();
   refreshInboxMoveBacklogTargets();
@@ -6442,10 +6517,17 @@ async function submitInboxMove() {
 }
 
 function setupInbox() {
-  document.getElementById('inboxBtn').addEventListener('click', openInboxDialog);
   const dialog = document.getElementById('inboxDialog');
+  document.getElementById('inboxBtn').addEventListener('click', () => (dialog.open ? dialog.close() : openInboxDialog()));
   document.getElementById('inboxDialogCloseBtn').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+  // show() で開く非モーダルの dialog は Esc で閉じないため自前で閉じる。
+  dialog.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !e.defaultPrevented) dialog.close();
+  });
+  const board = document.getElementById('board');
+  board.addEventListener('dragover', onInboxMemoDragOver);
+  board.addEventListener('drop', onInboxMemoDrop, true);
+  board.addEventListener('dragleave', (e) => { if (!board.contains(e.relatedTarget)) clearInboxDropTarget(); });
   dialog.addEventListener('close', () => {
     attachToastRegionToTopmostDialog();
     restoreFocusReturn(inboxDialogFocusReturn);
