@@ -377,7 +377,7 @@
   }
   select { padding-right: 6px; }
   #globalCommentInput, #newCardColumnInput, #newCardTextInput, #modalCommentInput, #modalTaskInput,
-  #sessionLogReplyInput, #modelSettingsModelInput {
+  #sessionLogReplyInput, #modelSettingsModelInput, #inboxNewInput, .inbox-memo textarea {
     border: 1px solid var(--input-line); border-radius: var(--radius);
     padding: 7px 11px; background: var(--raised); color: var(--ink);
   }
@@ -833,18 +833,29 @@
   .inbox-dialog {
     position: fixed; inset: 64px 16px 16px auto; margin: 0; z-index: 50;
     width: min(380px, calc(100vw - 32px));
+    /* dialog 既定の height: fit-content が残ると下端の inset が効かず、画面外へ伸びて一覧がスクロールしない。 */
+    height: auto;
+  }
+  @media (min-width: 900px) {
+    body:has(#inboxDialog[open]) .board-area { padding-right: calc(min(380px, 100vw - 32px) + 32px); }
   }
   .inbox-dialog .modal-box { width: 100%; height: 100%; max-height: none; }
-  .inbox-hint { margin: 0 20px 8px; font-size: var(--fs-xs); color: var(--ink-sub); }
-  .inbox-memo[draggable="true"] { cursor: grab; }
+  .inbox-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .inbox-hint { margin: 0 20px 8px; font-size: var(--fs-xs); color: var(--ink-mute); }
+  .inbox-hint[hidden] { display: none; }
+  #inboxEmpty { margin: 0 20px; }
   .inbox-memo.dragging { opacity: .4; }
   .column.inbox-drop-target { outline: 2px dashed var(--accent, currentColor); outline-offset: -2px; }
   .inbox-list { list-style: none; margin: 0; padding: 0 20px 20px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
-  .inbox-memo { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .inbox-memo { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 10px 6px; display: flex; gap: 6px; }
+  .inbox-memo-handle { flex: 0 0 auto; width: 16px; display: flex; justify-content: center; padding-top: 2px; color: var(--ink-mute); cursor: grab; user-select: none; }
+  .inbox-memo.editing .inbox-memo-handle { visibility: hidden; }
+  .inbox-memo-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .inbox-memo-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
-  .inbox-memo-meta { font-size: var(--fs-xs); color: var(--ink-2, inherit); opacity: .75; }
-  .inbox-memo-actions { display: flex; gap: 6px; justify-content: flex-end; }
-  .inbox-memo textarea { width: 100%; }
+  .inbox-memo-meta { font-size: var(--fs-xs); color: var(--ink-mute); }
+  .inbox-memo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; justify-content: flex-end; }
+  .inbox-memo-actions .input-hint { flex-basis: 100%; }
+  .inbox-memo textarea { width: 100%; resize: vertical; }
   #inboxBtn .unread-badge { margin-left: 4px; align-self: center; }
 
   .modal-tasks { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; padding: 10px 12px; }
@@ -1568,12 +1579,14 @@
       <div class="field">
         <label for="inboxNewInput" class="field-label">メモ</label>
         <textarea id="inboxNewInput" rows="3" placeholder="思いついたことを書く（ファイルはドロップ・貼り付けで添付）" aria-describedby="inboxNewHint"></textarea>
-        <span class="input-hint" id="inboxNewHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
+        <div class="inbox-form-footer">
+          <span class="input-hint" id="inboxNewHint"><kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で「追加」</span>
+          <button id="inboxAddBtn" type="button" class="btn btn-primary btn--sm btn--labeled"><span>追加</span></button>
+        </div>
       </div>
-      <button id="inboxAddBtn" type="button" class="btn btn-icon" aria-label="追加" data-tip="追加"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
-    <p class="inbox-hint">メモをボードの列へドラッグすると、その列の backlog.md へ移せます</p>
-    <p id="inboxEmpty" class="empty-state" hidden>メモはありません</p>
+    <p id="inboxHint" class="inbox-hint" hidden>メモをボードの列へドラッグすると、その列の backlog.md へ移せます</p>
+    <p id="inboxEmpty" class="empty-state" hidden>上の欄に書いて <kbd data-mod-key>Ctrl</kbd>+<kbd>Enter</kbd> で追加</p>
     <ul id="inboxList" class="inbox-list" aria-label="メモ一覧"></ul>
   </div>
 </dialog>
@@ -6287,38 +6300,56 @@ function renderInbox() {
   count.textContent = String(visible.length);
   document.getElementById('inboxBtn').setAttribute('aria-label', visible.length ? `Inbox（${visible.length}件）` : 'Inbox');
   const list = document.getElementById('inboxList');
-  if (list.querySelector('textarea')) return;
+  // 編集中の行は作り直さず差し戻し、入力途中の本文を失わずに他のメモだけ更新する。
+  const editingItems = new Map([...list.querySelectorAll('.inbox-memo.editing')].map((li) => [li.dataset.memoId, li]));
+  const focused = list.contains(document.activeElement) ? document.activeElement : null;
   document.getElementById('inboxEmpty').hidden = visible.length > 0;
-  list.replaceChildren(...visible.map(buildInboxMemoItem));
+  document.getElementById('inboxHint').hidden = visible.length === 0;
+  list.replaceChildren(...visible.map((memo) => editingItems.get(memo.id) || buildInboxMemoItem(memo)));
+  if (focused && focused.isConnected) focused.focus();
+}
+
+function formatInboxTime(iso) {
+  return new Date(iso).toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function buildInboxMemoItem(memo) {
   const item = document.createElement('li');
   item.className = 'inbox-memo';
   item.dataset.memoId = memo.id;
-  item.draggable = true;
-  item.addEventListener('dragstart', (e) => {
-    if (e.target !== item) return;
+  // 行全体を draggable にすると本文を範囲選択できないため、取っ手だけをドラッグ元にする。
+  const handle = document.createElement('span');
+  handle.className = 'inbox-memo-handle';
+  handle.draggable = true;
+  handle.title = 'ボードの列へドラッグして移す';
+  handle.setAttribute('aria-hidden', 'true');
+  handle.innerHTML = '<svg class="ico" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/></svg>';
+  handle.addEventListener('dragstart', (e) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData(INBOX_MEMO_MIME, memo.id);
+    e.dataTransfer.setDragImage(item, 12, 12);
     item.classList.add('dragging');
   });
-  item.addEventListener('dragend', () => {
+  handle.addEventListener('dragend', () => {
     item.classList.remove('dragging');
     clearInboxDropTarget();
   });
+  const body = document.createElement('div');
+  body.className = 'inbox-memo-body';
   const text = document.createElement('p');
   text.className = 'inbox-memo-text';
   text.textContent = memo.text;
   const meta = document.createElement('span');
   meta.className = 'inbox-memo-meta';
-  meta.textContent = new Date(memo.createdAt).toLocaleString();
+  meta.textContent = memo.updatedAt && memo.updatedAt !== memo.createdAt
+    ? `${formatInboxTime(memo.createdAt)}（編集 ${formatInboxTime(memo.updatedAt)}）`
+    : formatInboxTime(memo.createdAt);
   const actions = document.createElement('div');
   actions.className = 'inbox-memo-actions';
   const makeButton = (label) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn btn--sm';
+    btn.className = 'btn btn-secondary btn--sm';
     btn.textContent = label;
     btn.setAttribute('aria-label', `${label}: ${memo.text.trim().split('\n')[0]}`);
     actions.append(btn);
@@ -6327,8 +6358,8 @@ function buildInboxMemoItem(memo) {
   makeButton('編集').addEventListener('click', () => startInboxEdit(item, memo));
   makeButton('削除').addEventListener('click', () => deleteInboxMemoWithUndo(memo));
   makeButton('プロジェクトへ移す').addEventListener('click', () => openInboxMoveDialog(memo));
-  item.title = 'ボードの列へドラッグして移す';
-  item.append(text, meta, actions);
+  body.append(text, meta, actions);
+  item.append(handle, body);
   return item;
 }
 
@@ -6338,19 +6369,35 @@ function startInboxEdit(item, memo) {
   input.value = memo.text;
   input.setAttribute('aria-label', 'メモを編集');
   bindInboxAttachments(input, () => memo.id);
-  const finish = () => { input.remove(); renderInbox(); };
+  const finish = () => {
+    item.classList.remove('editing');
+    renderInbox();
+  };
+  const save = async () => { if (await saveInboxMemo(memo.id, input.value)) finish(); };
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      finish();
-    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) {
-      e.preventDefault();
-      saveInboxMemo(memo.id, input.value).then((ok) => { if (ok) finish(); });
-    }
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    finish();
   });
+  bindSubmitShortcut(input, save);
+  const hint = document.createElement('span');
+  hint.className = 'input-hint';
+  const modKey = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
+  hint.innerHTML = `<kbd>${modKey}</kbd>+<kbd>Enter</kbd> で保存 / <kbd>Esc</kbd> で取消`;
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'btn btn-primary btn--sm';
+  saveBtn.textContent = '保存';
+  saveBtn.addEventListener('click', save);
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'btn btn-secondary btn--sm';
+  cancelBtn.textContent = 'キャンセル';
+  cancelBtn.addEventListener('click', finish);
+  item.classList.add('editing');
   item.querySelector('.inbox-memo-text').replaceWith(input);
-  item.draggable = false;
+  item.querySelector('.inbox-memo-actions').replaceChildren(hint, saveBtn, cancelBtn);
   input.focus();
 }
 
