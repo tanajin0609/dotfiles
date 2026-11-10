@@ -66,6 +66,7 @@ description: |
      ```
    - コピーしたファイル内のプレースホルダー文字列 `<change-name>` を、実際の change-name（バージョン・日付は含めない）に置換する
      （`proposal.md`・`decisions.md`・`checklist.md`・`specs/README.md` の見出しに含まれる）。
+   - `decisions.md` は`$HOME/projects/self-work/document-rules/decisions-authoring.md`の規約に従って埋める。
    - `specs/README.md` 内の `<dir>` を、実際の変更ディレクトリ名（`<version>-<change-name>-<日付>`）に置換する。
 
 5. **backlog.mdへの追記（必須）**

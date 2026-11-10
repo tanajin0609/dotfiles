@@ -38,6 +38,7 @@ Step1のチェックだけを実行し、結果を一覧表示して停止する
 3. `decisions.md`（存在すれば）: 論点表の「決定」列に「未決定」等の判断待ちが残っていないか、
    承認状況が未チェックのままになっていないか。無ければ `proposal.md`・`components.md` に
    「ユーザー確認待ち」「承認待ち」「未定」等、判断待ちの記述が残っていないか。
+   decisions.md がある場合は、「置換」に書いた旧changeのQに置換先が追記されているか（`$HOME/projects/self-work/document-rules/decisions-authoring.md` D-10）。
 4. 記述されている実装対象ファイル（`src/`配下など）が実際に存在するか、ざっと確認する
    （深追いはしない）。
 5. `docs/tasks/backlog.md` に対応する `- [ ]` 項目があるか確認する（`directry-rules.md` 4.3・4.4）。

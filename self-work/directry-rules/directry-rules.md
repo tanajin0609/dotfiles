@@ -481,3 +481,13 @@ UI確認作業（`webapp-testing` skill・MCPのスクリーンショットツ�
 `docs/refs/`等へコピーする運用とする。
 
 **既存分の扱い**: 発覚時点の14個は証跡としての用途がなかったため削除済み（2026-08-31）。
+
+## 9. テストの認証情報をモデルのコンテキストに載せない（2026-10-20 追加）
+
+**事象**: projects配下の調査で、全 settings の `permissions.deny` が空で Claude が `.env` を読める状態だった。認証付きE2Eはまだ無いが、playwright MCP でログインフォームに入力するとパスワードがツール引数としてコンテキストに残る。
+
+**対策**: `self-work/pii-mask-hook/docs/specs/SPEC.md` §7 を正とする。要点のみ:
+- 認証はテストの実行側で付与する（`process.env`／Playwright `globalSetup` + `storageState`）。AI はテストコマンドを実行し結果だけを受け取る
+- playwright MCP でログインフォームに認証情報を入力しない。ログにトークン・Cookie を出さない
+- storageState・`.auth/` は gitignore する
+- `~/.claude/settings.json` で `.env*`・storageState・`.auth/` の Read を deny 済み。Bash 経由は塞げないため上のルールで運用する

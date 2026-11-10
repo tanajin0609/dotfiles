@@ -150,7 +150,7 @@ todo-YYYY-MM-DD.md 自体への書き込み（チェック付け等）は行わ�
 | `proposal.md` | 影響範囲 | 影響するファイル・機能・他サブプロジェクトとの依存 |
 | `components.md` | アーキテクチャ | 既存構造のどこに手を入れるか |
 | `components.md` | 実装方針 | 具体的な実装方針。既存資材があればそれをベースにする |
-| `decisions.md` | 論点 | 複数案から選ぶ必要がある事項を、選択肢と決定（初期は未決定）の表として記入 |
+| `decisions.md` | 論点 | 複数案から選ぶ必要がある事項を、選択肢と決定（初期は未決定）の表として記入。背景・根拠の出典は`$HOME/projects/self-work/document-rules/decisions-authoring.md`の規約に従う |
 | `checklist.md` | 先頭のチェックリスト | 実装タスクの分解（delta specのチェック項目はテンプレートのまま残す） |
 
 情報が不足している箇所は推測で埋めず、`decisions.md`の「論点」に選択肢とともに
