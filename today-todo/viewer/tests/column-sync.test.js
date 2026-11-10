@@ -129,6 +129,29 @@ test('状態見出しはカード名にせず配下の###をカード名にし�
   ].join('\n'));
 });
 
+// AC-CS-SRV-5
+test('タスク直後の<!-- -->で始まるコメント行は継続行にせず、その後の行も継続行にしない', async () => {
+  const fixture = setupFixture();
+  const todoPath = path.join(fixture.todoDir, fixture.todoFile);
+  fs.writeFileSync(todoPath, '# 2026-01-01\n\n## grp\n');
+  const backlog = writeBacklog(fixture.root, 'grp/inbox', [
+    '## 進行中', '', '### テーマA', '- [ ] タスク', '      継続行',
+    '<!-- 項目は `### <テーマ名>` でまとめる -->', '<!-- 形式: - [ ] #<連番> <要約> -->', '',
+    '- [ ] 次のタスク', '  <!--', '  複数行コメント', '  -->', '',
+  ].join('\n'));
+  await withServer(fixture, async (baseUrl) => {
+    const res = await sync(baseUrl, { file: fixture.todoFile, column: 'grp' });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { items: 2 });
+  });
+  assert.equal(fs.readFileSync(todoPath, 'utf-8'), [
+    '# 2026-01-01', '', '## grp', '',
+    '### inbox ▸ テーマA',
+    `- [ ] #1 タスク 継続行 → ${backlog}`,
+    `- [ ] #2 次のタスク → ${backlog}`, '',
+  ].join('\n'));
+});
+
 // AC-CS-SRV-6
 test('backlog.mdに対応行が無くなった旧行は消し、手書き行・完了行・他backlogに残る行は残す', async () => {
   const fixture = setupFixture();
