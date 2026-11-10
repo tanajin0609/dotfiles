@@ -3764,7 +3764,9 @@ function buildSessionLogEntryRow(entry, view) {
 
 function buildPendingAskUserQuestionOptions(view, entries, session) {
   if (session && session.state === 'blocked' && Array.isArray(session.questions)) {
-    return buildAskUserQuestionOptions({ input: JSON.stringify({ questions: session.questions }) }, view);
+    // CLIはblock.questionsにmultiSelectを残さないため、単一選択か判別できない。複数選択の質問で選べなくなるより、全問トグル式にする。
+    const questions = session.questions.map((q) => ({ ...q, multiSelect: true }));
+    return buildAskUserQuestionOptions({ input: JSON.stringify({ questions }) }, view);
   }
   const lastEntry = entries[entries.length - 1];
   if (!lastEntry) return null;
