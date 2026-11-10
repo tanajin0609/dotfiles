@@ -4896,6 +4896,7 @@ async function sendTaskEdit(file, task, change) {
 }
 
 const CARD_PANEL_WIDTH_KEY = 'viewer:cardPanelWidth';
+const CARD_SESSION_EXPANDED_KEY = 'viewer:cardSessionExpanded';
 const CARD_PANEL_MIN_W = 420;
 const CARD_PANEL_KEY_STEP = 32;
 const CARD_PANEL_KEY_STEP_LARGE = 96;
@@ -6769,13 +6770,18 @@ async function init() {
   const renderCommentExpandBtn = (expanded) => {
     commentExpandBtn.replaceChildren(icon(expanded ? 'shrink' : 'enlarge'));
     commentExpandBtn.setAttribute('aria-pressed', String(expanded));
-    const label = expanded ? 'セッションを元の位置に戻す' : 'セッションを横に広げて表示';
+    const label = expanded ? 'セッションをパネル内に表示' : 'セッションを横に広げて表示';
     commentExpandBtn.setAttribute('aria-label', label);
     commentExpandBtn.dataset.tip = label;
   };
-  renderCommentExpandBtn(false);
+  const commentsSection = commentExpandBtn.closest('.modal-comments');
+  const sessionExpanded = localStorage.getItem(CARD_SESSION_EXPANDED_KEY) !== '0';
+  commentsSection.classList.toggle('is-expanded', sessionExpanded);
+  renderCommentExpandBtn(sessionExpanded);
   commentExpandBtn.addEventListener('click', () => {
-    renderCommentExpandBtn(commentExpandBtn.closest('.modal-comments').classList.toggle('is-expanded'));
+    const expanded = commentsSection.classList.toggle('is-expanded');
+    localStorage.setItem(CARD_SESSION_EXPANDED_KEY, expanded ? '1' : '0');
+    renderCommentExpandBtn(expanded);
   });
   const cardDialog = document.getElementById('cardDialog');
   cardDialog.addEventListener('close', onCardDialogClosed);
