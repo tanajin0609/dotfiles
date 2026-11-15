@@ -104,7 +104,7 @@ test('列名や見出しに .. を入れてもプロジェクト置き場の外�
 });
 
 // AC-SEC-SRV-5
-test('index.html と costs.html 以外のファイルは配信しない', async () => {
+test('index.html・costs.html と static/ の js・css 以外のファイルは配信しない', async () => {
   const fixture = setupFixture();
   const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
   try {
@@ -112,6 +112,12 @@ test('index.html と costs.html 以外のファイルは配信しない', async 
     assert.equal((await fetch(`${server.baseUrl}/costs`)).status, 200);
     assert.equal((await fetch(`${server.baseUrl}/server.js`)).status, 404);
     assert.equal((await fetch(`${server.baseUrl}/tests/helpers.js`)).status, 404);
+    const css = await fetch(`${server.baseUrl}/static/viewer.css`);
+    assert.equal(css.status, 200);
+    assert.match(css.headers.get('content-type'), /^text\/css/);
+    assert.equal((await fetch(`${server.baseUrl}/static/init.js`)).status, 200);
+    assert.equal((await fetch(`${server.baseUrl}/static/../server.js`)).status, 404);
+    assert.equal((await fetch(`${server.baseUrl}/static/missing.js`)).status, 404);
   } finally {
     await server.stop();
   }

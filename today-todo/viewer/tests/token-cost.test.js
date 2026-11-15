@@ -198,7 +198,7 @@ test('/costs はコストダッシュボードのHTMLを返す', async () => {
     const html = await res.text();
     assert.match(html, /<title>コストダッシュボード<\/title>/);
     assert.match(html, /<a href="\/"[^>]*>← ボードに戻る<\/a>/);
-    const board = await (await fetch(`${server.baseUrl}/`)).text();
+    const board = require('./viewer-source').readViewerSource();
     assert.match(board, /location\.href = '\/costs'/);
     assert.doesNotMatch(board, /window\.open\('\/costs'/);
   } finally {

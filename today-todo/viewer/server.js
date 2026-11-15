@@ -2737,11 +2737,12 @@ async function handleRequest(req, res) {
   }
 
   const staticPages = { '/': 'index.html', '/index.html': 'index.html', '/costs': 'costs.html', '/costs.html': 'costs.html' };
-  if (!staticPages[url.pathname]) {
+  const asset = url.pathname.match(/^\/static\/([\w-]+\.(?:js|css))$/);
+  if (!staticPages[url.pathname] && !asset) {
     res.writeHead(404);
     return res.end('not found');
   }
-  const filePath = path.join(PUBLIC_DIR, staticPages[url.pathname]);
+  const filePath = asset ? path.join(PUBLIC_DIR, 'static', asset[1]) : path.join(PUBLIC_DIR, staticPages[url.pathname]);
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404);

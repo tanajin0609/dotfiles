@@ -27,7 +27,7 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
   サーバーは止まらない。
 - AC-SEC-SRV-4: 列名・カード見出しから作業ディレクトリを決めるとき、`/`・`\`・`.`・`..` を含む値では `PROJECTS_ROOT` の外を指さない
   （起動・backlog への追加・プロジェクト説明の探索のいずれも、該当ディレクトリなしとして扱う）。
-- AC-SEC-SRV-5: 静的配信は `/`・`/index.html`・`/costs`・`/costs.html` だけで、それ以外のパスは404。
+- AC-SEC-SRV-5: 静的配信は `/`・`/index.html`・`/costs`・`/costs.html` と、`static/` 直下の `.js`・`.css`（`/static/<名前>`）だけで、それ以外のパスは404。
 
 ### 1.1b 記録の保全とCLIの版（DI）
 
