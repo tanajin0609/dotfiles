@@ -582,6 +582,8 @@
   .flow-badge.flow-waiting { background: var(--state-blocked); }
   .flow-badge.flow-running { background: var(--state-working); }
   .change-summary { font-size: var(--fs-xs); color: var(--ink-mute); }
+  .flow-check { display: flex; gap: 8px; align-items: flex-start; font-size: var(--fs-sm, 13px); padding: 2px 0; }
+  .day-review-text { white-space: pre-wrap; margin: 0; padding: 16px 20px 20px; font-size: var(--fs-sm, 13px); max-height: 60vh; overflow: auto; }
   .change-summary summary { cursor: pointer; }
   .change-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .change-list li { display: flex; gap: 8px; min-width: 0; }
@@ -1235,6 +1237,8 @@
           <h3 class="flow-group-title"><span>今日やる（未着手）</span><span id="flowTodayCount"></span></h3>
           <ul class="flow-list" id="flowTodayList"></ul>
         </div>
+        <button id="bulkLaunchOpenBtn" type="button" class="btn btn-secondary btn--sm">今日やるをまとめて依頼</button>
+        <button id="dayReviewOpenBtn" type="button" class="btn btn-secondary btn--sm">1日の振り返り</button>
         <button id="notifyEnableBtn" type="button" class="btn btn-secondary btn--sm" hidden>状態が変わったら通知する</button>
       </div>
     </section>
@@ -1569,6 +1573,41 @@
   </div>
 </dialog>
 
+<dialog id="bulkLaunchDialog" class="app-dialog" aria-labelledby="bulkLaunchDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="bulkLaunchDialogTitle">今日やるをまとめて依頼</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="bulkLaunchCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+    <div class="new-card-form">
+      <p class="flow-empty" id="bulkLaunchEmpty" hidden>依頼できる「今日やる」のカードがありません（作業中・自分待ちのカードは除いています）。</p>
+      <ul class="flow-list" id="bulkLaunchList"></ul>
+      <div class="field">
+        <label for="bulkLaunchText" class="field-label">各カードに送る依頼</label>
+        <textarea id="bulkLaunchText" rows="3">このカードの未完了タスクを進めてください。判断が要るところは確認してから進めてください。</textarea>
+      </div>
+      <button id="bulkLaunchSubmit" type="button" class="btn">選んだカードに依頼</button>
+    </div>
+  </div>
+</dialog>
+<dialog id="dayReviewDialog" class="app-dialog" aria-labelledby="dayReviewDialogTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-text">
+        <h2 id="dayReviewDialogTitle">1日の振り返り</h2>
+      </div>
+      <div class="modal-header-actions">
+        <button id="dayReviewCopyBtn" type="button" class="btn btn-secondary btn--sm">Markdown をコピー</button>
+        <button id="dayReviewCloseBtn" type="button" class="btn btn-icon" aria-label="閉じる（Esc）" data-tip="閉じる（Esc）"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+    <pre id="dayReviewText" class="day-review-text"></pre>
+  </div>
+</dialog>
 <dialog id="modelSettingsDialog" class="app-dialog" aria-labelledby="modelSettingsDialogTitle">
   <div class="modal-box">
     <div class="modal-header">
@@ -3870,6 +3909,93 @@ function setupNotifyButton() {
   });
 }
 
+function bulkLaunchCandidates() {
+  if (!boardData) return [];
+  return boardData.columns.flatMap((column) => column.groups
+    .filter((group) => cardFlowOf(group) === 'todo' && statusOf(group) === 'today')
+    .map((group) => ({ column, group })));
+}
+
+function openBulkLaunchDialog() {
+  const candidates = bulkLaunchCandidates();
+  document.getElementById('bulkLaunchEmpty').hidden = candidates.length > 0;
+  document.getElementById('bulkLaunchSubmit').disabled = candidates.length === 0;
+  document.getElementById('bulkLaunchList').replaceChildren(...candidates.map(({ column, group }) => {
+    const li = document.createElement('li');
+    const label = document.createElement('label');
+    label.className = 'flow-check';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = true;
+    box.dataset.groupId = group.id;
+    const text = document.createElement('span');
+    text.textContent = `${splitGroupTitle(group.title).main}（${column.name}）`;
+    label.append(box, text);
+    li.append(label);
+    return li;
+  }));
+  document.getElementById('bulkLaunchDialog').showModal();
+}
+
+async function submitBulkLaunch() {
+  const text = document.getElementById('bulkLaunchText').value.trim();
+  const ids = [...document.querySelectorAll('#bulkLaunchList input:checked')].map((b) => b.dataset.groupId);
+  if (!text || !ids.length) return;
+  document.getElementById('bulkLaunchDialog').close();
+  for (const id of ids) {
+    const found = findGroupById(id);
+    if (!found) continue;
+    const target = { file: currentFile, columnName: found.column.name, groupId: id, groupTitle: found.group.title };
+    await sendCardComment(target, text, {});
+  }
+  showToast(`${ids.length}件のカードに依頼しました`);
+}
+
+async function buildDayReviewMarkdown() {
+  let costs = {};
+  try {
+    const res = await fetch(`/api/costs/cards?file=${encodeURIComponent(currentFile)}`);
+    if (res.ok) costs = (await res.json()).cards || {};
+  } catch {}
+  const done = [];
+  const open = [];
+  for (const column of boardData.columns) {
+    for (const group of column.groups) {
+      const name = `${splitGroupTitle(group.title).main}（${column.name}）`;
+      if (group.done) done.push(`- [x] ${name}`);
+      else {
+        const flow = cardFlowOf(group);
+        const note = flow === 'waiting' ? ' — 自分待ち' : flow === 'running' ? ' — Claude が作業中' : statusOf(group) === 'today' ? ' — 今日やるだった' : '';
+        open.push(`- [ ] ${name}${note}`);
+      }
+    }
+  }
+  const total = Object.values(costs).reduce((n, c) => n + (c.usd || 0), 0);
+  return [
+    `# ${boardData.date} の振り返り`, '',
+    `## 完了（${done.length}件）`, ...(done.length ? done : ['- なし']), '',
+    `## 未完了（${open.length}件）`, ...(open.length ? open : ['- なし']), '',
+    `## 費用（API換算）`, `- 合計 ${formatUsd(total)}（Claude セッションを起動したカード ${Object.keys(costs).length}件）`, '',
+  ].join('\n');
+}
+
+async function openDayReviewDialog() {
+  if (!boardData) return;
+  document.getElementById('dayReviewText').textContent = '集計中…';
+  document.getElementById('dayReviewDialog').showModal();
+  document.getElementById('dayReviewText').textContent = await buildDayReviewMarkdown();
+}
+
+async function copyDayReview() {
+  const text = document.getElementById('dayReviewText').textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('振り返りをコピーしました');
+  } catch {
+    showToast('コピーできませんでした。本文を選んでコピーしてください', { kind: 'error' });
+  }
+}
+
 const BASE_DOCUMENT_TITLE = 'Today Todo';
 const BADGE_COUNT_MAX = 9;
 let baseFaviconHref = null;
@@ -5738,6 +5864,7 @@ async function launchCardSession(target, text, launchOptions = {}, commentAt = n
     ? { actionLabel: '取り消す', durationMs: UNDO_SENT_TOAST_MS, onAction: () => cancelSentRequest(target, commentAt, jobId, launchOptions.restore || (() => {})) }
     : {});
   const { file, groupId, columnName, groupTitle } = target;
+  showBudgetHintIfNeeded();
   const before = file === currentFile ? findGroupById(groupId) : null;
   const hadSession = !!(before && before.group.session) && launchOptions.newSession !== true;
   const response = await postJson('/api/session/launch', { file, groupId, columnName, groupTitle, text, newSession: launchOptions.newSession === true, jobId: launchOptions.jobId, model: launchOptions.model, effort: launchOptions.effort });
@@ -6088,6 +6215,20 @@ function formatRateLimitWindow(label, window) {
   return el;
 }
 
+let lastRateLimits = null;
+let lastBudgetHintAt = 0;
+const BUDGET_HINT_PERCENT = 80;
+const BUDGET_HINT_INTERVAL_MS = 10 * 60 * 1000;
+
+// 使い切ると作業中のセッションまで止まるため、使用率が高いときは起動の前に一言だけ出す（起動は止めない）。
+function showBudgetHintIfNeeded() {
+  const windows = lastRateLimits ? [['5時間', lastRateLimits.fiveHour], ['7日間', lastRateLimits.sevenDay]] : [];
+  const hot = windows.find(([, w]) => w && w.usedPercentage >= BUDGET_HINT_PERCENT && !(w.resetsAt && w.resetsAt * 1000 <= Date.now()));
+  if (!hot || Date.now() - lastBudgetHintAt < BUDGET_HINT_INTERVAL_MS) return;
+  lastBudgetHintAt = Date.now();
+  showToast(`${hot[0]}の使用率が ${Math.round(hot[1].usedPercentage)}% です。重いモデルや長い作業は控えめに`, { key: 'budget-hint' });
+}
+
 async function refreshRateLimits() {
   const container = document.getElementById('rateLimits');
   let rateLimits = null;
@@ -6098,6 +6239,7 @@ async function refreshRateLimits() {
     // 表示は補助情報のため、取得失敗時は前回表示を残す。
     return;
   }
+  lastRateLimits = rateLimits;
   const parts = rateLimits
     ? [formatRateLimitWindow('5h', rateLimits.fiveHour), formatRateLimitWindow('7d', rateLimits.sevenDay)].filter(Boolean)
     : [];
@@ -7416,6 +7558,12 @@ async function init() {
   bindSessionLogQuote(sessionLogView);
 
   setupNotifyButton();
+  document.getElementById('bulkLaunchOpenBtn').addEventListener('click', openBulkLaunchDialog);
+  document.getElementById('bulkLaunchSubmit').addEventListener('click', submitBulkLaunch);
+  document.getElementById('bulkLaunchCloseBtn').addEventListener('click', () => document.getElementById('bulkLaunchDialog').close());
+  document.getElementById('dayReviewOpenBtn').addEventListener('click', openDayReviewDialog);
+  document.getElementById('dayReviewCopyBtn').addEventListener('click', copyDayReview);
+  document.getElementById('dayReviewCloseBtn').addEventListener('click', () => document.getElementById('dayReviewDialog').close());
   refreshOffCardSessions();
   setInterval(() => {
     refreshSessions();
