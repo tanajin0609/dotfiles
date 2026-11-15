@@ -614,6 +614,7 @@ function isThinGroup(group) {
 // セッション起動先の解決には影響させない）。列名配下に、カードタイトル（`▸`前半）と同名の
 // ディレクトリ、または`名前（親ディレクトリ名）`表記を分解した`親/名前`を探す。
 function resolveProjectHintDir(columnName, groupTitle) {
+  if (!isSafePathSegment(columnName)) return null;
   const base = path.join(PROJECTS_ROOT, columnName);
   if (!fs.existsSync(base)) return null;
   const segment = (groupTitle || '').split('▸')[0].trim();
@@ -622,6 +623,7 @@ function resolveProjectHintDir(columnName, groupTitle) {
   const paren = segment.match(/^(.+?)（(.+?)）$/);
   if (paren) candidates.push(path.join(base, paren[2].trim(), paren[1].trim()));
   for (const candidate of candidates) {
+    if (!isInsideProjectsRoot(candidate)) continue;
     if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
   }
   return null;
@@ -936,14 +938,24 @@ function copySddTemplate(projectDir) {
   fs.mkdirSync(path.join(projectDir, 'docs', 'changes'), { recursive: true });
 }
 
+// 列名・見出しはブラウザから届く値なので、`..` や区切り文字でプロジェクト置き場の外を指せないようにする。
+function isSafePathSegment(name) {
+  return typeof name === 'string' && name !== '' && !/[\\/\0]|^\.\.?$/.test(name);
+}
+
+function isInsideProjectsRoot(p) {
+  return path.resolve(p).startsWith(PROJECTS_ROOT + path.sep);
+}
+
 // カードのコメント欄からセッションを起動する先のディレクトリを解決する。
 // 列名＝サブプロジェクト名の規約（todo-import skill）を前提に、カードタイトルの
 // `▸` 前半がサブプロジェクト配下の実在ディレクトリ名ならそちらを優先する。
 function resolveLaunchCwd(columnName, groupTitle) {
+  if (!isSafePathSegment(columnName)) return null;
   const base = path.join(PROJECTS_ROOT, columnName);
   if (!fs.existsSync(base)) return null;
   const segment = (groupTitle || '').split('▸')[0].trim();
-  if (segment && segment !== columnName) {
+  if (segment && segment !== columnName && isSafePathSegment(segment)) {
     const nested = path.join(base, segment);
     if (fs.existsSync(nested)) return nested;
   }
@@ -1591,6 +1603,17 @@ function isLockedArtifact(filePath) {
   return path.basename(filePath).startsWith('.env') || /secret|credential/i.test(filePath);
 }
 
+// 資料表示は文書とソースコードに限る。鍵・設定（拡張子なし、.pem、.json、.npmrc 等）は配下にあっても返さない。
+const DOC_VIEW_EXTENSIONS = new Set([
+  '.md', '.markdown', '.txt', '.csv', '.tsv', '.log', '.mmd', '.mermaid', '.puml', '.html', '.css', '.scss',
+  '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx', '.py', '.rb', '.go', '.rs', '.java', '.kt', '.swift',
+  '.sh', '.ps1', '.lua', '.sql',
+]);
+
+function isViewableDoc(filePath) {
+  return DOC_VIEW_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
 function listSessionArtifacts(transcriptPath) {
   const order = [];
   for (const file of listTranscriptWithSubagents(transcriptPath)) {
@@ -1627,11 +1650,24 @@ function sendJson(res, status, data) {
   res.end(body);
 }
 
+const MAX_JSON_BYTES = 1024 * 1024;
+
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', (chunk) => { body += chunk; });
-    req.on('end', () => resolve(body));
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size <= MAX_JSON_BYTES) body += chunk;
+    });
+    req.on('end', () => (size > MAX_JSON_BYTES ? reject(new HttpError(413, 'too large')) : resolve(body)));
     req.on('error', reject);
   });
 }
@@ -1658,8 +1694,50 @@ function sanitizeAttachmentName(name) {
   return cleaned.slice(-120) || 'file';
 }
 
+const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`]);
+const BINARY_UPLOAD_PATHS = new Set(['/api/attachments', '/api/inbox/attachments']);
+
+// ブラウザで開いた別サイトからの送信（CSRF）と、外部ドメインを localhost に向ける DNS リバインディングを弾く。
+function rejectForeignRequest(req, res, url) {
+  if (!ALLOWED_HOSTS.has(String(req.headers.host || '').toLowerCase())) {
+    sendJson(res, 403, { error: 'forbidden host' });
+    return true;
+  }
+  if (req.method === 'GET' || req.method === 'HEAD') return false;
+  const origin = req.headers.origin;
+  if (origin && !ALLOWED_HOSTS.has(origin.replace(/^https?:\/\//, '').toLowerCase())) {
+    sendJson(res, 403, { error: 'forbidden origin' });
+    return true;
+  }
+  const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (!BINARY_UPLOAD_PATHS.has(url.pathname) && type !== 'application/json') {
+    sendJson(res, 415, { error: 'content-type must be application/json' });
+    return true;
+  }
+  return false;
+}
+
+// ハンドラ内の分割代入はオブジェクト前提なので、JSON.parse の結果が null や配列なら 400 にする。
+function parseJsonObject(text) {
+  const value = JSON.parse(text);
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new SyntaxError('not an object');
+  return value;
+}
+
 const server = http.createServer(async (req, res) => {
+  try {
+    await handleRequest(req, res);
+  } catch (err) {
+    console.error(err);
+    if (res.headersSent) return res.end();
+    if (err instanceof HttpError) return sendJson(res, err.status, { error: err.message });
+    return sendJson(res, 500, { error: 'internal error' });
+  }
+});
+
+async function handleRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  if (rejectForeignRequest(req, res, url)) return;
 
   if (url.pathname === '/api/inbox' && req.method === 'GET') {
     const memos = readInbox().slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -1669,8 +1747,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/inbox' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { id, text } = payload;
@@ -1694,8 +1773,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/inbox/delete' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const memos = readInbox();
@@ -1726,8 +1806,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/inbox/move' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { id, column, backlogPath } = payload;
@@ -1809,8 +1890,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/board/sync-column' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, column } = payload;
@@ -1830,8 +1912,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/column-order' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const order = payload && payload.order;
@@ -1846,8 +1929,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/column-favorites' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     if (!payload || typeof payload.name !== 'string' || typeof payload.favorite !== 'boolean') {
@@ -1876,8 +1960,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, order } = payload;
@@ -1902,8 +1987,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, groupId, text } = payload;
@@ -1924,8 +2010,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, groupId, at, jobId } = payload;
@@ -1954,8 +2041,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, text } = payload;
@@ -1974,8 +2062,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, taskId } = payload;
@@ -2012,8 +2101,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, columnName, groupTitle, text } = payload;
@@ -2066,8 +2156,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, taskId, text, remove } = payload;
@@ -2101,8 +2192,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, columnName, text, createProject } = payload;
@@ -2181,8 +2273,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/sessions/create' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
@@ -2211,8 +2304,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/chat/close' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     if (typeof payload.jobId !== 'string' || !/^[0-9a-f-]+$/.test(payload.jobId)) return sendJson(res, 400, { error: 'invalid payload' });
@@ -2227,8 +2321,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/sessions/reply' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
@@ -2260,8 +2355,9 @@ const server = http.createServer(async (req, res) => {
   if ((url.pathname === '/api/sessions/stop' || url.pathname === '/api/sessions/delete') && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     if (typeof payload.jobId !== 'string' || !/^[0-9a-f-]+$/.test(payload.jobId)) return sendJson(res, 400, { error: 'invalid payload' });
@@ -2307,8 +2403,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/claude-settings' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const model = typeof payload.model === 'string' ? payload.model.trim() : '';
@@ -2332,8 +2429,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/skills/create' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
@@ -2353,8 +2451,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/skills/reply' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
@@ -2401,8 +2500,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/workspace/trust' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     if (!isTrustableCwd(payload && payload.cwd)) {
@@ -2415,8 +2515,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/session/close' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, groupId, jobId } = payload || {};
@@ -2436,8 +2537,9 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     let payload;
     try {
-      payload = JSON.parse(body);
-    } catch {
+      payload = parseJsonObject(body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, groupId, columnName, groupTitle, text, newSession, jobId: targetJobId } = payload;
@@ -2550,7 +2652,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/api/doc' && req.method === 'GET') {
     const requested = path.resolve(url.searchParams.get('path') || '/');
-    if (isLockedArtifact(requested)) {
+    if (isLockedArtifact(requested) || !isViewableDoc(requested)) {
       return sendJson(res, 403, { error: 'forbidden' });
     }
     if (!fs.existsSync(requested)) {
@@ -2600,8 +2702,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/session/branch' && req.method === 'POST') {
     let payload;
     try {
-      payload = JSON.parse(await readBody(req));
-    } catch {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'invalid json' });
     }
     const { file, groupId, columnName, groupTitle, uuid, text, jobId: sourceJobId } = payload;
@@ -2663,12 +2766,12 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  const staticPages = { '/': 'index.html', '/costs': 'costs.html' };
-  let filePath = path.join(PUBLIC_DIR, staticPages[url.pathname] || url.pathname);
-  if (!filePath.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
-    return res.end('forbidden');
+  const staticPages = { '/': 'index.html', '/index.html': 'index.html', '/costs': 'costs.html', '/costs.html': 'costs.html' };
+  if (!staticPages[url.pathname]) {
+    res.writeHead(404);
+    return res.end('not found');
   }
+  const filePath = path.join(PUBLIC_DIR, staticPages[url.pathname]);
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404);
@@ -2679,7 +2782,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8` });
     res.end(data);
   });
-});
+}
 
 if (process.argv[2] === 'sync-column') {
   const [file, column] = process.argv.slice(3);
@@ -2699,6 +2802,6 @@ if (process.argv[2] === 'sync-column') {
   process.exit(0);
 }
 
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`todo viewer: http://localhost:${PORT}`);
 });

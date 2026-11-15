@@ -17,6 +17,18 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
 - AC-SRV-CFG-2: `VIEWER_CLAUDE_JOBS_DIR` でClaude Codeのジョブの置き場（既定 `~/.claude/jobs`）を、`VIEWER_STOP_SETTLE_MS` で
   `claude stop` の後に `--resume` まで待つ時間（既定3000ms。AC-CC2-2）を上書きできる（テスト用）。
 
+### 1.1a 外部からの要求の拒否（SEC）
+
+- AC-SEC-SRV-1: サーバーは `127.0.0.1` だけで待ち受ける。
+- AC-SEC-SRV-2: `Host` ヘッダーが `localhost:<PORT>`・`127.0.0.1:<PORT>`・`[::1]:<PORT>` 以外の要求は403。GET 以外で `Origin` が
+  同じ3つ以外を指すものも403。GET 以外で `Content-Type` が `application/json` でないものは415（添付の `/api/attachments`・
+  `/api/inbox/attachments` は対象外）。
+- AC-SEC-SRV-3: JSON 本文が1MBを超えたら413、JSON として読めないかオブジェクトでなければ400。処理中の想定外の例外は500を返し、
+  サーバーは止まらない。
+- AC-SEC-SRV-4: 列名・カード見出しから作業ディレクトリを決めるとき、`/`・`\`・`.`・`..` を含む値では `PROJECTS_ROOT` の外を指さない
+  （起動・backlog への追加・プロジェクト説明の探索のいずれも、該当ディレクトリなしとして扱う）。
+- AC-SEC-SRV-5: 静的配信は `/`・`/index.html`・`/costs`・`/costs.html` だけで、それ以外のパスは404。
+
 ### 1.2 セッション起動の二重防止（H1）
 
 - AC-H1-SRV-1: `POST /api/session/launch` の処理中（`claude --bg` の完了待ち中）に、同じ `file` と `groupId` の
@@ -168,7 +180,9 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
 
 - AC-DV-SRV-1: `GET /api/doc?path=<絶対パス>` は、symlink解決後のパスが `PROJECTS_ROOT` 配下にある実在のファイルを、`.md` なら
   `200 text/markdown; charset=utf-8`、それ以外は `200 text/plain; charset=utf-8` で返す。ファイル名が `.env` 始まり・パスに `secret`/`credential`
-  を含むもの（AC-AP-SRV-1 の locked と同じ判定、大文字小文字無視）と配下外は403、NULバイトを含むもの（バイナリ）は415、存在しなければ404。
+  を含むもの（AC-AP-SRV-1 の locked と同じ判定、大文字小文字無視）、拡張子が文書・ソースコードの許可リスト（`.md`・`.txt`・`.csv`・`.html`・
+  `.js`・`.ts`・`.py`・`.sql` 等。拡張子なし・`.json`・`.pem` などは対象外）に無いもの、配下外は403、NULバイトを含むもの（バイナリ）は415、
+  存在しなければ404。
 - AC-DV-SRV-2: `GET /api/doc/resolve?ref=<相対パス>&base=<出典の絶対パス>` は、`base` のディレクトリから `PROJECTS_ROOT` まで1階層ずつ
   さかのぼり、各階層に `ref` を連結して最初に実在したパスを採る（`PROJECTS_ROOT` 配下のものだけ）。`200 { "path", "kind": "file" | "dir", "docs": [<絶対パス>] }`
   を返し、`docs` はファイルなら自身、ディレクトリなら配下の全拡張子のファイル（`node_modules`・`.`始まりを除き3階層まで、パス順、最大100件）。
