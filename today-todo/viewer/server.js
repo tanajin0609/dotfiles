@@ -51,6 +51,11 @@ const TODO_IMPORT_SESSION_PATH = path.join(DATA_DIR, 'todo-import-session.json')
 const COLUMN_ORDER_PATH = path.join(DATA_DIR, 'column-order.json');
 const COLUMN_FAVORITES_PATH = path.join(DATA_DIR, 'column-favorites.json');
 const INBOX_PATH = path.join(DATA_DIR, 'inbox.json');
+const CARD_MARKS_PATH = path.join(DATA_DIR, 'card-marks.json');
+const CARD_INDEX_PATH = path.join(DATA_DIR, 'card-index.json');
+const CARD_INDEX_MAX = 2000;
+const CARRY_OVER_LOOKBACK_FILES = 14;
+const CARD_STATUSES = new Set(['today', 'hold']);
 const INBOX_ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments', 'inbox');
 
 const CLAUDE_PROJECTS_DIR = process.env.VIEWER_CLAUDE_PROJECTS_DIR
@@ -1464,6 +1469,98 @@ function readRateLimits() {
   }
 }
 
+// カードIDは「列名＋見出し」のハッシュなので、見出しを直すと別カードになる。タスクの `#N` が重なる
+// 旧カード（いまのボードに無いもの）の記録を新しいIDへ付け替え、セッション・コメント・印を失わないようにする。
+function boardGroups(board) {
+  return board.columns.flatMap((column) => column.groups.map((group) => ({
+    column: column.name,
+    id: group.id,
+    numbers: group.tasks.map((t) => t.number).filter((n) => Number.isInteger(n)),
+  })));
+}
+
+function remapRenamedCards(records, groups, index) {
+  const onBoard = new Set(groups.map((g) => g.id));
+  const result = { ...records };
+  let changed = false;
+  for (const g of groups) {
+    if (result[g.id] || !g.numbers.length) continue;
+    const candidates = Object.entries(index).filter(([oldId, info]) => !onBoard.has(oldId) && result[oldId]
+      && info.column === g.column && info.numbers.some((n) => g.numbers.includes(n)));
+    if (candidates.length !== 1) continue;
+    const [oldId] = candidates[0];
+    result[g.id] = result[oldId];
+    delete result[oldId];
+    changed = true;
+  }
+  return { result, changed };
+}
+
+function updateCardIndex(groups, index) {
+  const now = new Date().toISOString();
+  for (const g of groups) {
+    if (g.numbers.length) index[g.id] = { column: g.column, numbers: g.numbers, seenAt: now };
+  }
+  const entries = Object.entries(index);
+  if (entries.length > CARD_INDEX_MAX) {
+    entries.sort((a, b) => String(b[1].seenAt).localeCompare(String(a[1].seenAt)));
+    return Object.fromEntries(entries.slice(0, CARD_INDEX_MAX));
+  }
+  return index;
+}
+
+// 前日までのファイルに付いていたセッション・コメントを、その日初めてボードを開いたときに一度だけ引き継ぐ。
+// 2回目以降は引き継がない（その日に閉じたセッションやコメントを前日の記録で戻さないため）。
+function previousRecordFiles(prefix, file) {
+  const current = `${prefix}-${file.replace(/\.md$/, '')}.json`;
+  if (!fs.existsSync(DATA_DIR)) return [];
+  return fs.readdirSync(DATA_DIR)
+    .filter((n) => n.startsWith(`${prefix}-todo-`) && n.endsWith('.json') && n < current)
+    .sort().reverse().slice(0, CARRY_OVER_LOOKBACK_FILES)
+    .map((n) => path.join(DATA_DIR, n));
+}
+
+function seedFromPreviousDays(prefix, targetPath, file, groups, index) {
+  if (fs.existsSync(targetPath)) return;
+  const onBoard = new Set(groups.map((g) => g.id));
+  const seeded = {};
+  for (const prevPath of previousRecordFiles(prefix, file)) {
+    const { result } = remapRenamedCards(readDataJson(prevPath, {}), groups, index);
+    for (const [id, record] of Object.entries(result)) {
+      if (onBoard.has(id) && !seeded[id]) seeded[id] = record;
+    }
+  }
+  if (Object.keys(seeded).length) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    writeFileAtomic(targetPath, JSON.stringify(seeded));
+  }
+}
+
+function carryOverCardRecords(board, file) {
+  const groups = boardGroups(board);
+  let index = readDataJson(CARD_INDEX_PATH, {});
+  seedFromPreviousDays('sessions', sessionsFilePath(file), file, groups, index);
+  seedFromPreviousDays('comments', commentsFilePath(file), file, groups, index);
+  for (const recordPath of [sessionsFilePath(file), commentsFilePath(file), CARD_MARKS_PATH]) {
+    if (!fs.existsSync(recordPath)) continue;
+    const { result, changed } = remapRenamedCards(readDataJson(recordPath, {}), groups, index);
+    if (changed) writeFileAtomic(recordPath, JSON.stringify(result));
+  }
+  index = updateCardIndex(groups, index);
+  if (groups.some((g) => g.numbers.length)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    writeFileAtomic(CARD_INDEX_PATH, JSON.stringify(index));
+  }
+  return board;
+}
+
+function attachCardMarks(board) {
+  const marks = readDataJson(CARD_MARKS_PATH, {});
+  const ids = new Set(boardGroups(board).map((g) => g.id));
+  board.cardMarks = Object.fromEntries(Object.entries(marks).filter(([id]) => ids.has(id)));
+  return board;
+}
+
 function attachSessions(board, file) {
   const sessionsMap = readSessionsMap(file);
   for (const column of board.columns) {
@@ -1833,6 +1930,37 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, listTodoFiles());
   }
 
+  if (url.pathname === '/api/card-marks' && req.method === 'POST') {
+    let payload;
+    try {
+      payload = parseJsonObject(await readBody(req));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+    const { groupId, status, starred } = payload;
+    if (typeof groupId !== 'string' || !/^[\w-]+$/.test(groupId)
+      || (status !== undefined && status !== '' && !CARD_STATUSES.has(status))
+      || (starred !== undefined && typeof starred !== 'boolean')) {
+      return sendJson(res, 400, { error: 'invalid payload' });
+    }
+    const marks = readDataJson(CARD_MARKS_PATH, {});
+    const mark = { ...(marks[groupId] || {}) };
+    if (status !== undefined) {
+      if (status) mark.status = status;
+      else delete mark.status;
+    }
+    if (starred !== undefined) {
+      if (starred) mark.starred = true;
+      else delete mark.starred;
+    }
+    if (mark.status || mark.starred) marks[groupId] = { ...mark, updatedAt: new Date().toISOString() };
+    else delete marks[groupId];
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    writeFileAtomic(CARD_MARKS_PATH, JSON.stringify(marks));
+    return sendJson(res, 200, { mark: marks[groupId] || null });
+  }
+
   if (url.pathname === '/api/board' && req.method === 'GET') {
     const file = url.searchParams.get('file') || '';
     if (!isValidTodoFile(file)) {
@@ -1851,6 +1979,8 @@ async function handleRequest(req, res) {
     board = applySavedOrder(board, file);
     board = applyColumnOrder(board);
     board = applyColumnFavorites(board);
+    board = carryOverCardRecords(board, file);
+    board = attachCardMarks(board);
     board = attachSessions(board, file);
     board = attachComments(board, file);
     board = attachProjectHints(board);
