@@ -18,6 +18,9 @@ test('GET /api/docはPROJECTS_ROOT配下のテキストファイルを返し、�
   fs.writeFileSync(path.join(docDir, '.env'), 'X=1');
   fs.writeFileSync(path.join(docDir, 'query.sql'), 'SELECT 1;');
   fs.writeFileSync(path.join(docDir, 'logo.png'), Buffer.from([0x89, 0x50, 0x00, 0x47]));
+  fs.writeFileSync(path.join(docDir, 'binary.txt'), Buffer.from([0x41, 0x00, 0x42]));
+  fs.writeFileSync(path.join(docDir, 'id_rsa'), 'PRIVATE KEY');
+  fs.writeFileSync(path.join(docDir, 'config.json'), '{"token":"x"}');
   const outside = path.join(path.dirname(projectsRoot), `outside-${process.pid}.md`);
   fs.writeFileSync(outside, '# outside');
   const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
@@ -33,7 +36,10 @@ test('GET /api/docはPROJECTS_ROOT配下のテキストファイルを返し、�
     assert.equal(await sql.text(), 'SELECT 1;');
     assert.equal((await get(path.join(docDir, 'secret.txt'))).status, 403);
     assert.equal((await get(path.join(docDir, '.env'))).status, 403);
-    assert.equal((await get(path.join(docDir, 'logo.png'))).status, 415);
+    assert.equal((await get(path.join(docDir, 'logo.png'))).status, 403);
+    assert.equal((await get(path.join(docDir, 'id_rsa'))).status, 403);
+    assert.equal((await get(path.join(docDir, 'config.json'))).status, 403);
+    assert.equal((await get(path.join(docDir, 'binary.txt'))).status, 415);
     assert.equal((await get(outside)).status, 403);
     assert.equal((await get(path.join(docDir, '..', '..', '..', path.basename(outside)))).status, 403);
     assert.equal((await get(path.join(docDir, 'missing.md'))).status, 404);
