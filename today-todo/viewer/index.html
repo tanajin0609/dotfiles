@@ -1791,6 +1791,24 @@ function attachToastRegionToTopmostDialog() {
 // durationMs: 省略時は失敗(error)なら閉じるまで残し、それ以外は既定時間で消す。nullで常に残す。
 // key: 同じkeyのトーストが出ていれば置き換える。戻り値はトーストを閉じる関数。
 // onClose: トーストが消えたときに呼ぶ。操作ボタンで消えたときだけ引数が 'action'。
+const shownServerWarnings = new Set();
+
+function notifyServerWarnings(board) {
+  for (const w of board.dataWarnings || []) {
+    if (shownServerWarnings.has(w.movedTo)) continue;
+    shownServerWarnings.add(w.movedTo);
+    showToast(`保存データ「${w.file}」が壊れていたため、空として読み直しました。元の内容は ${w.movedTo} に退避しています`, { kind: 'error', durationMs: null, key: `data-warning-${w.movedTo}` });
+  }
+  const cli = board.claudeCli;
+  if (!cli || !cli.version || cli.version === cli.tested) return;
+  const key = `viewer:cliVersionNotified:${cli.version}`;
+  try {
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+  } catch {}
+  showToast(`Claude Code ${cli.version} は viewer で未確認の版です（確認済みは ${cli.tested}）。セッションの状態表示や返信がずれたら知らせてください`, { durationMs: null, key: 'cli-version' });
+}
+
 function showToast(message, { kind = 'info', actionLabel, onAction, onClose, key, durationMs } = {}) {
   attachToastRegionToTopmostDialog();
   const region = document.getElementById('toastRegion');
@@ -2593,6 +2611,7 @@ async function loadBoard(file) {
   hideBoardLoadError();
   const isSameFile = renderedBoardFile === file;
   boardData = response.data;
+  notifyServerWarnings(boardData);
   loadedBoardMtimeMs = boardData.mtimeMs;
   notifiedBoardMtimeMs = null;
   if (dismissBoardUpdatedToast) dismissBoardUpdatedToast();

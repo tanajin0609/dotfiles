@@ -51,7 +51,7 @@ function setupFixture() {
 function spawnAndWaitListening(port, env, timeoutMs) {
   const child = spawn(process.execPath, [SERVER_PATH], {
     // stop の後の待ち（既定3秒）はテストを遅くするだけなので、明示しないテストでは短くする。
-    env: { ...process.env, VIEWER_STOP_SETTLE_MS: '50', VIEWER_PORT: String(port), ...env },
+    env: { ...process.env, VIEWER_STOP_SETTLE_MS: '50', VIEWER_CLI_VERSION_CHECK: '0', VIEWER_PORT: String(port), ...env },
   });
   const stderrChunks = [];
   child.stderr.on('data', (chunk) => stderrChunks.push(chunk.toString()));

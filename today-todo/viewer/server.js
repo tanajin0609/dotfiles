@@ -216,7 +216,7 @@ function rememberTranscriptPaths(file, sessionsMap) {
       changed = true;
     }
   }
-  if (changed) fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
+  if (changed) writeFileAtomic(sessionsFilePath(file), JSON.stringify(sessionsMap));
 }
 
 function buildCardCosts(file) {
@@ -348,14 +348,32 @@ function globalCommentsFilePath(file) {
   return path.join(DATA_DIR, `global-comments-${file.replace(/\.md$/, '')}.json`);
 }
 
-function readGlobalComments(file) {
-  const p = globalCommentsFilePath(file);
-  if (!fs.existsSync(p)) return [];
+// 書き込み途中で落ちても、元のファイルが半端な内容で残らないように一時ファイルから置き換える。
+function writeFileAtomic(filePath, data) {
+  const tmpPath = `${filePath}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+  fs.writeFileSync(tmpPath, data);
+  fs.renameSync(tmpPath, filePath);
+}
+
+// data/ の記録が壊れていたとき、空として扱って上書きすると紐付けが黙って消えるため、退避して画面に知らせる。
+const dataWarnings = [];
+function readDataJson(filePath, fallback) {
+  if (!fs.existsSync(filePath)) return fallback;
+  const text = fs.readFileSync(filePath, 'utf-8');
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+    return JSON.parse(text);
   } catch {
-    return [];
+    if (!text.trim()) return fallback;
+    const movedTo = `${filePath}.broken-${Date.now()}`;
+    fs.renameSync(filePath, movedTo);
+    dataWarnings.push({ file: path.basename(filePath), movedTo, at: new Date().toISOString() });
+    if (dataWarnings.length > 20) dataWarnings.shift();
+    return fallback;
   }
+}
+
+function readGlobalComments(file) {
+  return readDataJson(globalCommentsFilePath(file), []);
 }
 
 // 日付から対象ファイルを解決する: カレントの todo-<date>.md → archives/<YYYYMMDD>/todo-<date>.md の順に探す。
@@ -658,12 +676,7 @@ function attachProjectHints(board) {
 }
 
 function applyColumnOrder(board) {
-  let order;
-  try {
-    order = JSON.parse(fs.readFileSync(COLUMN_ORDER_PATH, 'utf-8'));
-  } catch {
-    return board;
-  }
+  const order = readDataJson(COLUMN_ORDER_PATH, null);
   if (!Array.isArray(order)) return board;
   const rank = new Map(order.map((name, i) => [name, i]));
   const rankOf = (column) => (rank.has(column.name) ? rank.get(column.name) : order.length);
@@ -673,16 +686,12 @@ function applyColumnOrder(board) {
 }
 
 function readInbox() {
-  try {
-    const memos = JSON.parse(fs.readFileSync(INBOX_PATH, 'utf-8'));
-    return Array.isArray(memos) ? memos : [];
-  } catch {
-    return [];
-  }
+  const memos = readDataJson(INBOX_PATH, []);
+  return Array.isArray(memos) ? memos : [];
 }
 
 function writeInbox(memos) {
-  fs.writeFileSync(INBOX_PATH, JSON.stringify(memos, null, 2));
+  writeFileAtomic(INBOX_PATH, JSON.stringify(memos, null, 2));
 }
 
 function formatInboxStamp(date) {
@@ -726,24 +735,20 @@ function moveInboxMemo(memo, title, backlogPath) {
   const sections = [`# ${title}`, '', body, ''];
   if (copied.length) sections.push('## 添付', '', ...copied.map((n) => `- [${n}](${encodeURI(n)})`), '');
   const memoPath = path.join(dir, 'memo.md');
-  fs.writeFileSync(memoPath, sections.join('\n'));
+  writeFileAtomic(memoPath, sections.join('\n'));
 
   const srcMd = fs.readFileSync(backlogPath, 'utf-8');
   const maxNum = findMaxTaskNumber(srcMd);
   const number = maxNum > 0 ? maxNum + 1 : null;
   const rel = path.relative(path.dirname(backlogPath), memoPath).split(path.sep).join('/');
   const line = `- [ ] ${number != null ? `#${number} ` : ''}${title} → [memo.md](${rel})`;
-  fs.writeFileSync(backlogPath, (srcMd === '' || srcMd.endsWith('\n') ? srcMd : `${srcMd}\n`) + `${line}\n`);
+  writeFileAtomic(backlogPath, (srcMd === '' || srcMd.endsWith('\n') ? srcMd : `${srcMd}\n`) + `${line}\n`);
   return { memoPath, number };
 }
 
 function readColumnFavorites() {
-  try {
-    const favorites = JSON.parse(fs.readFileSync(COLUMN_FAVORITES_PATH, 'utf-8'));
-    return Array.isArray(favorites) ? favorites : [];
-  } catch {
-    return [];
-  }
+  const favorites = readDataJson(COLUMN_FAVORITES_PATH, []);
+  return Array.isArray(favorites) ? favorites : [];
 }
 
 function applyColumnFavorites(board) {
@@ -754,14 +759,8 @@ function applyColumnFavorites(board) {
 }
 
 function applySavedOrder(board, file) {
-  const orderPath = orderFilePath(file);
-  if (!fs.existsSync(orderPath)) return board;
-  let saved;
-  try {
-    saved = JSON.parse(fs.readFileSync(orderPath, 'utf-8'));
-  } catch {
-    return board;
-  }
+  const saved = readDataJson(orderFilePath(file), null);
+  if (!saved || typeof saved !== 'object') return board;
   for (const column of board.columns) {
     const savedIds = saved[column.name];
     if (!Array.isArray(savedIds)) continue;
@@ -774,13 +773,7 @@ function applySavedOrder(board, file) {
 }
 
 function readCommentsMap(file) {
-  const commentsPath = commentsFilePath(file);
-  if (!fs.existsSync(commentsPath)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(commentsPath, 'utf-8'));
-  } catch {
-    return {};
-  }
+  return readDataJson(commentsFilePath(file), {});
 }
 
 function attachComments(board, file) {
@@ -794,13 +787,7 @@ function attachComments(board, file) {
 }
 
 function readSessionsMap(file) {
-  const sessionsPath = sessionsFilePath(file);
-  if (!fs.existsSync(sessionsPath)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'));
-  } catch {
-    return {};
-  }
+  return readDataJson(sessionsFilePath(file), {});
 }
 
 const BUSY_JOB_STATES = new Set(['working', 'running', 'starting', 'resuming', 'crashed']);
@@ -862,7 +849,7 @@ function updateSessionEntry(file, groupId, entry, { keepPrevious = false, replac
   const historyIndex = replaceJobId ? history.findIndex((h) => h.jobId === replaceJobId) : -1;
   if (historyIndex >= 0) {
     history[historyIndex] = { ...history[historyIndex], ...entry, launchedAt: history[historyIndex].launchedAt || entry.launchedAt };
-    fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
+    writeFileAtomic(sessionsFilePath(file), JSON.stringify(sessionsMap));
     return;
   }
   if (keepPrevious && previous && previous.jobId && previous.jobId !== entry.jobId) {
@@ -871,7 +858,7 @@ function updateSessionEntry(file, groupId, entry, { keepPrevious = false, replac
     history.push(archived);
   }
   sessionsMap[groupId] = history.length ? { ...entry, history } : entry;
-  fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
+  writeFileAtomic(sessionsFilePath(file), JSON.stringify(sessionsMap));
 }
 
 // `claude rm`はworktreeも消すが、継続先のジョブが同じworktreeで作業を続けるため、worktreeに入ったジョブは消さない。
@@ -915,7 +902,7 @@ function removeCardSession(file, groupId, jobId) {
   }
   if (next) sessionsMap[groupId] = next;
   else delete sessionsMap[groupId];
-  fs.writeFileSync(sessionsFilePath(file), JSON.stringify(sessionsMap));
+  writeFileAtomic(sessionsFilePath(file), JSON.stringify(sessionsMap));
   return true;
 }
 
@@ -1446,38 +1433,26 @@ function listSkills() {
 }
 
 function readSkillSessions() {
-  try {
-    return JSON.parse(fs.readFileSync(SKILL_SESSIONS_PATH, 'utf-8'));
-  } catch {
-    return [];
-  }
+  return readDataJson(SKILL_SESSIONS_PATH, []);
 }
 
 function writeSkillSessions(sessions) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(SKILL_SESSIONS_PATH, JSON.stringify(sessions));
+  writeFileAtomic(SKILL_SESSIONS_PATH, JSON.stringify(sessions));
 }
 
 function readChatSessions() {
-  try {
-    const sessions = JSON.parse(fs.readFileSync(CHAT_SESSIONS_PATH, 'utf-8'));
-    return Array.isArray(sessions) ? sessions : [];
-  } catch {
-    return [];
-  }
+  const sessions = readDataJson(CHAT_SESSIONS_PATH, []);
+  return Array.isArray(sessions) ? sessions : [];
 }
 
 function writeChatSessions(sessions) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(CHAT_SESSIONS_PATH, JSON.stringify(sessions));
+  writeFileAtomic(CHAT_SESSIONS_PATH, JSON.stringify(sessions));
 }
 
 function readTodoImportSession() {
-  try {
-    return JSON.parse(fs.readFileSync(TODO_IMPORT_SESSION_PATH, 'utf-8'));
-  } catch {
-    return null;
-  }
+  return readDataJson(TODO_IMPORT_SESSION_PATH, null);
 }
 
 // 5h/7dの使用率はステータスラインのstdinにしか渡されないため、statuslineが書き出したスナップショットを読む。
@@ -1651,6 +1626,10 @@ function sendJson(res, status, data) {
 }
 
 const MAX_JSON_BYTES = 1024 * 1024;
+
+// state.json の項目や `backgrounded · <id>` の出力など、CLI の内部仕様に頼る処理はこの版で実機確認している。
+const TESTED_CLAUDE_CLI_VERSION = '2.1.291';
+let claudeCliVersion = null;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -1878,6 +1857,8 @@ async function handleRequest(req, res) {
     const date = file.match(/^todo-(\d{4}-\d{2}-\d{2})\.md$/)[1];
     board.date = date;
     board.mtimeMs = fs.statSync(filePath).mtimeMs;
+    board.dataWarnings = dataWarnings.slice();
+    board.claudeCli = { version: claudeCliVersion, tested: TESTED_CLAUDE_CLI_VERSION };
     board.history = buildHistory(date);
     board.globalComments = readGlobalComments(file);
     const columnFilter = url.searchParams.get('column');
@@ -1905,7 +1886,7 @@ async function handleRequest(req, res) {
       return sendJson(res, 404, { error: 'not found' });
     }
     const { md, items } = syncColumnSection(fs.readFileSync(filePath, 'utf-8'), column, columnDir);
-    fs.writeFileSync(filePath, md);
+    writeFileAtomic(filePath, md);
     return sendJson(res, 200, { items });
   }
 
@@ -1922,7 +1903,7 @@ async function handleRequest(req, res) {
       return sendJson(res, 400, { error: 'invalid payload' });
     }
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(COLUMN_ORDER_PATH, JSON.stringify(order));
+    writeFileAtomic(COLUMN_ORDER_PATH, JSON.stringify(order));
     return sendJson(res, 200, { order });
   }
 
@@ -1940,7 +1921,7 @@ async function handleRequest(req, res) {
     const favorites = readColumnFavorites().filter((name) => name !== payload.name);
     if (payload.favorite) favorites.push(payload.name);
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(COLUMN_FAVORITES_PATH, JSON.stringify(favorites));
+    writeFileAtomic(COLUMN_FAVORITES_PATH, JSON.stringify(favorites));
     return sendJson(res, 200, { favorites });
   }
 
@@ -1971,15 +1952,8 @@ async function handleRequest(req, res) {
     }
     fs.mkdirSync(DATA_DIR, { recursive: true });
     const orderPath = orderFilePath(file);
-    let existing = {};
-    if (fs.existsSync(orderPath)) {
-      try {
-        existing = JSON.parse(fs.readFileSync(orderPath, 'utf-8'));
-      } catch {
-        existing = {};
-      }
-    }
-    fs.writeFileSync(orderPath, JSON.stringify({ ...existing, ...order }));
+    const existing = readDataJson(orderPath, {});
+    writeFileAtomic(orderPath, JSON.stringify({ ...existing, ...order }));
     return sendJson(res, 200, { ok: true });
   }
 
@@ -2002,7 +1976,7 @@ async function handleRequest(req, res) {
     const list = commentsMap[groupId] || [];
     list.push({ text: trimmed, at: new Date().toISOString() });
     commentsMap[groupId] = list;
-    fs.writeFileSync(commentsFilePath(file), JSON.stringify(commentsMap));
+    writeFileAtomic(commentsFilePath(file), JSON.stringify(commentsMap));
     return sendJson(res, 200, { comments: list });
   }
 
@@ -2032,7 +2006,7 @@ async function handleRequest(req, res) {
     const list = (commentsMap[groupId] || []).filter((c) => c.at !== at);
     if (commentsMap[groupId]) {
       commentsMap[groupId] = list;
-      fs.writeFileSync(commentsFilePath(file), JSON.stringify(commentsMap));
+      writeFileAtomic(commentsFilePath(file), JSON.stringify(commentsMap));
     }
     return sendJson(res, 200, { comments: list, stopped });
   }
@@ -2054,7 +2028,7 @@ async function handleRequest(req, res) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     const list = readGlobalComments(file);
     list.push({ text: trimmed, at: new Date().toISOString() });
-    fs.writeFileSync(globalCommentsFilePath(file), JSON.stringify(list));
+    writeFileAtomic(globalCommentsFilePath(file), JSON.stringify(list));
     return sendJson(res, 200, { comments: list });
   }
 
@@ -2079,7 +2053,7 @@ async function handleRequest(req, res) {
     if (!toggled) {
       return sendJson(res, 404, { error: 'task not found' });
     }
-    fs.writeFileSync(filePath, toggled.md);
+    writeFileAtomic(filePath, toggled.md);
 
     let sourceUpdated = false;
     const sourcePath = extractSourcePath(toggled.rawText);
@@ -2090,7 +2064,7 @@ async function handleRequest(req, res) {
         const srcLines = srcMd.split('\n');
         const srcTask = srcLines[srcLineIndex].match(/^(\s*- \[)([ x])(\] )(.+)$/);
         srcLines[srcLineIndex] = `${srcTask[1]}${toggled.done ? 'x' : ' '}${srcTask[3]}${srcTask[4]}`;
-        fs.writeFileSync(sourcePath, srcLines.join('\n'));
+        writeFileAtomic(sourcePath, srcLines.join('\n'));
         sourceUpdated = true;
       }
     }
@@ -2128,7 +2102,7 @@ async function handleRequest(req, res) {
     const taskBody = number != null ? `#${number} ${trimmed}` : trimmed;
     const newSrcLine = `- [ ] ${taskBody}`;
     const updatedSrc = (srcMd.endsWith('\n') ? srcMd : `${srcMd}\n`) + `${newSrcLine}\n`;
-    fs.writeFileSync(sourcePath, updatedSrc);
+    writeFileAtomic(sourcePath, updatedSrc);
 
     let mirroredToAggregate = false;
     const aggPath = path.join(TODO_DIR, file);
@@ -2137,7 +2111,7 @@ async function handleRequest(req, res) {
       const newAggLine = `${newSrcLine} → ${sourcePath}`;
       const updatedAgg = insertTaskUnderHeading(aggMd, columnName, groupTitle, newAggLine);
       if (updatedAgg != null) {
-        fs.writeFileSync(aggPath, updatedAgg);
+        writeFileAtomic(aggPath, updatedAgg);
         mirroredToAggregate = true;
       }
     }
@@ -2174,14 +2148,14 @@ async function handleRequest(req, res) {
     if (!rewritten) {
       return sendJson(res, 404, { error: 'task not found' });
     }
-    fs.writeFileSync(filePath, rewritten.md);
+    writeFileAtomic(filePath, rewritten.md);
 
     let sourceUpdated = false;
     const sourcePath = extractSourcePath(rewritten.rawText);
     if (sourcePath && fs.existsSync(sourcePath)) {
       const updatedSrc = rewriteSourceItem(fs.readFileSync(sourcePath, 'utf-8'), computeAggCore(rewritten.rawText), newText, sourcePath);
       if (updatedSrc != null) {
-        fs.writeFileSync(sourcePath, updatedSrc);
+        writeFileAtomic(sourcePath, updatedSrc);
         sourceUpdated = true;
       }
     }
@@ -2237,7 +2211,7 @@ async function handleRequest(req, res) {
     const updatedSrc = doneHeading >= 0
       ? `${srcMd.slice(0, doneHeading)}${newSrcLine}\n\n${srcMd.slice(doneHeading)}`
       : (srcMd.endsWith('\n') ? srcMd : `${srcMd}\n`) + `${newSrcLine}\n`;
-    fs.writeFileSync(sourcePath, updatedSrc);
+    writeFileAtomic(sourcePath, updatedSrc);
 
     let mirroredToAggregate = false;
     const aggPath = path.join(TODO_DIR, file);
@@ -2245,7 +2219,7 @@ async function handleRequest(req, res) {
       const aggMd = fs.readFileSync(aggPath, 'utf-8');
       const newAggLine = `${newSrcLine} → ${sourcePath}`;
       const updatedAgg = insertStandaloneTaskAfterColumnHeading(aggMd, columnName, newAggLine);
-      fs.writeFileSync(aggPath, updatedAgg);
+      writeFileAtomic(aggPath, updatedAgg);
       mirroredToAggregate = true;
     }
 
@@ -2414,7 +2388,7 @@ async function handleRequest(req, res) {
       return sendJson(res, 400, { error: 'invalid payload' });
     }
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(LAUNCH_SETTINGS_PATH, JSON.stringify({ model, effort }));
+    writeFileAtomic(LAUNCH_SETTINGS_PATH, JSON.stringify({ model, effort }));
     return sendJson(res, 200, { override: { model, effort } });
   }
 
@@ -2493,7 +2467,7 @@ async function handleRequest(req, res) {
     }
     if (!result.jobId) return sendJson(res, 500, { error: 'launch failed', detail: 'job id not found' });
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(TODO_IMPORT_SESSION_PATH, JSON.stringify({ jobId: result.jobId, launchedAt: new Date().toISOString() }));
+    writeFileAtomic(TODO_IMPORT_SESSION_PATH, JSON.stringify({ jobId: result.jobId, launchedAt: new Date().toISOString() }));
     return sendJson(res, 200, { launched: true, jobId: result.jobId });
   }
 
@@ -2797,9 +2771,15 @@ if (process.argv[2] === 'sync-column') {
     process.exit(1);
   }
   const { md, items } = syncColumnSection(fs.readFileSync(filePath, 'utf-8'), column, columnDir);
-  fs.writeFileSync(filePath, md);
+  writeFileAtomic(filePath, md);
   process.stdout.write(`${items}\n`);
   process.exit(0);
+}
+
+if (process.env.VIEWER_CLI_VERSION_CHECK !== '0') {
+  execFileAsync('claude', ['--version'], { timeout: LAUNCH_TIMEOUT_MS })
+    .then(({ stdout }) => { claudeCliVersion = (String(stdout).match(/\d+\.\d+\.\d+/) || [null])[0]; })
+    .catch(() => {});
 }
 
 server.listen(PORT, '127.0.0.1', () => {
