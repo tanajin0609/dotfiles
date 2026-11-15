@@ -2955,21 +2955,41 @@ function placePopoverBelow(popover, anchorEl) {
   popover.style.right = `${Math.max(8, document.documentElement.clientWidth - anchor.right)}px`;
 }
 
+// タスク本文は backlog・Notion・Claude が書いた文字列なので、生のHTMLと javascript: などのリンクは無害化して描く。
+// ドキュメント表示（sandbox付きiframe）とは別インスタンスにし、そちらの描画は変えない。
+const UNSAFE_HREF = /^\s*(javascript|vbscript|data):/i;
+const inlineMarked = typeof marked === 'undefined' ? null : new marked.Marked({
+  // CDNの `marked@13` は13系の最新に解決され、レンダラーの引数が位置引数（13.0）とトークン（新しい版）のどちらでも来うる。
+  renderer: {
+    html(arg) {
+      return escapeHtml(String(typeof arg === 'string' ? arg : arg.text));
+    },
+    link(arg, oldTitle, oldText) {
+      const isToken = typeof arg === 'object';
+      const href = String((isToken ? arg.href : arg) || '');
+      const title = isToken ? arg.title : oldTitle;
+      const label = isToken ? this.parser.parseInline(arg.tokens) : oldText;
+      if (UNSAFE_HREF.test(href)) return label;
+      return `<a href="${escapeHtml(href)}"${title ? ` title="${escapeHtml(title)}"` : ''}>${label}</a>`;
+    },
+  },
+});
+
 function plainTextFromMarkdown(markdown) {
   // markedはCDN読み込みのため、取得に失敗しても列見出しの描画は止めずに原文を出す。
-  if (typeof marked === 'undefined') return markdown;
-  const scratch = document.createElement('div');
-  scratch.innerHTML = marked.parseInline(markdown);
-  return scratch.textContent;
+  if (!inlineMarked) return markdown;
+  const scratch = document.createElement('template');
+  scratch.innerHTML = inlineMarked.parseInline(markdown);
+  return scratch.content.textContent;
 }
 
 // markedはCDN読み込みのため、取得に失敗してもカード詳細・フォーカスモードが開けるよう原文を出す。
 function renderInlineMarkdown(element, markdown) {
-  if (typeof marked === 'undefined') {
+  if (!inlineMarked) {
     element.textContent = markdown;
     return;
   }
-  element.innerHTML = marked.parseInline(markdown);
+  element.innerHTML = inlineMarked.parseInline(markdown);
 }
 
 // todo-importが本文末尾に付ける「 → <元todo.mdの絶対パス>」（後ろにnotionコメントが続くことがある）。
@@ -3436,7 +3456,7 @@ function renderTodayChipCount() {
 
 function populateNewCardColumnOptions() {
   const datalist = document.getElementById('newCardColumnOptions');
-  datalist.innerHTML = boardData.columns.map((c) => `<option value="${c.name}">`).join('');
+  datalist.innerHTML = boardData.columns.map((c) => `<option value="${escapeHtml(c.name)}">`).join('');
 }
 
 function toggleFocusMode() {
