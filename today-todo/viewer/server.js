@@ -6,6 +6,17 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
+const {
+  CLAUDE_JOBS_DIR,
+  TESTED_CLAUDE_CLI_VERSION,
+  readJobState,
+  markWorkspaceTrusted,
+  launchBackground,
+  runClaudeQuietly,
+  pendingQuestionsOf,
+  detectCliVersion,
+  cliVersion,
+} = require('./claude-cli');
 
 const PORT = process.env.VIEWER_PORT ? Number(process.env.VIEWER_PORT) : 3131;
 const TODO_DIR = process.env.VIEWER_TODO_DIR
@@ -16,12 +27,8 @@ const PUBLIC_DIR = __dirname;
 const DATA_DIR = process.env.VIEWER_DATA_DIR
   ? path.resolve(process.env.VIEWER_DATA_DIR)
   : path.join(__dirname, 'data');
-const CLAUDE_JOBS_DIR = process.env.VIEWER_CLAUDE_JOBS_DIR
-  ? path.resolve(process.env.VIEWER_CLAUDE_JOBS_DIR)
-  : path.join(os.homedir(), '.claude', 'jobs');
 // stop が返った直後の resume は約22%でコピーになり、3秒以上待てば0件だった（claude-integration-audit.md §5 U6）。
 const STOP_SETTLE_MS = process.env.VIEWER_STOP_SETTLE_MS ? Number(process.env.VIEWER_STOP_SETTLE_MS) : 3000;
-const LAUNCH_TIMEOUT_MS = process.env.VIEWER_LAUNCH_TIMEOUT_MS ? Number(process.env.VIEWER_LAUNCH_TIMEOUT_MS) : 20000;
 const CLAUDE_SETTINGS_PATH = process.env.VIEWER_CLAUDE_SETTINGS
   ? path.resolve(process.env.VIEWER_CLAUDE_SETTINGS)
   : path.join(os.homedir(), '.claude', 'settings.json');
@@ -29,9 +36,6 @@ const RATE_LIMITS_PATH = process.env.VIEWER_RATE_LIMITS_PATH
   ? path.resolve(process.env.VIEWER_RATE_LIMITS_PATH)
   : path.join(os.homedir(), '.cache', 'claude-statusline', 'rate-limits.json');
 const LAUNCH_SETTINGS_PATH = path.join(DATA_DIR, 'launch-settings.json');
-const CLAUDE_CONFIG_PATH = process.env.VIEWER_CLAUDE_CONFIG
-  ? path.resolve(process.env.VIEWER_CLAUDE_CONFIG)
-  : path.join(os.homedir(), '.claude.json');
 // 先頭を英数字に限定し、`--xxx`のような値がclaudeのオプションとして解釈されるのを防ぐ。
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\[\]-]{0,63}$/;
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -282,16 +286,6 @@ function isTrustableCwd(cwd) {
   return (real === root || real.startsWith(root + path.sep)) && fs.statSync(real).isDirectory();
 }
 
-// ~/.claude.jsonはClaude Code CLI本体も書き換えるため、読んだ直後に書いて競合の窓を狭め、
-// 一時ファイル→renameで途中書きの壊れたJSONを残さない。
-function markWorkspaceTrusted(cwd) {
-  const config = fs.existsSync(CLAUDE_CONFIG_PATH) ? JSON.parse(fs.readFileSync(CLAUDE_CONFIG_PATH, 'utf-8')) : {};
-  config.projects = config.projects || {};
-  config.projects[cwd] = { ...config.projects[cwd], hasTrustDialogAccepted: true };
-  const tmpPath = `${CLAUDE_CONFIG_PATH}.viewer-${process.pid}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2));
-  fs.renameSync(tmpPath, CLAUDE_CONFIG_PATH);
-}
 
 function readLaunchSettings() {
   try {
@@ -795,27 +789,8 @@ function readSessionsMap(file) {
   return readDataJson(sessionsFilePath(file), {});
 }
 
-const BUSY_JOB_STATES = new Set(['working', 'running', 'starting', 'resuming', 'crashed']);
 
-// AskUserQuestionの回答待ちはCLI 2.1.291で`state:"working"`のまま`tempo:"blocked"`になるため、`state`だけでは判定できない。
-// `running`＋`tempo:"idle"`はターン途中のバックグラウンドコマンド待ちでも出るので入力待ちとはみなさない（実機で確認）。
-function normalizeJobState(raw) {
-  if (raw.tempo === 'blocked' || raw.needs) return 'blocked';
-  if (BUSY_JOB_STATES.has(raw.state)) return 'working';
-  if (raw.state === 'failed' || raw.state === 'error') return 'failed';
-  if (raw.state === 'stopped') return 'done';
-  return raw.state;
-}
 
-function readJobState(jobId) {
-  let jobState;
-  try {
-    jobState = JSON.parse(fs.readFileSync(path.join(CLAUDE_JOBS_DIR, jobId, 'state.json'), 'utf-8'));
-  } catch {
-    return null;
-  }
-  return { ...jobState, state: normalizeJobState(jobState) };
-}
 
 const UUID_JSONL_PATTERN = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/;
 
@@ -1245,61 +1220,16 @@ function findRelatedDocs(target) {
   return null;
 }
 
-// `claude --bg` の標準出力（`backgrounded · <id> · <name>`、ANSIカラーコード付き）から短縮IDを取り出す。
-function parseBackgroundedId(output) {
-  const stripped = output.replace(/\x1b\[[0-9;]*m/g, '');
-  // コピーを起動したときは名前が付かず`backgrounded · <id>`で行が終わる。
-  const m = stripped.match(/backgrounded\s*·\s*([0-9a-f]+)\b/);
-  return m ? m[1] : null;
-}
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// timeoutで子プロセスを殺しても、daemon側ではジョブが既に作られていることがあるため、同じ名前で受付以降に始まったジョブを探す。
-async function findLaunchedJob(cwd, name, startedAt) {
-  try {
-    const { stdout } = await execFileAsync('claude', ['agents', '--json', '--cwd', cwd], { timeout: LAUNCH_TIMEOUT_MS });
-    const found = JSON.parse(stdout)
-      .filter((a) => a.kind === 'background' && a.name === name && Number(a.startedAt) >= startedAt - 1000)
-      .sort((a, b) => b.startedAt - a.startedAt)[0];
-    return found ? found.id : null;
-  } catch {
-    return null;
-  }
-}
 
-async function launchBackground(args, cwd, name) {
-  const startedAt = Date.now();
-  try {
-    const { stdout, stderr } = await execFileAsync('claude', args, { cwd, timeout: LAUNCH_TIMEOUT_MS });
-    return { jobId: parseBackgroundedId(stdout), output: `${stdout}\n${stderr}`, recovered: false };
-  } catch (err) {
-    if (!err.killed) throw err;
-    const jobId = await findLaunchedJob(cwd, name, startedAt);
-    if (!jobId) throw err;
-    return { jobId, output: '', recovered: true };
-  }
-}
 
-async function runClaudeQuietly(args) {
-  try {
-    await execFileAsync('claude', args, { timeout: LAUNCH_TIMEOUT_MS });
-  } catch (err) {
-    // 停止済み・削除済み等の競合は無視するが、rm 失敗でジョブが残る原因を追えるよう記録する。
-    console.error(`[claude ${args.join(' ')}] failed: ${err.stderr || err.message}`);
-  }
-}
 
 function buildNewSessionPrompt(columnName, groupTitle, text) {
   return `「${columnName}」の「${groupTitle}」について、以下の指示を実行してください:\n\n${text}`;
 }
 
-// stopを挟むとCLIは答えていないAskUserQuestionを中断扱いにし、素の返信を質問への回答と結び付けないため、質問を添えて送る。
-// 回答待ちのAskUserQuestionはCLIが回答されるまでtranscriptに書かず、state.jsonの`block`にだけ置く（CLI 2.1.291、実機で確認）。
-function pendingQuestionsOf(jobState) {
-  const questions = jobState && jobState.block && jobState.block.questions;
-  return Array.isArray(questions) && questions.length > 0 ? questions : null;
-}
 
 function buildReplyPrompt(jobState, transcriptPath, text) {
   const pending = pendingQuestionsOf(jobState);
@@ -1795,9 +1725,6 @@ function sendJson(res, status, data) {
 
 const MAX_JSON_BYTES = 1024 * 1024;
 
-// state.json の項目や `backgrounded · <id>` の出力など、CLI の内部仕様に頼る処理はこの版で実機確認している。
-const TESTED_CLAUDE_CLI_VERSION = '2.1.291';
-let claudeCliVersion = null;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -1871,6 +1798,15 @@ function parseJsonObject(text) {
   return value;
 }
 
+async function readJsonBody(req) {
+  const text = await readBody(req);
+  try {
+    return parseJsonObject(text);
+  } catch {
+    throw new HttpError(400, 'invalid json');
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     await handleRequest(req, res);
@@ -1882,23 +1818,16 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-async function handleRequest(req, res) {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  if (rejectForeignRequest(req, res, url)) return;
+// 経路ごとの処理。キーは「メソッド パス」で、メソッドを問わない経路は `*`。
+const ROUTES = {};
 
-  if (url.pathname === '/api/inbox' && req.method === 'GET') {
+ROUTES['GET /api/inbox'] = async (req, res, url) => {
     const memos = readInbox().slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     return sendJson(res, 200, { memos });
-  }
+};
 
-  if (url.pathname === '/api/inbox' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/inbox'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { id, text } = payload;
     if (typeof text !== 'string' || !text.trim() || (id != null && !(typeof id === 'string' && /^[\w-]+$/.test(id)))) {
       return sendJson(res, 400, { error: 'invalid payload' });
@@ -1915,16 +1844,10 @@ async function handleRequest(req, res) {
     }
     writeInbox(memos);
     return sendJson(res, 200, { memo });
-  }
+};
 
-  if (url.pathname === '/api/inbox/delete' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/inbox/delete'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const memos = readInbox();
     const index = memos.findIndex((m) => m.id === payload.id);
     if (index === -1) return sendJson(res, 404, { error: 'not found' });
@@ -1932,9 +1855,9 @@ async function handleRequest(req, res) {
     writeInbox(memos);
     fs.rmSync(path.join(INBOX_ATTACHMENTS_DIR, payload.id), { recursive: true, force: true });
     return sendJson(res, 200, {});
-  }
+};
 
-  if (url.pathname === '/api/inbox/attachments' && req.method === 'POST') {
+ROUTES['POST /api/inbox/attachments'] = async (req, res, url) => {
     const id = url.searchParams.get('id') || '';
     if (!/^[\w-]+$/.test(id)) {
       req.resume();
@@ -1948,16 +1871,10 @@ async function handleRequest(req, res) {
     const saved = path.join(dir, `${Date.now()}-${sanitizeAttachmentName(url.searchParams.get('name'))}`);
     fs.writeFileSync(saved, body);
     return sendJson(res, 200, { path: saved });
-  }
+};
 
-  if (url.pathname === '/api/inbox/move' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/inbox/move'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { id, column, backlogPath } = payload;
     const title = normalizeTaskText(payload.title);
     if (typeof column !== 'string' || !column || /[\\/]|^\.\.?$/.test(column) || !title) {
@@ -1978,9 +1895,9 @@ async function handleRequest(req, res) {
     writeInbox(memos);
     fs.rmSync(path.join(INBOX_ATTACHMENTS_DIR, id), { recursive: true, force: true });
     return sendJson(res, 200, { backlogPath: sourcePath, memoPath, number });
-  }
+};
 
-  if (url.pathname === '/api/attachments' && req.method === 'POST') {
+ROUTES['POST /api/attachments'] = async (req, res, url) => {
     const file = url.searchParams.get('file') || '';
     const groupId = url.searchParams.get('groupId') || '';
     if (!isValidTodoFile(file) || !/^[\w-]+$/.test(groupId)) {
@@ -1995,20 +1912,14 @@ async function handleRequest(req, res) {
     const saved = path.join(dir, `${Date.now()}-${sanitizeAttachmentName(url.searchParams.get('name'))}`);
     fs.writeFileSync(saved, body);
     return sendJson(res, 200, { path: saved });
-  }
+};
 
-  if (url.pathname === '/api/files') {
+ROUTES['* /api/files'] = async (req, res, url) => {
     return sendJson(res, 200, listTodoFiles());
-  }
+};
 
-  if (url.pathname === '/api/card-marks' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/card-marks'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { groupId, status, starred } = payload;
     if (typeof groupId !== 'string' || !/^[\w-]+$/.test(groupId)
       || (status !== undefined && status !== '' && !CARD_STATUSES.has(status))
@@ -2030,9 +1941,9 @@ async function handleRequest(req, res) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     writeFileAtomic(CARD_MARKS_PATH, JSON.stringify(marks));
     return sendJson(res, 200, { mark: marks[groupId] || null });
-  }
+};
 
-  if (url.pathname === '/api/board' && req.method === 'GET') {
+ROUTES['GET /api/board'] = async (req, res, url) => {
     const file = url.searchParams.get('file') || '';
     if (!isValidTodoFile(file)) {
       return sendJson(res, 400, { error: 'invalid file name' });
@@ -2059,7 +1970,7 @@ async function handleRequest(req, res) {
     board.date = date;
     board.mtimeMs = fs.statSync(filePath).mtimeMs;
     board.dataWarnings = dataWarnings.slice();
-    board.claudeCli = { version: claudeCliVersion, tested: TESTED_CLAUDE_CLI_VERSION };
+    board.claudeCli = { version: cliVersion(), tested: TESTED_CLAUDE_CLI_VERSION };
     board.history = buildHistory(date);
     board.globalComments = readGlobalComments(file);
     const columnFilter = url.searchParams.get('column');
@@ -2067,16 +1978,10 @@ async function handleRequest(req, res) {
       board.columns = board.columns.filter((c) => c.name === columnFilter);
     }
     return sendJson(res, 200, board);
-  }
+};
 
-  if (url.pathname === '/api/board/sync-column' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/board/sync-column'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, column } = payload;
     if (!isValidTodoFile(file) || typeof column !== 'string' || !column || /[\\/]|\.\./.test(column)) {
       return sendJson(res, 400, { error: 'invalid payload' });
@@ -2089,16 +1994,10 @@ async function handleRequest(req, res) {
     const { md, items } = syncColumnSection(fs.readFileSync(filePath, 'utf-8'), column, columnDir);
     writeFileAtomic(filePath, md);
     return sendJson(res, 200, { items });
-  }
+};
 
-  if (url.pathname === '/api/column-order' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/column-order'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const order = payload && payload.order;
     if (!Array.isArray(order) || !order.every((name) => typeof name === 'string')) {
       return sendJson(res, 400, { error: 'invalid payload' });
@@ -2106,16 +2005,10 @@ async function handleRequest(req, res) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     writeFileAtomic(COLUMN_ORDER_PATH, JSON.stringify(order));
     return sendJson(res, 200, { order });
-  }
+};
 
-  if (url.pathname === '/api/column-favorites' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/column-favorites'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     if (!payload || typeof payload.name !== 'string' || typeof payload.favorite !== 'boolean') {
       return sendJson(res, 400, { error: 'invalid payload' });
     }
@@ -2124,9 +2017,9 @@ async function handleRequest(req, res) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     writeFileAtomic(COLUMN_FAVORITES_PATH, JSON.stringify(favorites));
     return sendJson(res, 200, { favorites });
-  }
+};
 
-  if (url.pathname === '/api/board/version' && req.method === 'GET') {
+ROUTES['GET /api/board/version'] = async (req, res, url) => {
     const file = url.searchParams.get('file') || '';
     if (!isValidTodoFile(file)) {
       return sendJson(res, 400, { error: 'invalid file name' });
@@ -2136,17 +2029,10 @@ async function handleRequest(req, res) {
       return sendJson(res, 404, { error: 'not found' });
     }
     return sendJson(res, 200, { mtimeMs: fs.statSync(filePath).mtimeMs });
-  }
+};
 
-  if (url.pathname === '/api/order' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/order'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, order } = payload;
     if (!isValidTodoFile(file) || typeof order !== 'object') {
       return sendJson(res, 400, { error: 'invalid payload' });
@@ -2156,17 +2042,10 @@ async function handleRequest(req, res) {
     const existing = readDataJson(orderPath, {});
     writeFileAtomic(orderPath, JSON.stringify({ ...existing, ...order }));
     return sendJson(res, 200, { ok: true });
-  }
+};
 
-  if (url.pathname === '/api/comments' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/comments'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, groupId, text } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || !trimmed) {
@@ -2179,17 +2058,10 @@ async function handleRequest(req, res) {
     commentsMap[groupId] = list;
     writeFileAtomic(commentsFilePath(file), JSON.stringify(commentsMap));
     return sendJson(res, 200, { comments: list });
-  }
+};
 
-  if (url.pathname === '/api/session/cancel' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/session/cancel'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, groupId, at, jobId } = payload;
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof at !== 'string' ||
         (jobId !== undefined && typeof jobId !== 'string')) {
@@ -2210,17 +2082,10 @@ async function handleRequest(req, res) {
       writeFileAtomic(commentsFilePath(file), JSON.stringify(commentsMap));
     }
     return sendJson(res, 200, { comments: list, stopped });
-  }
+};
 
-  if (url.pathname === '/api/comments/global' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/comments/global'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, text } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || !trimmed) {
@@ -2231,17 +2096,10 @@ async function handleRequest(req, res) {
     list.push({ text: trimmed, at: new Date().toISOString() });
     writeFileAtomic(globalCommentsFilePath(file), JSON.stringify(list));
     return sendJson(res, 200, { comments: list });
-  }
+};
 
-  if (url.pathname === '/api/checkbox' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/checkbox'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, taskId } = payload;
     if (!isValidTodoFile(file) || typeof taskId !== 'string') {
       return sendJson(res, 400, { error: 'invalid payload' });
@@ -2270,17 +2128,10 @@ async function handleRequest(req, res) {
       }
     }
     return sendJson(res, 200, { ok: true, done: toggled.done, sourceUpdated });
-  }
+};
 
-  if (url.pathname === '/api/tasks' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/tasks'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, columnName, groupTitle, text } = payload;
     const trimmed = normalizeTaskText(text);
     if (!isValidTodoFile(file) || typeof columnName !== 'string' ||
@@ -2318,24 +2169,17 @@ async function handleRequest(req, res) {
     }
 
     return sendJson(res, 200, { task: { number, text: trimmed }, mirroredToAggregate });
-  }
+};
 
-  if (url.pathname === '/api/backlog-targets' && req.method === 'GET') {
+ROUTES['GET /api/backlog-targets'] = async (req, res, url) => {
     const targetDir = resolveLaunchCwd(url.searchParams.get('column') || '', '');
     const targets = targetDir ? listBacklogTargets(targetDir) : [];
     const labels = targets.map((t) => path.relative(targetDir, path.resolve(t, '..', '..', '..')) || path.basename(targetDir));
     return sendJson(res, 200, { targets, labels });
-  }
+};
 
-  if (url.pathname === '/api/tasks/edit' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/tasks/edit'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, taskId, text, remove } = payload;
     const newText = remove === true ? null : normalizeTaskText(text);
     if (!isValidTodoFile(file) || typeof taskId !== 'string' || newText === '') {
@@ -2361,17 +2205,10 @@ async function handleRequest(req, res) {
       }
     }
     return sendJson(res, 200, { ok: true, sourceUpdated });
-  }
+};
 
-  if (url.pathname === '/api/cards' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/cards'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, columnName, text, createProject } = payload;
     let { backlogPath } = payload;
     const trimmed = normalizeTaskText(text);
@@ -2425,9 +2262,9 @@ async function handleRequest(req, res) {
     }
 
     return sendJson(res, 200, { card: { number, text: trimmed }, mirroredToAggregate });
-  }
+};
 
-  if (url.pathname === '/api/sessions' && req.method === 'GET') {
+ROUTES['GET /api/sessions'] = async (req, res, url) => {
     const file = url.searchParams.get('file') || '';
     if (!isValidTodoFile(file)) {
       return sendJson(res, 400, { error: 'invalid file name' });
@@ -2439,20 +2276,14 @@ async function handleRequest(req, res) {
       result[groupId] = sessionInfoFor(sessionsMap[groupId]);
     }
     return sendJson(res, 200, result);
-  }
+};
 
-  if (url.pathname === '/api/sessions/all' && req.method === 'GET') {
+ROUTES['GET /api/sessions/all'] = async (req, res, url) => {
     return sendJson(res, 200, { sessions: listAllSessions(), defaultCwd: PROJECTS_ROOT });
-  }
+};
 
-  if (url.pathname === '/api/sessions/create' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/sessions/create'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
     if (!text || !isTrustableCwd(payload.cwd)) return sendJson(res, 400, { error: 'invalid payload' });
     const settings = resolveLaunchSettings(payload);
@@ -2469,21 +2300,15 @@ async function handleRequest(req, res) {
       writeChatSessions([...readChatSessions(), { jobId: result.jobId, cwd: payload.cwd, launchedAt: new Date().toISOString() }]);
     }
     return sendJson(res, 200, { jobId: result.jobId });
-  }
+};
 
-  if (url.pathname === '/api/chat' && req.method === 'GET') {
+ROUTES['GET /api/chat'] = async (req, res, url) => {
     const sessions = readChatSessions().map((s) => ({ cwd: s.cwd || null, ...sessionInfoFor({ jobId: s.jobId }), launchedAt: s.launchedAt || null }));
     return sendJson(res, 200, { sessions, defaultCwd: PROJECTS_ROOT });
-  }
+};
 
-  if (url.pathname === '/api/chat/close' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/chat/close'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     if (typeof payload.jobId !== 'string' || !/^[0-9a-f-]+$/.test(payload.jobId)) return sendJson(res, 400, { error: 'invalid payload' });
     const sessions = readChatSessions();
     if (!sessions.some((s) => s.jobId === payload.jobId)) return sendJson(res, 404, { error: 'session not found' });
@@ -2491,16 +2316,10 @@ async function handleRequest(req, res) {
     await runClaudeQuietly(['stop', payload.jobId]);
     writeChatSessions(sessions.filter((s) => s.jobId !== payload.jobId));
     return sendJson(res, 200, {});
-  }
+};
 
-  if (url.pathname === '/api/sessions/reply' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/sessions/reply'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
     if (typeof payload.jobId !== 'string' || !/^[0-9a-f-]+$/.test(payload.jobId) || !text) return sendJson(res, 400, { error: 'invalid payload' });
     const jobState = readJobState(payload.jobId);
@@ -2525,27 +2344,22 @@ async function handleRequest(req, res) {
       }
     }
     return sendJson(res, reply.status, reply.body);
-  }
+};
 
-  if ((url.pathname === '/api/sessions/stop' || url.pathname === '/api/sessions/delete') && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/sessions/stop'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     if (typeof payload.jobId !== 'string' || !/^[0-9a-f-]+$/.test(payload.jobId)) return sendJson(res, 400, { error: 'invalid payload' });
     await runClaudeQuietly(['stop', payload.jobId]);
     if (url.pathname === '/api/sessions/delete') await runClaudeQuietly(['rm', payload.jobId]);
     return sendJson(res, 200, {});
-  }
+};
+ROUTES['POST /api/sessions/delete'] = ROUTES['POST /api/sessions/stop'];
 
-  if (url.pathname === '/api/rate-limits' && req.method === 'GET') {
+ROUTES['GET /api/rate-limits'] = async (req, res, url) => {
     return sendJson(res, 200, { rateLimits: readRateLimits() });
-  }
+};
 
-  if (url.pathname === '/api/session/transcript' && req.method === 'GET') {
+ROUTES['GET /api/session/transcript'] = async (req, res, url) => {
     const jobId = url.searchParams.get('jobId') || '';
     if (!/^[0-9a-f-]+$/.test(jobId)) {
       return sendJson(res, 400, { error: 'invalid job id' });
@@ -2555,34 +2369,28 @@ async function handleRequest(req, res) {
       return sendJson(res, 404, { error: 'transcript not found' });
     }
     return sendJson(res, 200, { entries: parseTranscriptEntriesCached(transcriptPath) });
-  }
+};
 
-  if (url.pathname === '/api/costs/monthly' && req.method === 'GET') {
+ROUTES['GET /api/costs/monthly'] = async (req, res, url) => {
     return sendJson(res, 200, { months: buildMonthlyCosts() });
-  }
+};
 
-  if (url.pathname === '/api/costs/done-cards' && req.method === 'GET') {
+ROUTES['GET /api/costs/done-cards'] = async (req, res, url) => {
     return sendJson(res, 200, { cards: buildDoneCardCosts() });
-  }
+};
 
-  if (url.pathname === '/api/costs/cards' && req.method === 'GET') {
+ROUTES['GET /api/costs/cards'] = async (req, res, url) => {
     const file = url.searchParams.get('file');
     if (!isValidTodoFile(file)) return sendJson(res, 400, { error: 'invalid file' });
     return sendJson(res, 200, { cards: buildCardCosts(file) });
-  }
+};
 
-  if (url.pathname === '/api/claude-settings' && req.method === 'GET') {
+ROUTES['GET /api/claude-settings'] = async (req, res, url) => {
     return sendJson(res, 200, { global: readGlobalClaudeSettings(), override: readLaunchSettings() });
-  }
+};
 
-  if (url.pathname === '/api/claude-settings' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/claude-settings'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const model = typeof payload.model === 'string' ? payload.model.trim() : '';
     const effort = typeof payload.effort === 'string' ? payload.effort : '';
     if (!isValidLaunchSettings({ model, effort })) {
@@ -2591,24 +2399,18 @@ async function handleRequest(req, res) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     writeFileAtomic(LAUNCH_SETTINGS_PATH, JSON.stringify({ model, effort }));
     return sendJson(res, 200, { override: { model, effort } });
-  }
+};
 
-  if (url.pathname === '/api/skills' && req.method === 'GET') {
+ROUTES['GET /api/skills'] = async (req, res, url) => {
     return sendJson(res, 200, { skills: listSkills() });
-  }
+};
 
-  if (url.pathname === '/api/skills/sessions' && req.method === 'GET') {
+ROUTES['GET /api/skills/sessions'] = async (req, res, url) => {
     return sendJson(res, 200, { sessions: readSkillSessions().map((s) => ({ ...s, ...sessionInfoFor(s) })) });
-  }
+};
 
-  if (url.pathname === '/api/skills/create' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/skills/create'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
     if (!text) return sendJson(res, 400, { error: 'invalid payload' });
     const name = `skill作成 ▸ ${text}`.slice(0, 60);
@@ -2621,16 +2423,10 @@ async function handleRequest(req, res) {
     if (!result.jobId) return sendJson(res, 500, { error: 'launch failed', detail: 'job id not found' });
     writeSkillSessions([{ jobId: result.jobId, text, launchedAt: new Date().toISOString() }, ...readSkillSessions()]);
     return sendJson(res, 200, { jobId: result.jobId });
-  }
+};
 
-  if (url.pathname === '/api/skills/reply' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/skills/reply'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
     if (typeof payload.jobId !== 'string' || !text) return sendJson(res, 400, { error: 'invalid payload' });
     const record = readSkillSessions().find((s) => s.jobId === payload.jobId);
@@ -2647,14 +2443,14 @@ async function handleRequest(req, res) {
     // CLIが別jobIdのコピーで再開しても、画面からは同じ作成セッションとして追い続けたいので記録を差し替える。
     writeSkillSessions(readSkillSessions().map((s) => (s.jobId === record.jobId ? { ...s, jobId: result.jobId } : s)));
     return sendJson(res, 200, { launched: true, jobId: result.jobId });
-  }
+};
 
-  if (url.pathname === '/api/todo-import' && req.method === 'GET') {
+ROUTES['GET /api/todo-import'] = async (req, res, url) => {
     const record = readTodoImportSession();
     return sendJson(res, 200, { session: record ? { ...record, ...sessionInfoFor(record) } : null });
-  }
+};
 
-  if (url.pathname === '/api/todo-import' && req.method === 'POST') {
+ROUTES['POST /api/todo-import'] = async (req, res, url) => {
     const record = readTodoImportSession();
     const running = record && readJobState(record.jobId);
     if (running && (running.state === 'working' || running.state === 'blocked')) {
@@ -2670,31 +2466,19 @@ async function handleRequest(req, res) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     writeFileAtomic(TODO_IMPORT_SESSION_PATH, JSON.stringify({ jobId: result.jobId, launchedAt: new Date().toISOString() }));
     return sendJson(res, 200, { launched: true, jobId: result.jobId });
-  }
+};
 
-  if (url.pathname === '/api/workspace/trust' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/workspace/trust'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     if (!isTrustableCwd(payload && payload.cwd)) {
       return sendJson(res, 400, { error: 'invalid cwd' });
     }
     markWorkspaceTrusted(payload.cwd);
     return sendJson(res, 200, { trusted: true });
-  }
+};
 
-  if (url.pathname === '/api/session/close' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/session/close'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, groupId, jobId } = payload || {};
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof jobId !== 'string' || !/^[0-9a-f-]+$/.test(jobId)) {
       return sendJson(res, 400, { error: 'invalid payload' });
@@ -2706,17 +2490,10 @@ async function handleRequest(req, res) {
     await runClaudeQuietly(['stop', jobId]);
     removeCardSession(file, groupId, jobId);
     return sendJson(res, 200, {});
-  }
+};
 
-  if (url.pathname === '/api/session/launch' && req.method === 'POST') {
-    const body = await readBody(req);
-    let payload;
-    try {
-      payload = parseJsonObject(body);
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/session/launch'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, groupId, columnName, groupTitle, text, newSession, jobId: targetJobId } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof columnName !== 'string' ||
@@ -2807,25 +2584,26 @@ async function handleRequest(req, res) {
     } finally {
       activeLaunchKeys.delete(lockKey);
     }
-  }
+};
 
-  if (url.pathname === '/api/doc/resolve' && req.method === 'GET') {
+ROUTES['GET /api/doc/resolve'] = async (req, res, url) => {
     const ref = url.searchParams.get('ref') || '';
     const base = path.resolve(url.searchParams.get('base') || PROJECTS_ROOT);
     const found = resolveDocRef(ref, base);
     if (!found) return sendJson(res, 404, { error: 'not found' });
     return sendJson(res, 200, found);
-  }
+};
 
-  if (url.pathname === '/api/doc/related' && req.method === 'GET') {
+ROUTES['GET /api/doc/related'] = async (req, res, url) => {
     const requested = path.resolve(url.searchParams.get('path') || '/');
     if (!fs.existsSync(requested)) return sendJson(res, 404, { error: 'not found' });
     if (!isUnderProjectsRoot(requested)) return sendJson(res, 403, { error: 'forbidden' });
     const found = findRelatedDocs(requested);
     if (!found) return sendJson(res, 404, { error: 'not found' });
     return sendJson(res, 200, found);
-  }
-  if (url.pathname === '/api/doc' && req.method === 'GET') {
+};
+
+ROUTES['GET /api/doc'] = async (req, res, url) => {
     const requested = path.resolve(url.searchParams.get('path') || '/');
     if (isLockedArtifact(requested) || !isViewableDoc(requested)) {
       return sendJson(res, 403, { error: 'forbidden' });
@@ -2842,9 +2620,9 @@ async function handleRequest(req, res) {
     if (content.includes(0)) return sendJson(res, 415, { error: 'binary file' });
     res.writeHead(200, { 'Content-Type': `${isMarkdownPath(requested) ? 'text/markdown' : 'text/plain'}; charset=utf-8` });
     return res.end(content);
-  }
+};
 
-  if ((url.pathname === '/api/session/artifacts' || url.pathname === '/api/session/artifact') && req.method === 'GET') {
+ROUTES['GET /api/session/artifacts'] = async (req, res, url) => {
     const jobId = url.searchParams.get('jobId') || '';
     if (!/^[0-9a-f-]+$/.test(jobId)) {
       return sendJson(res, 400, { error: 'invalid job id' });
@@ -2872,9 +2650,10 @@ async function handleRequest(req, res) {
     }
     res.writeHead(200, headers);
     return res.end(fs.readFileSync(artifact.path));
-  }
+};
+ROUTES['GET /api/session/artifact'] = ROUTES['GET /api/session/artifacts'];
 
-  if (url.pathname === '/api/session/changes' && req.method === 'GET') {
+ROUTES['GET /api/session/changes'] = async (req, res, url) => {
     const jobId = url.searchParams.get('jobId') || '';
     if (!/^[0-9a-f-]+$/.test(jobId)) {
       return sendJson(res, 400, { error: 'invalid job id' });
@@ -2884,16 +2663,10 @@ async function handleRequest(req, res) {
       return sendJson(res, 404, { error: 'transcript not found' });
     }
     return sendJson(res, 200, { files: await summarizeSessionChanges(transcriptPath) });
-  }
+};
 
-  if (url.pathname === '/api/session/branch' && req.method === 'POST') {
-    let payload;
-    try {
-      payload = parseJsonObject(await readBody(req));
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      return sendJson(res, 400, { error: 'invalid json' });
-    }
+ROUTES['POST /api/session/branch'] = async (req, res, url) => {
+    const payload = await readJsonBody(req);
     const { file, groupId, columnName, groupTitle, uuid, text, jobId: sourceJobId } = payload;
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (!isValidTodoFile(file) || typeof groupId !== 'string' || typeof columnName !== 'string' ||
@@ -2951,6 +2724,16 @@ async function handleRequest(req, res) {
     } finally {
       activeLaunchKeys.delete(lockKey);
     }
+};
+
+async function handleRequest(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if (rejectForeignRequest(req, res, url)) return;
+  const route = ROUTES[`${req.method} ${url.pathname}`] || ROUTES[`* ${url.pathname}`];
+  if (route) {
+    await route(req, res, url);
+    if (!res.headersSent) sendJson(res, 404, { error: 'not found' });
+    return;
   }
 
   const staticPages = { '/': 'index.html', '/index.html': 'index.html', '/costs': 'costs.html', '/costs.html': 'costs.html' };
@@ -2989,11 +2772,8 @@ if (process.argv[2] === 'sync-column') {
   process.exit(0);
 }
 
-if (process.env.VIEWER_CLI_VERSION_CHECK !== '0') {
-  execFileAsync('claude', ['--version'], { timeout: LAUNCH_TIMEOUT_MS })
-    .then(({ stdout }) => { claudeCliVersion = (String(stdout).match(/\d+\.\d+\.\d+/) || [null])[0]; })
-    .catch(() => {});
-}
+
+if (process.env.VIEWER_CLI_VERSION_CHECK !== '0') detectCliVersion();
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`todo viewer: http://localhost:${PORT}`);
