@@ -29,6 +29,15 @@ ACのIDは導入したchangeの項目ID（`docs/changes/v0.10.0-feat-uiux-brushu
   （起動・backlog への追加・プロジェクト説明の探索のいずれも、該当ディレクトリなしとして扱う）。
 - AC-SEC-SRV-5: 静的配信は `/`・`/index.html`・`/costs`・`/costs.html` だけで、それ以外のパスは404。
 
+### 1.1b 記録の保全とCLIの版（DI）
+
+- AC-DI-SRV-1: `data/` の記録（セッション・コメント・並び順・Inbox・お気に入り・チャット等）がJSONとして読めないとき、空として扱い、
+  元のファイルを `<名前>.broken-<時刻>` に退避して、`/api/board` の `dataWarnings`（`{ file, movedTo, at }` の配列、直近20件）に載せる。
+  画面は未表示の警告をトーストで出す。`~/.claude` 配下など viewer 外のファイルは退避しない。
+- AC-DI-SRV-2: `data/` の記録と todo・backlog の書き込みは、同じディレクトリの一時ファイルに書いてから置き換える。
+- AC-DI-SRV-3: 起動時に `claude --version` を取り、`/api/board` の `claudeCli`（`{ version, tested }`）で返す。`tested` は実機確認した版。
+  画面は `version` が `tested` と違うとき、その版につき一度だけトーストで知らせる。`VIEWER_CLI_VERSION_CHECK=0` で取得しない（テスト用）。
+
 ### 1.2 セッション起動の二重防止（H1）
 
 - AC-H1-SRV-1: `POST /api/session/launch` の処理中（`claude --bg` の完了待ち中）に、同じ `file` と `groupId` の
