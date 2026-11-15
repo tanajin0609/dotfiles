@@ -29,3 +29,5 @@ today-todo-viewer
 ```bash
 node --test tests/*.test.js  # viewer ディレクトリで実行
 ```
+
+`tests/browser.test.js` は実ブラウザでの通しテストで、`playwright` を require できる環境でだけ動く（無ければ飛ばす。viewer 自体は npm 依存を持たない）。
