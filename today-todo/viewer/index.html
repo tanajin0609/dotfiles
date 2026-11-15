@@ -581,6 +581,12 @@
   .flow-badge { align-self: flex-start; font-size: var(--fs-xs); font-weight: 600; padding: 0 6px; border-radius: 999px; color: var(--accent-ink); }
   .flow-badge.flow-waiting { background: var(--state-blocked); }
   .flow-badge.flow-running { background: var(--state-working); }
+  .change-summary { font-size: var(--fs-xs); color: var(--ink-mute); }
+  .change-summary summary { cursor: pointer; }
+  .change-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .change-list li { display: flex; gap: 8px; min-width: 0; }
+  .change-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; min-width: 0; flex: 1; }
+  .change-add { color: var(--state-done); } .change-del { color: var(--state-blocked); }
   .side-heading {
     margin: 0; display: flex; align-items: center; gap: 6px;
     font-size: var(--fs-xs); font-weight: 700; color: var(--ink-mute);
@@ -1355,6 +1361,10 @@
         </span>
       </div>
       <div id="modalSessionTabs" class="session-tabs" role="tablist" aria-label="セッション" hidden></div>
+      <details id="modalChangeSummary" class="change-summary" hidden>
+        <summary id="modalChangeSummaryText"></summary>
+        <ul class="change-list" id="modalChangeList"></ul>
+      </details>
       <div id="modalCommentList" class="modal-comment-list"></div>
       <div class="modal-comment-form">
         <div class="field">
@@ -5349,6 +5359,64 @@ function renderModalSessionLog() {
   }
   modalLogView.session = selected;
   fetchAndRenderSessionLog(modalLogView, selected);
+  renderModalChangeSummary(selected);
+}
+
+// 「終わった」の確認を viewer の中で済ませられるよう、セッションが書いたファイルの増減をカード詳細に出す。
+const changeSummaryCache = new Map();
+const CHANGE_STATUS_LABELS = { modified: '変更', added: '追加', untracked: '新規', deleted: '削除', unchanged: '差分なし' };
+
+async function renderModalChangeSummary(session) {
+  const box = document.getElementById('modalChangeSummary');
+  if (!session || !session.jobId) {
+    box.hidden = true;
+    return;
+  }
+  const key = `${session.jobId}|${session.updatedAt || ''}|${session.state || ''}`;
+  let files = changeSummaryCache.get(key);
+  if (!files) {
+    const res = await fetch(`/api/session/changes?jobId=${encodeURIComponent(session.jobId)}`).catch(() => null);
+    if (!res || !res.ok) {
+      box.hidden = true;
+      return;
+    }
+    files = (await res.json()).files;
+    changeSummaryCache.set(key, files);
+  }
+  if (modalLogView.jobId !== session.jobId) return;
+  const changed = files.filter((f) => f.status !== 'unchanged');
+  box.hidden = !files.length;
+  if (!files.length) return;
+  const added = changed.reduce((n, f) => n + (f.added || 0), 0);
+  const deleted = changed.reduce((n, f) => n + (f.deleted || 0), 0);
+  document.getElementById('modalChangeSummaryText').textContent = changed.length
+    ? `変更 ${changed.length}ファイル（+${added} −${deleted}）`
+    : `書いた ${files.length}ファイルはすべてコミット済み`;
+  document.getElementById('modalChangeList').replaceChildren(...files.map((f) => {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = CHANGE_STATUS_LABELS[f.status] || f.status;
+    const p = document.createElement('span');
+    p.className = 'change-path';
+    p.textContent = f.path;
+    p.title = f.path;
+    li.append(label, p);
+    if (f.added != null) {
+      const a = document.createElement('span');
+      a.className = 'change-add';
+      a.textContent = `+${f.added}`;
+      const d = document.createElement('span');
+      d.className = 'change-del';
+      d.textContent = `−${f.deleted || 0}`;
+      li.append(a, d);
+    }
+    return li;
+  }));
+}
+
+// 送信直後は状態がすぐ変わるので、5秒ごとの取得を待たずに1秒おきに数回取り直す。
+function refreshSessionsSoon() {
+  for (let i = 1; i <= 5; i++) setTimeout(() => refreshSessions(), i * 1000);
 }
 
 function refreshOpenCardPanel() {
@@ -5638,6 +5706,7 @@ function branchSessionFromEntry(view, uuid, busyMode = 'launch') {
     else modalSelectedJobId = null;
     showToast(`分岐したセッションを起動しました（id: ${response.data.jobId}）`);
     await refreshSessions();
+    refreshSessionsSoon();
   });
 }
 
@@ -5697,6 +5766,7 @@ async function launchCardSession(target, text, launchOptions = {}, commentAt = n
       showToast(`セッションを起動しました（id: ${response.data.jobId}）`, options);
     }
     await refreshSessions();
+    refreshSessionsSoon();
   }
 }
 

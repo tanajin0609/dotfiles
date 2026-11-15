@@ -194,6 +194,16 @@ transcriptの `parentUuid` をたどった部分履歴を新しいセッショ�
   `Content-Type` で返す。それ以外は403（ロック・一覧外）または404（ファイルが無い）。HTML・SVGには `Content-Security-Policy: sandbox` を付け、viewerのオリジンで
   スクリプトを実行させない。
 
+### 1.10a セッションの変更の要約（CHG）
+
+- AC-CHG-SRV-1: `GET /api/session/changes?jobId=<id>` は、そのセッション（サブエージェントを含む）が Write・Edit・MultiEdit・NotebookEdit した
+  ファイルのうち `PROJECTS_ROOT` 配下で秘匿名でないものを、`{ files: [{ path, repo, status, added, deleted }] }` で返す。`status` は git の作業ツリーの状態
+  （`modified`・`added`・`untracked`・`deleted`・`unchanged`）、`added`・`deleted` は HEAD からの行数（未追跡のファイルは全行を追加、バイナリは `null`）。
+  git 管理外のファイルは `repo: null`。不正な jobId は400、transcript が無ければ404。
+- AC-CHG-1: カード詳細のセッション欄に、選んだセッションの変更を「変更 Nファイル（+A −D）」の折りたたみで出し、開くとファイルごとの状態と増減を並べる。
+  変更が無く書いたファイルがすべてコミット済みなら「書いた Nファイルはすべてコミット済み」。書いたファイルが無ければ出さない。
+- AC-CHG-2: 依頼・返信・分岐の送信が成功したら、5秒ごとの取得を待たずに1秒おきに5回セッションの状態を取り直す。
+
 ### 1.11 ドキュメント表示（DV）
 
 - AC-DV-SRV-1: `GET /api/doc?path=<絶対パス>` は、symlink解決後のパスが `PROJECTS_ROOT` 配下にある実在のファイルを、`.md` なら

@@ -1686,6 +1686,77 @@ function isViewableDoc(filePath) {
   return DOC_VIEW_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
+function listWrittenFiles(transcriptPath) {
+  const written = new Set();
+  for (const file of listTranscriptWithSubagents(transcriptPath)) {
+    for (const text of fs.readFileSync(file, 'utf-8').split('\n')) {
+      let obj;
+      try {
+        obj = JSON.parse(text);
+      } catch {
+        continue;
+      }
+      const content = obj && obj.message && obj.message.content;
+      if (!Array.isArray(content)) continue;
+      for (const block of content) {
+        const filePath = block.type === 'tool_use' && ARTIFACT_WRITE_TOOLS.has(block.name) && block.input && (block.input.file_path || block.input.notebook_path);
+        if (typeof filePath === 'string' && path.isAbsolute(filePath)) written.add(path.resolve(filePath));
+      }
+    }
+  }
+  return [...written];
+}
+
+async function gitOutput(cwd, args) {
+  try {
+    const { stdout } = await execFileAsync('git', ['-C', cwd, ...args], { timeout: 10000, maxBuffer: 4 * 1024 * 1024 });
+    return String(stdout);
+  } catch {
+    return null;
+  }
+}
+
+// セッションが書いたファイルについて、作業ツリーの状態（git status）と HEAD からの行数の増減を返す。
+// プロジェクト置き場の外や秘匿名のファイルは含めない。
+async function summarizeSessionChanges(transcriptPath) {
+  const files = listWrittenFiles(transcriptPath).filter((p) => isInsideProjectsRoot(p) && !isLockedArtifact(p));
+  const byRepo = new Map();
+  const results = [];
+  for (const filePath of files) {
+    const dir = fs.existsSync(path.dirname(filePath)) ? path.dirname(filePath) : null;
+    const top = dir && (await gitOutput(dir, ['rev-parse', '--show-toplevel']));
+    if (!top) {
+      results.push({ path: filePath, repo: null, status: fs.existsSync(filePath) ? 'untracked' : 'deleted', added: null, deleted: null });
+      continue;
+    }
+    const repo = top.trim();
+    if (!byRepo.has(repo)) byRepo.set(repo, []);
+    byRepo.get(repo).push(filePath);
+  }
+  for (const [repo, repoFiles] of byRepo) {
+    const rel = repoFiles.map((p) => path.relative(fs.realpathSync(repo), fs.existsSync(p) ? fs.realpathSync(p) : p));
+    const statusText = (await gitOutput(repo, ['status', '--porcelain=v1', '--', ...rel])) || '';
+    const numstatText = (await gitOutput(repo, ['diff', '--numstat', 'HEAD', '--', ...rel])) || '';
+    const statusOf = new Map(statusText.split('\n').filter(Boolean).map((l) => [l.slice(3).trim(), l.slice(0, 2).trim()]));
+    const numOf = new Map(numstatText.split('\n').filter(Boolean).map((l) => {
+      const [a, d, p] = l.split('\t');
+      return [p, { added: a === '-' ? null : Number(a), deleted: d === '-' ? null : Number(d) }];
+    }));
+    repoFiles.forEach((filePath, i) => {
+      const code = statusOf.get(rel[i]);
+      const status = code === '??' ? 'untracked' : code ? (code.includes('D') ? 'deleted' : code.includes('A') ? 'added' : 'modified') : 'unchanged';
+      let { added = null, deleted = null } = numOf.get(rel[i]) || {};
+      if (status === 'untracked' && fs.existsSync(filePath)) {
+        const text = fs.readFileSync(filePath);
+        added = text.includes(0) ? null : text.toString('utf-8').split('\n').filter((l, idx, arr) => idx < arr.length - 1 || l).length;
+        deleted = 0;
+      }
+      results.push({ path: filePath, repo, status, added, deleted });
+    });
+  }
+  return results;
+}
+
 function listSessionArtifacts(transcriptPath) {
   const order = [];
   for (const file of listTranscriptWithSubagents(transcriptPath)) {
@@ -2801,6 +2872,18 @@ async function handleRequest(req, res) {
     }
     res.writeHead(200, headers);
     return res.end(fs.readFileSync(artifact.path));
+  }
+
+  if (url.pathname === '/api/session/changes' && req.method === 'GET') {
+    const jobId = url.searchParams.get('jobId') || '';
+    if (!/^[0-9a-f-]+$/.test(jobId)) {
+      return sendJson(res, 400, { error: 'invalid job id' });
+    }
+    const transcriptPath = resolveTranscriptPath(jobId);
+    if (!transcriptPath) {
+      return sendJson(res, 404, { error: 'transcript not found' });
+    }
+    return sendJson(res, 200, { files: await summarizeSessionChanges(transcriptPath) });
   }
 
   if (url.pathname === '/api/session/branch' && req.method === 'POST') {
