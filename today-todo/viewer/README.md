@@ -23,6 +23,7 @@ today-todo-viewer
 - ポートは既定で3131。環境変数 `VIEWER_PORT`・`VIEWER_TODO_DIR`・`VIEWER_DATA_DIR`・`VIEWER_CLAUDE_SETTINGS`・`VIEWER_CLAUDE_CONFIG`・`VIEWER_CLAUDE_PROJECTS_DIR`・`VIEWER_RATE_LIMITS_PATH` で上書きできる（テスト用）。
 - viewerから起動するセッションのmodel/effortは `data/launch-settings.json` に保存される（ヘッダー「モデル設定」、`POST /api/claude-settings`）。
 - 受け入れ条件は `docs/specs/viewer.md`。
+- 画面は `index.html`（HTML とテーマの初期化）と `static/viewer.css`・`static/*.js` に分かれる。JS は通常の `<script src>` で `index.html` に書いた順に読み、1つのグローバルを共有する（ビルド不要）。
 - `server.js` の API は `ROUTES`（キーは「メソッド パス」）に1経路1関数で並ぶ。Claude Code CLI の内部仕様（`state.json`・`claude --bg` の出力・`~/.claude.json`）に頼る処理は `claude-cli.js` に集めている。
 
 ## テスト
