@@ -619,6 +619,12 @@
     background: color-mix(in srgb, var(--state-blocked) 6%, var(--raised)); box-shadow: inset 4px 0 0 var(--state-blocked);
   }
   .load-error[hidden] { display: none; }
+  .stale-board {
+    margin: 16px 24px 0; padding: 10px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    border: 1px solid color-mix(in srgb, var(--state-working) 45%, transparent); border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--state-working) 6%, var(--raised));
+  }
+  .stale-board[hidden] { display: none; }
   .load-error-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .load-error-title { font-weight: 600; }
   .load-error-detail { font-size: var(--fs-xs); color: var(--ink-sub); overflow-wrap: anywhere; }
@@ -1182,6 +1188,10 @@
     <span class="load-error-detail" id="loadErrorDetail"></span>
   </div>
   <button id="loadErrorRetryBtn" type="button" class="btn btn-icon" aria-label="再試行" data-tip="再試行"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+</div>
+<div id="staleBoardNotice" class="stale-board" role="status" hidden>
+  <span id="staleBoardText"></span>
+  <button id="staleBoardImportBtn" type="button" class="btn btn-secondary btn--sm">todo-import を実行</button>
 </div>
 <div id="mainLayout">
   <aside id="globalCommentsPanel" aria-label="今日の進捗とClaudeセッション">
@@ -1788,9 +1798,6 @@ function attachToastRegionToTopmostDialog() {
   if (region.parentElement !== host) host.appendChild(region);
 }
 
-// durationMs: 省略時は失敗(error)なら閉じるまで残し、それ以外は既定時間で消す。nullで常に残す。
-// key: 同じkeyのトーストが出ていれば置き換える。戻り値はトーストを閉じる関数。
-// onClose: トーストが消えたときに呼ぶ。操作ボタンで消えたときだけ引数が 'action'。
 const shownServerWarnings = new Set();
 
 function notifyServerWarnings(board) {
@@ -1809,6 +1816,9 @@ function notifyServerWarnings(board) {
   showToast(`Claude Code ${cli.version} は viewer で未確認の版です（確認済みは ${cli.tested}）。セッションの状態表示や返信がずれたら知らせてください`, { durationMs: null, key: 'cli-version' });
 }
 
+// durationMs: 省略時は失敗(error)なら閉じるまで残し、それ以外は既定時間で消す。nullで常に残す。
+// key: 同じkeyのトーストが出ていれば置き換える。戻り値はトーストを閉じる関数。
+// onClose: トーストが消えたときに呼ぶ。操作ボタンで消えたときだけ引数が 'action'。
 function showToast(message, { kind = 'info', actionLabel, onAction, onClose, key, durationMs } = {}) {
   attachToastRegionToTopmostDialog();
   const region = document.getElementById('toastRegion');
@@ -2615,10 +2625,9 @@ async function loadBoard(file) {
   loadedBoardMtimeMs = boardData.mtimeMs;
   notifiedBoardMtimeMs = null;
   if (dismissBoardUpdatedToast) dismissBoardUpdatedToast();
-  if (!isSameFile) {
-    starredGroupIds = loadStarredGroupIds(file);
-    groupStatuses = loadGroupStatuses(file);
-  }
+  applyCardMarks(boardData.cardMarks || {});
+  if (!isSameFile) migrateLocalCardMarks(file);
+  renderStaleBoardNotice();
   pruneSeenRecords();
   renderAll();
   status.textContent = `最終取得: ${new Date().toLocaleTimeString('ja-JP')}`;
@@ -4240,21 +4249,65 @@ function appendCardSections(list, column, matches, isReorderable) {
   }
 }
 
-function loadStarredGroupIds(file) {
+// 「今日やる」「保留」「★」はカードIDごとにサーバーへ保存し、日をまたいでも別のブラウザでも同じにする。
+function applyCardMarks(marks) {
+  starredGroupIds = new Set(Object.keys(marks).filter((id) => marks[id].starred));
+  groupStatuses = Object.fromEntries(Object.entries(marks).filter(([, m]) => m.status).map(([id, m]) => [id, m.status]));
+}
+
+function readLocalJson(key) {
   try {
-    const ids = JSON.parse(localStorage.getItem(STARRED_KEY_PREFIX + file));
-    return new Set(Array.isArray(ids) ? ids : []);
+    return JSON.parse(localStorage.getItem(key));
   } catch {
-    return new Set();
+    return null;
   }
 }
 
-function loadGroupStatuses(file) {
+// 以前はブラウザにだけ保存していたため、残っている分をサーバーへ一度だけ移す。
+async function migrateLocalCardMarks(file) {
+  const statuses = readLocalJson(STATUS_KEY_PREFIX + file);
+  const starred = readLocalJson(STARRED_KEY_PREFIX + file);
+  if (!statuses && !starred) return;
+  const updates = {};
+  if (statuses && typeof statuses === 'object' && !Array.isArray(statuses)) {
+    for (const [id, status] of Object.entries(statuses)) if (!groupStatuses[id] && STATUS_LABELS[status]) updates[id] = { status };
+  }
+  if (Array.isArray(starred)) {
+    for (const id of starred) if (!starredGroupIds.has(id)) updates[id] = { ...(updates[id] || {}), starred: true };
+  }
+  for (const [groupId, mark] of Object.entries(updates)) {
+    const res = await postJson('/api/card-marks', { groupId, ...mark });
+    if (!res.ok) return;
+    if (mark.status) groupStatuses[groupId] = mark.status;
+    if (mark.starred) starredGroupIds.add(groupId);
+  }
   try {
-    const statuses = JSON.parse(localStorage.getItem(STATUS_KEY_PREFIX + file));
-    return statuses && typeof statuses === 'object' && !Array.isArray(statuses) ? statuses : {};
-  } catch {
-    return {};
+    localStorage.removeItem(STATUS_KEY_PREFIX + file);
+    localStorage.removeItem(STARRED_KEY_PREFIX + file);
+  } catch {}
+  if (Object.keys(updates).length) renderBoard();
+}
+
+async function saveCardMark(groupId, mark, revert) {
+  const res = await postJson('/api/card-marks', { groupId, ...mark });
+  if (res.ok) return;
+  revert();
+  renderBoard();
+  showToast('カードの印を保存できませんでした', { kind: 'error' });
+}
+
+function localDateString(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function renderStaleBoardNotice() {
+  const notice = document.getElementById('staleBoardNotice');
+  const today = localDateString();
+  const stale = Boolean(boardData && boardData.date && boardData.date < today);
+  notice.hidden = !stale;
+  if (stale) {
+    document.getElementById('staleBoardText').textContent = `これは ${boardData.date.slice(5).replace('-', '/')} のボードです。今日（${today.slice(5).replace('-', '/')}）の todo はまだありません。`;
   }
 }
 
@@ -4263,11 +4316,15 @@ function statusOf(group) {
 }
 
 function setGroupStatus(group, next) {
+  const previous = groupStatuses[group.id];
   if (next) groupStatuses[group.id] = next;
   else delete groupStatuses[group.id];
-  localStorage.setItem(STATUS_KEY_PREFIX + currentFile, JSON.stringify(groupStatuses));
   renderBoard();
   renderModalStatusButton();
+  saveCardMark(group.id, { status: next || '' }, () => {
+    if (previous) groupStatuses[group.id] = previous;
+    else delete groupStatuses[group.id];
+  });
 }
 
 // 3状態を1ボタンで巡回させると、今日やるを取り消すつもりの再押下で保留に化けるため、○は今日やるの付け外しに限る。
@@ -4282,11 +4339,15 @@ function describeStatusButton(group, subject) {
 }
 
 function toggleGroupStar(groupId) {
-  if (starredGroupIds.has(groupId)) starredGroupIds.delete(groupId);
-  else starredGroupIds.add(groupId);
-  localStorage.setItem(STARRED_KEY_PREFIX + currentFile, JSON.stringify([...starredGroupIds]));
+  const starred = !starredGroupIds.has(groupId);
+  if (starred) starredGroupIds.add(groupId);
+  else starredGroupIds.delete(groupId);
   renderBoard();
   renderModalStarButton();
+  saveCardMark(groupId, { starred }, () => {
+    if (starred) starredGroupIds.delete(groupId);
+    else starredGroupIds.add(groupId);
+  });
 }
 
 function buildCardMenuItems(column, group, orderPosition) {
@@ -6973,6 +7034,7 @@ async function init() {
       else activeFilterIds.add(filterId);
     }));
   }
+  document.getElementById('staleBoardImportBtn').addEventListener('click', () => document.getElementById('todoImportBtn').click());
   document.getElementById('loadErrorRetryBtn').addEventListener('click', () => {
     if (failedBoardFile) loadBoard(failedBoardFile);
   });
