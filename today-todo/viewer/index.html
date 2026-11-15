@@ -562,6 +562,25 @@
 
   /* ---------- 左パネル（今日・使用率・セッション） ---------- */
   .side-section { display: flex; flex-direction: column; gap: 8px; }
+  .flow-card {
+    display: flex; flex-direction: column; gap: 12px; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--raised); box-shadow: var(--shadow-sm);
+  }
+  .flow-group { display: flex; flex-direction: column; gap: 4px; }
+  .flow-group-title { margin: 0; font-size: var(--fs-xs); font-weight: 700; display: flex; justify-content: space-between; }
+  .flow-group[data-flow="waiting"] .flow-group-title { color: var(--state-blocked); }
+  .flow-group[data-flow="running"] .flow-group-title { color: var(--state-working); }
+  .flow-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .flow-item {
+    width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-sm, 6px); padding: 4px 6px;
+    color: inherit; font: inherit; font-size: var(--fs-sm, 13px); cursor: pointer; display: flex; flex-direction: column; gap: 1px;
+  }
+  .flow-item:hover, .flow-item:focus-visible { background: var(--surface-hover, color-mix(in srgb, var(--ink) 6%, transparent)); }
+  .flow-item-sub { font-size: var(--fs-xs); color: var(--ink-mute); }
+  .flow-empty { font-size: var(--fs-xs); color: var(--ink-mute); }
+  .flow-badge { align-self: flex-start; font-size: var(--fs-xs); font-weight: 600; padding: 0 6px; border-radius: 999px; color: var(--accent-ink); }
+  .flow-badge.flow-waiting { background: var(--state-blocked); }
+  .flow-badge.flow-running { background: var(--state-working); }
   .side-heading {
     margin: 0; display: flex; align-items: center; gap: 6px;
     font-size: var(--fs-xs); font-weight: 700; color: var(--ink-mute);
@@ -1195,6 +1214,24 @@
 </div>
 <div id="mainLayout">
   <aside id="globalCommentsPanel" aria-label="今日の進捗とClaudeセッション">
+    <section class="side-section" aria-labelledby="flowHeading">
+      <h2 class="side-heading" id="flowHeading">いまの状況</h2>
+      <div class="flow-card">
+        <div class="flow-group" data-flow="waiting">
+          <h3 class="flow-group-title"><span>自分待ち</span><span id="flowWaitingCount"></span></h3>
+          <ul class="flow-list" id="flowWaitingList"></ul>
+        </div>
+        <div class="flow-group" data-flow="running">
+          <h3 class="flow-group-title"><span>Claude が作業中</span><span id="flowRunningCount"></span></h3>
+          <ul class="flow-list" id="flowRunningList"></ul>
+        </div>
+        <div class="flow-group" data-flow="today">
+          <h3 class="flow-group-title"><span>今日やる（未着手）</span><span id="flowTodayCount"></span></h3>
+          <ul class="flow-list" id="flowTodayList"></ul>
+        </div>
+        <button id="notifyEnableBtn" type="button" class="btn btn-secondary btn--sm" hidden>状態が変わったら通知する</button>
+      </div>
+    </section>
     <section class="side-section" aria-labelledby="todayHeading">
       <h2 class="side-heading" id="todayHeading">今日の進捗</h2>
       <div class="today-card">
@@ -3441,6 +3478,7 @@ function renderBoard() {
   populateFocusColumnSelect();
   populateNewCardColumnOptions();
   renderBlockedCountBadge(boardData.columns.flatMap((c) => c.groups).filter((g) => { const s = representativeSessionOf(g); return !!s && s.state === 'blocked'; }).length);
+  renderFlowPanel();
   setCopyAvailability(
     document.getElementById('shareAllBtn'),
     document.getElementById('shareAllEmptyReason'),
@@ -3713,6 +3751,113 @@ function buildSessionStatus(group) {
     wrap.appendChild(detail);
   }
   return wrap;
+}
+
+// カードの状態を「未着手 → 稼働中 → 自分待ち → 完了」の1本で表す。Claude が応答済みでまだ開いていないカードも自分待ちに数える。
+const FLOW_LABELS = { todo: '未着手', running: '稼働中', waiting: '自分待ち', done: '完了' };
+const OFF_CARD_FLOW = { blocked: 'waiting', failed: 'waiting', working: 'running' };
+
+function cardFlowOf(group) {
+  const session = representativeSessionOf(group);
+  if (session && (session.state === 'blocked' || session.state === 'failed')) return 'waiting';
+  if (session && session.state === 'working') return 'running';
+  if (unreadMarksOf(group).some((m) => m.kind === 'session')) return 'waiting';
+  if (group.done) return 'done';
+  return 'todo';
+}
+
+let offCardSessions = [];
+const lastFlowStates = new Map();
+
+function flowItemButton(title, sub, onClick) {
+  const li = document.createElement('li');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'flow-item';
+  const main = document.createElement('span');
+  main.textContent = title;
+  const meta = document.createElement('span');
+  meta.className = 'flow-item-sub';
+  meta.textContent = sub;
+  button.append(main, meta);
+  button.addEventListener('click', onClick);
+  li.append(button);
+  return li;
+}
+
+function fillFlowList(listId, countId, items) {
+  const list = document.getElementById(listId);
+  document.getElementById(countId).textContent = items.length ? String(items.length) : '';
+  if (!items.length) {
+    const empty = document.createElement('li');
+    empty.className = 'flow-empty';
+    empty.textContent = 'なし';
+    list.replaceChildren(empty);
+    return;
+  }
+  list.replaceChildren(...items);
+}
+
+function renderFlowPanel() {
+  if (!boardData) return;
+  const lists = { waiting: [], running: [], today: [] };
+  const states = new Map();
+  for (const column of boardData.columns) {
+    for (const group of column.groups) {
+      const flow = cardFlowOf(group);
+      states.set(`card:${group.id}`, { flow, title: splitGroupTitle(group.title).main });
+      const item = () => flowItemButton(splitGroupTitle(group.title).main, column.name, () => openModal(column, group));
+      if (flow === 'waiting' || flow === 'running') lists[flow].push(item());
+      else if (flow === 'todo' && statusOf(group) === 'today') lists.today.push(item());
+    }
+  }
+  for (const s of offCardSessions) {
+    const flow = OFF_CARD_FLOW[s.state];
+    states.set(`job:${s.jobId}`, { flow: flow || 'done', title: s.name || s.jobId });
+    if (!flow) continue;
+    lists[flow].push(flowItemButton(s.name || s.jobId, 'カード外のセッション', async () => {
+      await openSessionListDialog();
+      selectManagedSession(s.jobId);
+    }));
+  }
+  fillFlowList('flowWaitingList', 'flowWaitingCount', lists.waiting);
+  fillFlowList('flowRunningList', 'flowRunningCount', lists.running);
+  fillFlowList('flowTodayList', 'flowTodayCount', lists.today);
+  notifyFlowChanges(states);
+}
+
+async function refreshOffCardSessions() {
+  try {
+    const res = await fetch('/api/sessions/all');
+    if (!res.ok) return;
+    const data = await res.json();
+    offCardSessions = (data.sessions || []).filter((s) => !s.card);
+    renderFlowPanel();
+  } catch {}
+}
+
+// 別のウィンドウで作業している間に Claude が止まったことへ気づけるよう、稼働中から自分待ち・完了に変わったときだけ通知する。
+function notifyFlowChanges(states) {
+  const canNotify = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  for (const [key, { flow, title }] of states) {
+    const prev = lastFlowStates.get(key);
+    lastFlowStates.set(key, { flow, title });
+    if (!canNotify || !prev || prev.flow !== 'running' || flow === 'running' || document.hasFocus()) continue;
+    const text = flow === 'waiting' ? 'あなたの返事を待っています' : '作業が終わりました';
+    try {
+      new Notification(`${title}`, { body: text, tag: key });
+    } catch {}
+  }
+}
+
+function setupNotifyButton() {
+  const button = document.getElementById('notifyEnableBtn');
+  if (typeof Notification === 'undefined' || Notification.permission !== 'default') return;
+  button.hidden = false;
+  button.addEventListener('click', async () => {
+    await Notification.requestPermission();
+    button.hidden = Notification.permission !== 'default';
+  });
 }
 
 const BASE_DOCUMENT_TITLE = 'Today Todo';
@@ -4451,7 +4596,15 @@ function makeCard(column, group, { matchedTaskText = null, orderPosition = null,
     badge.textContent = STATUS_LABELS[status];
     head.insertBefore(badge, head.firstChild);
   }
+  const flow = cardFlowOf(group);
+  if (flow === 'waiting' || flow === 'running') {
+    const badge = document.createElement('span');
+    badge.className = `flow-badge flow-${flow}`;
+    badge.textContent = FLOW_LABELS[flow];
+    head.insertBefore(badge, head.firstChild);
+  }
   for (const mark of unreadMarksOf(group)) {
+    if (flow === 'waiting' && mark.kind === 'session') continue;
     const badge = document.createElement('span');
     badge.className = `unread-badge unread-${mark.kind}`;
     badge.textContent = mark.label;
@@ -7192,8 +7345,11 @@ async function init() {
   bindSessionLogQuote(modalLogView);
   bindSessionLogQuote(sessionLogView);
 
+  setupNotifyButton();
+  refreshOffCardSessions();
   setInterval(() => {
     refreshSessions();
+    refreshOffCardSessions();
     detectExternalBoardUpdate();
   }, 5000);
 }
