@@ -1,0 +1,165 @@
+<title>試作ゲーム</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root {
+    --bg: #e9edf4; --arena: #f8fafd; --line: #c9d1df; --fg: #1b2233; --muted: #586380;
+    --player: #1f5fd1; --enemy: #c9412b;
+    --font: "Hiragino Sans", "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11141c; --arena: #1a1f2c; --line: #2c3446; --fg: #e6eaf2;
+      --muted: #8f99b0; --player: #6ea8ff; --enemy: #ff7c66; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #11141c; --arena: #1a1f2c; --line: #2c3446; --fg: #e6eaf2;
+    --muted: #8f99b0; --player: #6ea8ff; --enemy: #ff7c66; color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--font);
+    display: flex; flex-direction: column; gap: 10px; padding-block: 12px; box-sizing: border-box;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  .scores { display: flex; gap: 16px; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--muted); }
+  .scores b { color: var(--fg); font-size: 18px; }
+  #stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { background: var(--arena); border: 1px solid var(--line); border-radius: 4px; touch-action: none; cursor: crosshair; display: block; }
+  p.hint { margin: 0; font-size: 13px; color: var(--muted); text-align: center; text-wrap: balance; }
+</style>
+
+<header>
+  <h1>試作ゲーム</h1>
+  <div class="scores"><span>スコア <b id="score">0</b></span><span>最高 <b id="best">0</b></span></div>
+</header>
+<div id="stage"><canvas id="game" aria-label="ゲーム画面"></canvas></div>
+<p class="hint">押している場所（または矢印キー / WASD の方向）へ動く。四角に触れたら終わり。</p>
+
+<script src="game.js"></script>
+<script>
+const { CONFIG, createState, step } = Game;
+const TEXT = { ready: '押すか、矢印キーで開始', retry: '押すか、スペースキーでやり直し' };
+
+// ---- ゲームごとに書き換える: 描画 ----
+function drawGame(ctx, state, colors) {
+  const h = CONFIG.hazard.half, p = state.player;
+  ctx.fillStyle = colors.enemy;
+  for (const z of state.hazards) ctx.fillRect(z.x - h, z.y - h, h * 2, h * 2);
+  ctx.fillStyle = colors.player;
+  ctx.beginPath(); ctx.arc(p.x, p.y, CONFIG.player.radius, 0, 7); ctx.fill();
+}
+function deathText(state) { return '四角に触れた　スコア ' + state.score; }
+
+// ---- ここから下は共通の枠（入力・ループ・画面合わせ） ----
+const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score'), bestEl = document.getElementById('best');
+const input = { aimX: CONFIG.arena / 2, aimY: CONFIG.arena / 2, active: false };
+let state = createState(1);
+state.mode = 'ready';
+let deadSince = 0, best = 0, scale = 1, colors = {};
+try { best = Number(localStorage.getItem('best')) || 0; } catch (e) {}
+bestEl.textContent = best;
+
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ['fg', 'muted', 'player', 'enemy', 'line', 'arena']) colors[k] = cs.getPropertyValue('--' + k).trim();
+}
+function fit() {
+  const box = document.getElementById('stage').getBoundingClientRect();
+  const size = Math.max(120, Math.floor(Math.min(box.width, box.height)) - 2);
+  canvas.style.width = canvas.style.height = size + 'px';
+  canvas.width = canvas.height = Math.round(size * (window.devicePixelRatio || 1));
+  scale = canvas.width / CONFIG.arena;
+}
+new ResizeObserver(fit).observe(document.getElementById('stage'));
+fit();
+
+function startIfWaiting() {
+  const now = performance.now() / 1000;
+  if (state.mode === 'ready' || (state.mode === 'dead' && now - deadSince >= CONFIG.retryDelay)) state = createState((Math.random() * 2 ** 32) >>> 0);
+}
+function aimFrom(ev) {
+  const r = canvas.getBoundingClientRect();
+  input.aimX = (ev.clientX - r.left) / r.width * CONFIG.arena;
+  input.aimY = (ev.clientY - r.top) / r.height * CONFIG.arena;
+}
+canvas.addEventListener('pointerdown', ev => {
+  ev.preventDefault();
+  try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+  aimFrom(ev); startIfWaiting(); input.active = true;
+});
+canvas.addEventListener('pointermove', aimFrom);
+for (const type of ['pointerup', 'pointercancel']) canvas.addEventListener(type, () => { input.active = false; });
+
+const KEY_DIRECTIONS = {
+  ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+  a: [-1, 0], d: [1, 0], w: [0, -1], s: [0, 1],
+};
+const heldKeys = new Set();
+function keyName(ev) { return ev.key.length === 1 ? ev.key.toLowerCase() : ev.key; }
+// キーの照準は自機からの相対位置なので、自機が動くたびに置き直す。
+function aimFromKeys() {
+  if (!heldKeys.size) return;
+  let x = 0, y = 0;
+  for (const k of heldKeys) { x += KEY_DIRECTIONS[k][0]; y += KEY_DIRECTIONS[k][1]; }
+  x = Math.sign(x); y = Math.sign(y);
+  input.active = x !== 0 || y !== 0;
+  input.aimX = state.player.x + x * CONFIG.keyboardAimDistance;
+  input.aimY = state.player.y + y * CONFIG.keyboardAimDistance;
+}
+window.addEventListener('keydown', ev => {
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const k = keyName(ev), isStartKey = k === ' ' || k === 'Enter';
+  if (!KEY_DIRECTIONS[k] && !isStartKey) return;
+  ev.preventDefault();
+  if (ev.repeat) return;
+  startIfWaiting();
+  if (KEY_DIRECTIONS[k]) heldKeys.add(k);
+});
+window.addEventListener('keyup', ev => { if (heldKeys.delete(keyName(ev)) && !heldKeys.size) input.active = false; });
+window.addEventListener('blur', () => { heldKeys.clear(); input.active = false; });
+
+function draw() {
+  const A = CONFIG.arena;
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.clearRect(0, 0, A, A);
+  drawGame(ctx, state, colors);
+  if (state.mode !== 'playing') {
+    const font = getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = colors.arena; ctx.globalAlpha = 0.82; ctx.fillRect(0, A / 2 - 112, A, 92); ctx.globalAlpha = 1;
+    ctx.textAlign = 'center'; ctx.fillStyle = colors.fg; ctx.font = '700 30px ' + font;
+    ctx.fillText(state.mode === 'ready' ? TEXT.ready : deathText(state), A / 2, A / 2 - 70);
+    ctx.fillStyle = colors.muted; ctx.font = '16px ' + font;
+    if (state.mode === 'dead') ctx.fillText(TEXT.retry, A / 2, A / 2 - 40);
+  }
+}
+
+let last = performance.now(), acc = 0, frames = 0;
+function frame(now) {
+  acc += Math.min(0.1, (now - last) / 1000);
+  last = now;
+  // 更新は固定刻み。描画の速さでゲームの速さが変わらないようにする。
+  while (acc >= CONFIG.step) {
+    const wasPlaying = state.mode === 'playing';
+    aimFromKeys();
+    step(state, input, CONFIG.step);
+    acc -= CONFIG.step;
+    if (wasPlaying && state.mode === 'dead') {
+      deadSince = now / 1000; input.active = false;
+      if (state.score > best) { best = state.score; bestEl.textContent = best; try { localStorage.setItem('best', best); } catch (e) {} }
+    }
+  }
+  if (frames++ % 30 === 0) readColors();
+  scoreEl.textContent = state.score;
+  draw();
+  requestAnimationFrame(frame);
+}
+readColors();
+requestAnimationFrame(frame);
+window.__game = { get state() { return state; }, input };
+</script>
