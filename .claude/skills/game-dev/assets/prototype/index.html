@@ -43,9 +43,8 @@
 <script src="game.js"></script>
 <script>
 const { CONFIG, createState, step } = Game;
+// ---- ゲームごとに書き換える: 文言と描画（ほかに <title>・<h1>・操作説明の <p class="hint">） ----
 const TEXT = { ready: '押すか、矢印キーで開始', retry: '押すか、スペースキーでやり直し' };
-
-// ---- ゲームごとに書き換える: 描画 ----
 function drawGame(ctx, state, colors) {
   const h = CONFIG.hazard.half, p = state.player;
   ctx.fillStyle = colors.enemy;
@@ -58,7 +57,7 @@ function deathText(state) { return '四角に触れた　スコア ' + state.sco
 // ---- ここから下は共通の枠（入力・ループ・画面合わせ） ----
 const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score'), bestEl = document.getElementById('best');
-const input = { aimX: CONFIG.arena / 2, aimY: CONFIG.arena / 2, active: false };
+const input = { aimX: CONFIG.arena / 2, aimY: CONFIG.arena / 2, active: false, pressed: false };
 let state = createState(1);
 state.mode = 'ready';
 let deadSince = 0, best = 0, scale = 1, colors = {};
@@ -79,9 +78,11 @@ function fit() {
 new ResizeObserver(fit).observe(document.getElementById('stage'));
 fit();
 
-function startIfWaiting() {
+// 開始・やり直しに使った押下は、ゲーム内の操作として数えない（最初の1手が勝手に入るのを防ぐ）。
+function pressOrStart() {
   const now = performance.now() / 1000;
-  if (state.mode === 'ready' || (state.mode === 'dead' && now - deadSince >= CONFIG.retryDelay)) state = createState((Math.random() * 2 ** 32) >>> 0);
+  if (state.mode === 'playing') { input.pressed = true; return; }
+  if (state.mode === 'ready' || now - deadSince >= CONFIG.retryDelay) state = createState((Math.random() * 2 ** 32) >>> 0);
 }
 function aimFrom(ev) {
   const r = canvas.getBoundingClientRect();
@@ -91,7 +92,7 @@ function aimFrom(ev) {
 canvas.addEventListener('pointerdown', ev => {
   ev.preventDefault();
   try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
-  aimFrom(ev); startIfWaiting(); input.active = true;
+  aimFrom(ev); pressOrStart(); input.active = true;
 });
 canvas.addEventListener('pointermove', aimFrom);
 for (const type of ['pointerup', 'pointercancel']) canvas.addEventListener(type, () => { input.active = false; });
@@ -118,7 +119,7 @@ window.addEventListener('keydown', ev => {
   if (!KEY_DIRECTIONS[k] && !isStartKey) return;
   ev.preventDefault();
   if (ev.repeat) return;
-  startIfWaiting();
+  pressOrStart();
   if (KEY_DIRECTIONS[k]) heldKeys.add(k);
 });
 window.addEventListener('keyup', ev => { if (heldKeys.delete(keyName(ev)) && !heldKeys.size) input.active = false; });
@@ -148,6 +149,8 @@ function frame(now) {
     const wasPlaying = state.mode === 'playing';
     aimFromKeys();
     step(state, input, CONFIG.step);
+    // 1ステップで消費する。押してすぐ離した入力も、次のステップまで残るので取りこぼさない。
+    input.pressed = false;
     acc -= CONFIG.step;
     if (wasPlaying && state.mode === 'dead') {
       deadSince = now / 1000; input.active = false;

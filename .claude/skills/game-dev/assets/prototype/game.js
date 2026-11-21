@@ -1,6 +1,9 @@
 // ゲームのルール。描画・DOM・時計に触れないこと（measure.js が画面なしで同じ関数を回す）。
 // 契約: CONFIG.arena / CONFIG.step、createState(seed)、step(state, input, dt)、bots。
 // state には mode('playing'|'dead')・time・score・deathCause・player{x,y}・events を必ず持たせる。
+// 終了時に threatAge（やられた相手が出現してからの秒数）を入れると、measure.js が「避けようのない終了」を判定する。
+// input は { aimX, aimY, active, pressed }。active は押している間ずっと true、pressed は押した瞬間の1ステップだけ true。
+// 場が四角でない・自機が場を動き回らないゲームは、api に measureHints: { skipEdge: true } を足す。
 // この雛形の中身（追ってくる四角を避ける）は差し替え用の例。
 (function (root) {
   // 調整つまみ。数値はここ以外に書かない。
@@ -10,7 +13,8 @@
     retryDelay: 0.4,
     keyboardAimDistance: 160,
     player: { radius: 12, speed: 260 },
-    hazard: { half: 12, speed: 150, spawnEvery: 0.7 },
+    hazard: { half: 12, speed: 150, spawnEvery: 0.7, spawnMinDistance: 240 },
+    bot: { dodgeDistance: 150 },
   };
 
   function seededRandom(seed) {
@@ -34,7 +38,6 @@
     };
   }
 
-  // input: { aimX, aimY, active }
   function step(s, input, dt) {
     if (s.mode !== 'playing') return;
     const { arena, player: P, hazard: H } = CONFIG;
@@ -54,9 +57,13 @@
     s.spawnIn -= dt;
     if (s.spawnIn <= 0) {
       s.spawnIn = H.spawnEvery;
-      const along = s.random() * arena, side = Math.floor(s.random() * 4);
-      const x = side === 0 ? 0 : side === 1 ? arena : along;
-      const y = side === 2 ? 0 : side === 3 ? arena : along;
+      let x, y, attempt = 0;
+      // 出現直後に当たる理不尽を避けるため、自機の近くには出さない
+      do {
+        const along = s.random() * arena, side = Math.floor(s.random() * 4);
+        x = side === 0 ? 0 : side === 1 ? arena : along;
+        y = side === 2 ? 0 : side === 3 ? arena : along;
+      } while (Math.hypot(x - p.x, y - p.y) < H.spawnMinDistance && ++attempt < 8);
       const dx = p.x - x, dy = p.y - y, len = Math.hypot(dx, dy) || 1;
       s.hazards.push({ x, y, vx: dx / len * H.speed, vy: dy / len * H.speed, born: s.time });
     }
@@ -74,16 +81,23 @@
   }
 
   // 計測用の遊び方。(state, memo, random) => input。random はゲーム本体とは別の乱数。
-  // 最低でも「何もしない」「でたらめ」「最も素朴な正攻法」の3つを置く。
+  // 名前は idle（何もしない）・random（でたらめ）を固定し、最も素朴な正攻法を1つ以上足す。
+  // 遊び方の数値（確率・余裕幅）も CONFIG に置く。
   const bots = {
-    idle: () => ({ aimX: 0, aimY: 0, active: false }),
-    random: (s, memo, random) => ({ aimX: random() * CONFIG.arena, aimY: random() * CONFIG.arena, active: true }),
+    idle: () => ({ aimX: 0, aimY: 0, active: false, pressed: false }),
+    random: (s, memo, random) => ({ aimX: random() * CONFIG.arena, aimY: random() * CONFIG.arena, active: true, pressed: false }),
     naive: (s) => {
-      const p = s.player;
+      // 四角は直進するので、最も近い四角の進路と直角の方向へ避ける
+      const p = s.player, c = CONFIG.arena / 2;
       let near = null, best = Infinity;
       for (const h of s.hazards) { const d = Math.hypot(h.x - p.x, h.y - p.y); if (d < best) { best = d; near = h; } }
-      if (!near) return { aimX: p.x, aimY: p.y, active: false };
-      return { aimX: p.x - (near.x - p.x), aimY: p.y - (near.y - p.y), active: true };
+      if (!near || best > CONFIG.bot.dodgeDistance) return { aimX: c, aimY: c, active: true, pressed: false };
+      const len = Math.hypot(near.vx, near.vy) || 1;
+      let sx = -near.vy / len, sy = near.vx / len;
+      // 進路のどちら側にいるかで避ける向きを決める（毎回中央寄りを選ぶと、進路上を往復して当たる）
+      const side = (p.x - near.x) * sx + (p.y - near.y) * sy;
+      if (Math.abs(side) > 1 ? side < 0 : sx * (c - p.x) + sy * (c - p.y) < 0) { sx = -sx; sy = -sy; }
+      return { aimX: p.x + sx * 200, aimY: p.y + sy * 200, active: true, pressed: false };
     },
   };
 
