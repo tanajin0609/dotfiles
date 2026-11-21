@@ -60,3 +60,52 @@
 - 行動の直後に小さい反応（音・エフェクト・数字）、区切りで大きい報酬（解放・新要素）を返す。
 - プレイヤーに選ばせる報酬（3択など）は、同じ内容でも納得感が高い。
 - 課金・ログインボーナスなどで不安や損失回避を煽る設計は、依頼されても先にリスク（規約・年齢層・評判）を伝える。
+
+## 面白さの仕組み（理論と根拠）
+
+面白さを生む配合の公式は無い（MDA論文自身がそう述べている [1]）。下の理論は答えではなく、「なぜ面白くないのか」の原因を探す切り口として使う。
+
+| 理論 | 面白さの説明 | 根拠の種類 |
+|---|---|---|
+| MDA [1] | ルール（Mechanics）→ 遊ぶと起きる展開（Dynamics）→ 感じる体験（Aesthetics）の3層。作り手が直接触れるのはルールだけで、体験はルールから間接的に生まれる | 設計の枠組み。実験による検証ではない |
+| 自己決定理論 [2] | 自分で選べる（自律性）・上達を感じる（有能感）・人とつながる（関係性）が満たされると引き込まれる | 4つの研究で検証 |
+| GameFlow [3] | 難しさと腕前の釣り合いで没頭する。要素は集中・挑戦・技能・操作感・明確な目標・フィードバック・没入・交流の8つ | 文献整理から構築。検証は2本のゲームの専門家評価のみで、著者も発展が必要としている |
+| 学習としての面白さ [4] | 面白さは、パターンを学んで習得している間に得られる報酬。学ぶことが尽きると飽きる | デザイナーの著書。実験による検証ではない |
+| 4つの楽しさの鍵 [5] | 挑戦と克服／探索や想像／気分の変化／人との交流の4種類があり、人によって求めるものが違う | プレイヤー観察に基づく分類。出典により分類名が少し異なる |
+
+MDAは体験を8種類（感覚・空想・物語・挑戦・仲間・発見・表現・暇つぶし）に分けるが、一覧は網羅的ではなく、恣意的だという批判もある [1]。
+
+### 定説として扱ってはいけないもの
+
+- **「難易度を腕前に釣り合わせれば楽しい」は確定していない**。難易度を自動制御した事前登録研究では、釣り合いは没頭にも楽しさにも影響しなかった [6]。没頭と楽しさは別物で、常に釣り合った状態より緩急があるほうがよいとする実験もある [7]。釣り合いを支持する実験もあり [8]、結論は割れている。
+- **この分野の測定は弱い**。ほぼ自己申告のアンケートに頼っており、研究同士が異質で統合できないと指摘されている [6]。
+- **演出は多いほど良いわけではない**。視覚・触覚の演出が体験を良くする報告はあるが [9][10]、盛りすぎると有能感を妨げるという報告もある [11]。
+
+### 原因の当たりをつける
+
+プレイテストの結果から、どの切り口を疑うかの対応。この表は本skillでの当てはめで、出典に記載はない。
+
+| 人の反応 | 疑う切り口 | 試す変更（1回に1つ） |
+|---|---|---|
+| 操作は分かるが、すぐやめる | 学習：覚えることが無い／すぐ尽きる | 読み方を覚える必要がある新しい状況を1つ足す |
+| 何度やっても同じ展開になる | 自律性：選ぶ場面が無い | 結果が変わる選択を1つ入れる（強化の択一、ルート分岐） |
+| うまくなった実感が無い | 有能感：上達が見えない | 記録の更新、前回との差、被弾理由を見せる |
+| 意図した緊張や爽快感が出ない | MDA：ルールから狙った展開が生まれていない | 体験から逆算し、展開を変えるルールを1つ変える |
+| ずっと同じ調子で疲れる／飽きる | 緩急 | 難しい場面の後に易しい場面を置く |
+| 何が起きたか分からない | フィードバック | 反応を足す。すでに多いなら減らす |
+
+### 出典
+
+確認の度合い: いずれも検索結果の要約・抄録で確認したもので、論文本文は未読。数値や細部を引用するときは本文に当たること。[9] は実験設計のみ確認でき、結果は未確認。
+
+1. Hunicke, LeBlanc, Zubek (2004) "MDA: A Formal Approach to Game Design and Game Research" https://users.cs.northwestern.edu/~hunicke/MDA.pdf （8種類の説明と批判は https://en.wikipedia.org/wiki/MDA_framework による）
+2. Ryan, Rigby, Przybylski (2006) "The Motivational Pull of Video Games: A Self-Determination Theory Approach" https://doi.org/10.1007/s11031-006-9051-8
+3. Sweetser, Wyeth (2005) "GameFlow: A Model for Evaluating Player Enjoyment in Games" https://doi.org/10.1145/1077246.1077253
+4. Koster (2004) "A Theory of Fun for Game Design"。著者による10年後の振り返り https://gamedeveloper.com/design/raph-koster-s-theory-of-fun-ten-years-on
+5. Lazzaro "The Four Fun Keys"（Game Usability, 2008, 第20章）
+6. "Difficulty-skill balance does not affect engagement and enjoyment: a pre-registered study using artificial intelligence-controlled difficulty" https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9890114/
+7. Baumann, Lürig, Engeser (2016) Motivation and Emotion 40:507–519 https://www.uni-trier.de/fileadmin/fb1/prof/PSY/PGA/unterlagen/BaumannL%C3%BCrigEngeser_Flow_MOEM_2016.pdf
+8. "Being enjoyably challenged is the key to an enjoyable gaming experience" https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5954478/
+9. Hicks, Gerling, Dickinson, Vanden Abeele (2019) "Juicy Game Design: Understanding the Impact of Visual Embellishments on Player Experience" https://doi.org/10.1145/3311350.3347171
+10. Singhal, Schneider (2021) "Juicy Haptic Design: Vibrotactile Embellishments Can Improve Player Experience in Games" https://uwaterloo.ca/haptic-experience-lab/references/juicy-haptic-design-vibrotactile-embellishments-can-improve
+11. https://arxiv.org/html/2512.13695
