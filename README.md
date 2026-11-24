@@ -86,13 +86,28 @@ skill / command 側にはこう書きます:
 前提: `git` と `bash` が使えること。追加の権限設定は不要です。
 
 ```bash
-cd ~/dotfiles   # クローン先はどこでもよい
+git clone https://github.com/tanajin0609/dotfiles.git ~/dotfiles   # クローン先はどこでもよい
+cd ~/dotfiles
 ./install.sh
 ```
+
+更新するときは、クローン先で `git pull` してから `./install.sh` を再実行する。クローン先を忘れたら `readlink -f ~/.claude/skills` で分かる。
 
 - `~/.claude/commands` / `~/.claude/skills` / `~/.claude/CLAUDE.md` が無ければ新規にシンボリックリンクを作成
 - 既存のファイル/ディレクトリがあれば `<元のパス>.bak.<実行時刻>` に退避してからリンクを作成（データは消えず退避されるだけ）
 - 既にこのリポジトリへリンク済みなら何もしない（再実行しても安全）
+
+### today-todo viewer
+
+`install.sh` が起動コマンド `~/.local/bin/today-todo-viewer` も作る（Windows ネイティブの `install.ps1` は作らないため、WSL で使う）。
+
+前提: Node 18 以上。todo-import・セッション起動には PATH 上の `claude` CLI。足りないものは `install.sh` の最後に `note:` で表示される。
+
+```bash
+today-todo-viewer
+```
+
+http://localhost:3131 を開く。初回は todo ファイルが無いので、画面の「todo-import を実行」で `~/projects/*/docs/tasks/backlog.md` から作る。詳細は `today-todo/viewer/README.md`。
 
 ### Windows ネイティブ（`install.ps1`）
 

@@ -750,6 +750,24 @@ function onActionMenuKeydown(e) {
   }
 }
 
+function renderFirstRunGuide() {
+  document.getElementById('status').textContent = 'todo-*.md が見つかりません';
+  const guide = document.createElement('div');
+  guide.className = 'empty-state first-run-guide';
+  const title = document.createElement('div');
+  title.className = 'empty-state-title';
+  title.textContent = '今日のtodoファイルがまだありません';
+  const description = document.createElement('div');
+  description.textContent = '~/projects/<サブプロジェクト>/docs/tasks/backlog.md の未完了タスクから、~/projects/today-todo/todo-<日付>.md を作ります。';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn btn-primary btn--sm';
+  button.textContent = 'todo-import を実行';
+  button.addEventListener('click', () => document.getElementById('todoImportBtn').click());
+  guide.append(title, description, button);
+  document.getElementById('board').replaceChildren(guide);
+}
+
 function renderBoard() {
   const board = document.getElementById('board');
   const openFound = document.getElementById('cardDialog').open && findGroupById(lastModalGroupId);
