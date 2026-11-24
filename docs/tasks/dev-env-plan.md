@@ -16,6 +16,22 @@ backlog.md の #6〜#10 に対応する。上から順に着手する。依存: 
 - 注意: 環境の作成・変更は毎回承認カードが出る。ネットワーク機密は環境をまたいで移らないので、必要なものは新しい環境で `request_credential` から登録し直す。
 - 完了条件: 新しく作った各環境の許可ホストが用途の分だけになり、その環境の新しいセッションで、手順2の表の確認コマンドがすべて通る。旧環境は手順4の判断どおりになっている（外すと決めたホストが消えている）。
 
+### 用途別の環境（手順2の表）
+
+確認コマンドは、その環境の新しいセッションで `curl -s -o /dev/null -w "%{http_code}" https://<host>/` を実行する。許可外の確認先として `example.com` が拒否されることも見る。パッケージ取得（npm・PyPI など）はどの環境でも許可している。
+
+| 環境 | 対象リポジトリ | 許可するホスト |
+|---|---|---|
+| dotfiles・調べもの | dotfiles、claude-context-pii-guard-ui、tech-blog-lib | www.youtube.com、zenn.dev、speakerdeck.com |
+| Overwatch系 | overwatch-blog-web、overwatch-tournament-web、overwatch-tournament-ops、overwatch-information-rag | overwatch.blizzard.com、overfast-api.tekrop.fr、d15f34w2p8l1cc.cloudfront.net、api.cloudflare.com |
+| アプリ開発 | fishing-rpg-app、sugumemo-app、todo-timer-app、tech-stack-batte-app、autoeditbot、build-server | なし（用途不明だったストア系・huggingface は外した。必要になったら足す） |
+| Web・LP制作 | portfolio-web、xmas-yearend-party-lp、tne-bbq-lp、ui-style-inspector-tool | fonts.googleapis.com、fonts.gstatic.com、api.cloudflare.com |
+| 状況まとめ | 全リポジトリ（#8 用） | なし |
+
+旧環境（Overwatch パッチノート取得用環境）は残している。
+
+確認結果（2026-11-25、各環境の新しいセッションで実行）: 許可したホストはすべて応答を返し（200・301・307・404 など。cloudfront の 403 は配信元の応答）、許可していない `example.com` はどの環境でも接続できなかった。アプリ開発では外した `play.google.com` も接続できなかった。
+
 ## #7 backlog の行IDを作業の起点・終点にする
 
 - 狙い: 作業がローカル・クラウド・PRに散らばっても、backlog の1行から辿れるようにする。
