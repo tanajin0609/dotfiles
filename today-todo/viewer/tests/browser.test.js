@@ -99,3 +99,39 @@ test('昨日の日付のボードには帯が出て、todo-import の案内が�
     await ctx.close();
   }
 });
+
+test('todoファイルが無いと初回案内を出し、後からボードを読み込んでもカードのダイアログを閉じられる', async (t) => {
+  if (!chromium) return t.skip('playwright が無い環境');
+  let browser;
+  try {
+    browser = await chromium.launch();
+  } catch (err) {
+    return t.skip(`ブラウザを起動できない環境: ${err.message}`);
+  }
+  const fixture = setupFixture();
+  fs.rmSync(path.join(fixture.todoDir, fixture.todoFile));
+  const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
+  try {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(server.baseUrl.replace('127.0.0.1', 'localhost'));
+    const guide = page.locator('.first-run-guide');
+    await guide.waitFor({ state: 'visible' });
+    assert.match(await guide.innerText(), /今日のtodoファイルがまだありません/);
+    assert.equal(await guide.getByRole('button', { name: 'todo-import を実行' }).isVisible(), true);
+
+    // todo-import 完了時と同じ経路（ファイル一覧を取り直して先頭を読む）でボードを出す
+    fs.writeFileSync(path.join(fixture.todoDir, fixture.todoFile), TODO.join('\n'));
+    await page.evaluate(async () => loadBoard((await loadFileList())[0]));
+    await page.locator('.group-card', { hasText: 'カードA' }).click();
+    const dialog = page.locator('#cardDialog');
+    await dialog.waitFor({ state: 'visible' });
+    await page.locator('#modalCloseBtn').click();
+    await dialog.waitFor({ state: 'hidden' });
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    await server.stop();
+  }
+});

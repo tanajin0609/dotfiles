@@ -127,17 +127,19 @@ async function init() {
 
   resumeTodoImportWatch();
   const files = await loadFileList();
+  // todoが無くても以降のイベント登録は続ける。初回のtodo-import完了後にボードが読み込まれるため。
   if (files.length === 0) {
-    document.getElementById('status').textContent = 'todo-*.md が見つかりません';
-    return;
+    renderFirstRunGuide();
+  } else {
+    const hashState = readUrlHashState();
+    const isHashFileLatest = !!hashState && hashState.file === files[0];
+    const isLoaded = await loadBoard(files[0]);
+    if (isLoaded && isHashFileLatest) restoreUrlViewState(hashState);
   }
-  const hashState = readUrlHashState();
-  const isHashFileLatest = !!hashState && hashState.file === files[0];
-  const isLoaded = await loadBoard(files[0]);
-  if (isLoaded && isHashFileLatest) restoreUrlViewState(hashState);
 
-  document.getElementById('reloadBtn').addEventListener('click', () => loadBoard(currentFile));
+  document.getElementById('reloadBtn').addEventListener('click', () => { if (currentFile) loadBoard(currentFile); });
   document.getElementById('shareAllBtn').addEventListener('click', () => {
+    if (!boardData) return;
     const pairs = [];
     for (const column of boardData.columns) {
       for (const group of column.groups) pairs.push({ column: column.name, group });

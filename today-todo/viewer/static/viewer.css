@@ -606,6 +606,7 @@
   .session-card .detail { color: var(--ink-mute); overflow-wrap: anywhere; }
   .empty-state { font-size: var(--fs-xs); line-height: 1.7; color: var(--ink-mute); padding: 4px 2px; }
   .empty-state-title { font-weight: 600; color: var(--ink-sub); margin-bottom: 2px; }
+  .first-run-guide { max-width: 480px; margin: 48px auto; font-size: var(--fs-sm); display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 
   /* ---------- ボードのツールバー ---------- */
   .board-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
