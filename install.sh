@@ -50,3 +50,16 @@ for f in server.js index.html README.md tests; do
 done
 
 echo "done."
+
+# today-todo-viewer を使うための前提を確かめ、足りないものだけを案内する
+if ! command -v node >/dev/null 2>&1; then
+  echo "note: today-todo-viewer には Node 18 以上が必要です（node が見つかりません）"
+elif [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 18 ]; then
+  echo "note: today-todo-viewer には Node 18 以上が必要です（現在: $(node -v)）"
+fi
+command -v claude >/dev/null 2>&1 || echo "note: claude CLI が PATH にありません。viewer の todo-import・セッション起動は使えません"
+case ":${PATH}:" in
+  *":${HOME}/.local/bin:"*) ;;
+  *) echo "note: ~/.local/bin が PATH にありません。~/.bashrc 等に次を追記してください: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+esac
+echo "today-todo-viewer で起動し、http://localhost:3131 を開いてください"
