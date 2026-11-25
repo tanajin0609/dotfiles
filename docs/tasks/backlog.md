@@ -22,7 +22,7 @@
 
 ### UI/UXレビュースキルの精度向上
 - [x] #11 起動できるアプリはaxe-core等で実測し機械判定項目を確定させる → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
-- [ ] #12 出力前に根拠を入力へ再照合し、示せない指摘を要確認へ移す（#11 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
+- [x] #12 出力前に根拠を入力へ再照合し、示せない指摘を要確認へ移す（#11 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
 - [ ] #13 深刻度に頻度と持続性を加え、発見と評定の段を分ける（#12 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
 - [ ] #14 評価の限界と複数画面の見方を出力・手順に明記する（#13 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
 - [ ] #15 EN 301 549・WCAG 3・DFA・Liquid Glassの記述を更新する（#14 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
