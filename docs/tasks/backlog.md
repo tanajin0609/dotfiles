@@ -21,7 +21,7 @@
 - [ ] #10 手元の平文の秘密ファイルをシークレット管理に集め、実行時だけ渡す（#9 の後、導入前に要確認） → [docs/tasks/dev-env-plan.md](dev-env-plan.md)
 
 ### UI/UXレビュースキルの精度向上
-- [ ] #11 起動できるアプリはaxe-core等で実測し機械判定項目を確定させる → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
+- [x] #11 起動できるアプリはaxe-core等で実測し機械判定項目を確定させる → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
 - [ ] #12 出力前に根拠を入力へ再照合し、示せない指摘を要確認へ移す（#11 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
 - [ ] #13 深刻度に頻度と持続性を加え、発見と評定の段を分ける（#12 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
 - [ ] #14 評価の限界と複数画面の見方を出力・手順に明記する（#13 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)

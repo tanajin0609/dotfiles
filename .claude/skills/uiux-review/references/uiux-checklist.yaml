@@ -33,8 +33,8 @@ enums:
     flow: 画面遷移図・フロー仕様
     runtime: 実機または動作する環境
 
-  # auto: 将来のlintスクリプト用のメタデータ。
-  # モデルは確信度の根拠に使わない（confidence は requires の充足度だけで決める）。
+  # auto: 静的に判定できるかの目印。確信度の根拠には使わない（confidence は requires の充足度で決める）。
+  # runtime で実測した違反の扱いは SKILL.md 手順1.2の対応表が決める。
   auto:
     true: スクリプト/静的解析で判定可能
     false: 人またはモデルの解釈が必要
