@@ -53,7 +53,7 @@ test('/api/board は Claude CLI の確認済みの版を返す', async () => {
   const server = await startViewerServer({ VIEWER_TODO_DIR: fixture.todoDir, VIEWER_DATA_DIR: fixture.dataDir });
   try {
     const board = await (await fetch(`${server.baseUrl}/api/board?file=${fixture.todoFile}`)).json();
-    assert.equal(board.claudeCli.tested, '2.1.291');
+    assert.equal(board.claudeCli.tested, '2.1.332');
     assert.equal(board.claudeCli.version, null);
   } finally {
     await server.stop();

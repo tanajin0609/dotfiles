@@ -19,7 +19,7 @@ const CLAUDE_CONFIG_PATH = process.env.VIEWER_CLAUDE_CONFIG
   : path.join(os.homedir(), '.claude.json');
 
 // state.json の項目や `backgrounded · <id>` の出力など、CLI の内部仕様に頼る処理はこの版で実機確認している。
-const TESTED_CLAUDE_CLI_VERSION = '2.1.291';
+const TESTED_CLAUDE_CLI_VERSION = '2.1.332';
 
 const BUSY_JOB_STATES = new Set(['working', 'running', 'starting', 'resuming', 'crashed']);
 
