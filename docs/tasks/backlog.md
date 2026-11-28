@@ -28,4 +28,8 @@
 - [ ] #15 EN 301 549・WCAG 3・DFA・Liquid Glassの記述を更新する（#14 の後） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
 - [ ] #16 FTC・JIS・改善案指針を原文確認してから追記する（#15 の後・許可ホスト追加待ち） → [docs/tasks/uiux-review-brushup-plan.md](uiux-review-brushup-plan.md)
 
+### リモートブランチの整理
+- [ ] #17 マージ済みのリモートブランチ40本を手元から削除し、head branchの自動削除を有効にする（クラウドからは削除不可） → [docs/tasks/branch-cleanup.md](branch-cleanup.md)
+- [ ] #18 mainと共通祖先が無い旧履歴ブランチ11本の中身がmainにあるか確かめ、削除か載せ直しを決める → [docs/tasks/branch-cleanup.md](branch-cleanup.md)
+
 ## 完了（archives/へ移動済み）
